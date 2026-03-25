@@ -28,3 +28,13 @@ EXPOSE 3000
 
 # Start Laravel using built-in PHP server
 CMD ["php", "-S", "0.0.0.0:3000", "-t", "public"]
+
+# ... your existing build steps ...
+
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+# This CMD is passed as "$@" to the entrypoint script
+CMD ["php", "artisan", "serve", "--host", "0.0.0.0", "--port", "10000"]
