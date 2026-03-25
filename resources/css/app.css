@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  /* Primary Brand Colors (Amani Brew Brown & Tan) */
+  --color-brand-dark: #3B2A1E; /* Deep coffee brown for sidebar and primary buttons */
+  --color-brand-tan: #CDAD7D;   /* Tan/Camel color for active states */
+  --color-brand-light-tan: #Ede2d3; /* Lighter tan for backgrounds */
+
+  /* Neutral System Colors */
+  --color-sys-bg: #F9F5EC;      /* Light beige background from screenshots */
+  --color-sys-card: #FFFFFF;    /* White cards */
+  --color-sys-muted: #F1EFE9;   /* Muted backgrounds */
+  --color-sys-border: #E8E2D9;  /* Soft borders */
+  --color-sys-text-primary: #2C1E16; /* Dark brown/black text */
+  --color-sys-text-secondary: #7A695C; /* Muted brown text */
+
+  /* Status Colors from Screenshots */
+  --color-status-success: #10B981; /* Green percentages */
+  --color-status-danger: #EF4444;  /* Red negative text */
+  --color-status-warning: #F59E0B;
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--color-sys-bg)] text-[var(--color-sys-text-primary)] antialiased;
+  }
+}

@@ -1,0 +1,156 @@
+import React, { useState } from 'react';
+import { Link, useForm } from '@inertiajs/react';
+import { Eye, EyeOff } from 'lucide-react';
+
+export default function Login() {
+  const [showPassword, setShowPassword] = useState(false);
+  const { data, setData, post, processing, errors } = useForm({
+    email: '',
+    password: '',
+    remember: false,
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    post('/login');
+  };
+
+  return (
+    <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #3B2A1E 0%, #5C3D2E 40%, #8C6F53 100%)' }}>
+      
+      {/* Left – Brand Panel */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-14 text-white relative overflow-hidden">
+        {/* Background texture */}
+        <div className="absolute inset-0 opacity-10" style={{
+          backgroundImage: 'radial-gradient(circle at 20% 80%, #CDAD7D 0%, transparent 50%), radial-gradient(circle at 80% 20%, #C8A97E 0%, transparent 50%)'
+        }} />
+        
+        <div className="relative z-10">
+          <div className="flex items-center gap-4 mb-16">
+            <div className="bg-[#CDAD7D] p-2 rounded-xl">
+              <img src="/images/amani_brew_mark.png" alt="Amani Brew" className="w-10 h-10 object-contain" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-wide">Amani Brew</h1>
+              <p className="text-sm text-amber-200 font-light">Premium Butchery</p>
+            </div>
+          </div>
+
+          <div className="space-y-6 max-w-sm">
+            <h2 className="text-4xl font-bold leading-tight">Where Quality Meets Tradition</h2>
+            <p className="text-amber-100/80 text-base leading-relaxed">
+              From farm to table, we deliver the finest cuts of meat with a commitment to excellence, freshness, and sustainability. 
+            </p>
+          </div>
+        </div>
+
+        <div className="relative z-10">
+          <div className="grid grid-cols-3 gap-4 mb-10">
+            {[
+              { value: '500+', label: 'Happy Clients' },
+              { value: '15+', label: 'Years Experience' },
+              { value: '50+', label: 'Premium Cuts' },
+            ].map(stat => (
+              <div key={stat.label} className="text-center">
+                <p className="text-3xl font-extrabold text-[#CDAD7D]">{stat.value}</p>
+                <p className="text-xs text-amber-200 mt-1">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-amber-200/60 text-center">© 2026 Amani Brew. All rights reserved.</p>
+        </div>
+      </div>
+
+      {/* Right – Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center bg-[#F9F5EC] p-6">
+        <div className="w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="flex items-center gap-3 mb-10 lg:hidden">
+            <div className="bg-[var(--color-brand-dark)] p-2 rounded-xl">
+              <img src="/images/amani_brew_mark.png" alt="Amani Brew" className="w-8 h-8 object-contain" />
+            </div>
+            <div>
+              <p className="font-bold text-xl text-[var(--color-brand-dark)]">Amani Brew</p>
+              <p className="text-xs text-[var(--color-brand-tan)]">Premium Butchery</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-xl p-10">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Welcome back</h2>
+              <p className="text-sm text-[var(--color-sys-text-secondary)] mt-1.5">Sign in to your admin dashboard</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Email Address</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={data.email}
+                  onChange={e => setData('email', e.target.value)}
+                  placeholder="admin@amanibrew.com"
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
+                />
+                {errors.email && <div className="text-red-500 text-xs mt-1">{errors.email}</div>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={data.password}
+                    onChange={e => setData('password', e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 outline-none"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {errors.password && <div className="text-red-500 text-xs mt-1">{errors.password}</div>}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="remember"
+                    checked={data.remember}
+                    onChange={e => setData('remember', e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-[var(--color-brand-dark)] focus:ring-[var(--color-brand-tan)]"
+                  />
+                  <span className="text-sm text-[var(--color-sys-text-secondary)]">Remember me</span>
+                </label>
+                <a href="#" className="text-sm font-medium text-[var(--color-brand-tan)] hover:underline">Forgot password?</a>
+              </div>
+
+              <button
+                type="submit"
+                disabled={processing}
+                className="w-full py-3 bg-[var(--color-brand-dark)] text-white rounded-xl font-semibold text-sm hover:bg-[#2c1d14] transition-colors mt-2 disabled:opacity-50"
+              >
+                {processing ? 'Signing In...' : 'Sign In'}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-6 border-t border-[var(--color-sys-border)] text-center">
+              <p className="text-xs text-[var(--color-sys-text-secondary)]">
+                Demo credentials: <span className="font-medium text-[var(--color-brand-tan)]">admin@amanibrew.com</span> / <span className="font-medium text-[var(--color-brand-tan)]">password</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}
