@@ -29,12 +29,8 @@ export default function Home() {
       <nav className="bg-[#3B2A1E] text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="bg-[#CDAD7D] rounded-lg p-1.5">
-              <svg viewBox="0 0 32 32" className="w-7 h-7" fill="none">
-                <circle cx="16" cy="16" r="14" fill="#3B2A1E" />
-                <circle cx="16" cy="16" r="8" fill="#CDAD7D" />
-                <circle cx="16" cy="16" r="4" fill="#3B2A1E" />
-              </svg>
+            <div className="bg-[#CDAD7D] rounded-lg p-1 overflow-hidden flex items-center justify-center">
+              <img src="/images/amani_brew_mark.png" alt="Amani Brew Logo" className="w-9 h-9 object-contain" />
             </div>
             <div>
               <span className="text-xl font-bold">Amani Brew</span>
@@ -97,11 +93,8 @@ export default function Home() {
             <div className="relative w-72 h-72 lg:w-96 lg:h-96">
               <div className="absolute inset-0 bg-[#CDAD7D]/20 rounded-full animate-pulse" />
               <div className="absolute inset-6 bg-[#CDAD7D]/30 rounded-full" />
-              <div className="absolute inset-12 bg-[#3B2A1E] rounded-full flex items-center justify-center shadow-2xl">
-                <div className="text-center">
-                  <div className="text-7xl mb-2">🥩</div>
-                  <p className="text-[#CDAD7D] font-bold text-sm">Premium Cuts</p>
-                </div>
+              <div className="absolute inset-12 bg-[#3B2A1E] rounded-full flex items-center justify-center shadow-2xl overflow-hidden border-4 border-[#CDAD7D]/30">
+                <img src="/images/premium cuts.jpeg" alt="Premium Cuts" className="w-full h-full object-cover" />
               </div>
             </div>
           </div>
@@ -143,25 +136,41 @@ export default function Home() {
             </p>
           </div>
           <div className="flex-1 grid grid-cols-2 gap-4">
-            <div className="bg-[var(--color-brand-dark)] rounded-3xl p-8 text-white text-center">
-              <p className="text-5xl mb-3">🌾</p>
-              <p className="font-bold">Farm to Table</p>
-              <p className="text-xs text-amber-200 mt-2">Direct partnerships with local ethical farmers</p>
+            <div className="bg-[var(--color-brand-dark)] rounded-3xl p-0 overflow-hidden text-white text-center flex flex-col group transition-all hover:scale-[1.02]">
+              <div className="h-40 w-full overflow-hidden">
+                <img src="/images/afrm to table.jpeg" alt="Farm to Table" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <div className="p-6">
+                <p className="font-bold">Farm to Table</p>
+                <p className="text-xs text-amber-200 mt-2">Direct partnerships with local ethical farmers</p>
+              </div>
             </div>
-            <div className="bg-[var(--color-brand-tan)] rounded-3xl p-8 text-white text-center mt-6">
-              <p className="text-5xl mb-3">🔪</p>
-              <p className="font-bold">Master Butchers</p>
-              <p className="text-xs text-white/80 mt-2">Certified artisans with decades of experience</p>
+            <div className="bg-[var(--color-brand-tan)] rounded-3xl p-0 overflow-hidden text-white text-center flex flex-col mt-6 group transition-all hover:scale-[1.02]">
+              <div className="h-40 w-full overflow-hidden">
+                <img src="/images/master butcher.jpeg" alt="Master Butchers" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <div className="p-6">
+                <p className="font-bold">Master Butchers</p>
+                <p className="text-xs text-white/80 mt-2">Certified artisans with decades of experience</p>
+              </div>
             </div>
-            <div className="bg-[var(--color-brand-tan)] rounded-3xl p-8 text-white text-center">
-              <p className="text-5xl mb-3">❄️</p>
-              <p className="font-bold">Cold Chain</p>
-              <p className="text-xs text-white/80 mt-2">State-of-the-art refrigeration from farm to you</p>
+            <div className="bg-[var(--color-brand-tan)] rounded-3xl p-0 overflow-hidden text-white text-center flex flex-col group transition-all hover:scale-[1.02]">
+              <div className="h-40 w-full overflow-hidden">
+                <img src="/images/cold chain.jpeg" alt="Cold Chain" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <div className="p-6">
+                <p className="font-bold">Cold Chain</p>
+                <p className="text-xs text-white/80 mt-2">State-of-the-art refrigeration from farm to you</p>
+              </div>
             </div>
-            <div className="bg-[var(--color-brand-dark)] rounded-3xl p-8 text-white text-center mt-6">
-              <p className="text-5xl mb-3">🚚</p>
-              <p className="font-bold">Same-Day Delivery</p>
-              <p className="text-xs text-amber-200 mt-2">Fresh to your door across Dar es Salaam</p>
+            <div className="bg-[var(--color-brand-dark)] rounded-3xl p-0 overflow-hidden text-white text-center flex flex-col mt-6 group transition-all hover:scale-[1.02]">
+              <div className="h-40 w-full overflow-hidden">
+                <img src="/images/delivery.jpeg" alt="Same-Day Delivery" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <div className="p-6">
+                <p className="font-bold">Same-Day Delivery</p>
+                <p className="text-xs text-amber-200 mt-2">Fresh to your door across Dar es Salaam</p>
+              </div>
             </div>
           </div>
         </div>

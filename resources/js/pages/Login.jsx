@@ -17,14 +17,14 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #3B2A1E 0%, #5C3D2E 40%, #8C6F53 100%)' }}>
-      
+
       {/* Left – Brand Panel */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-14 text-white relative overflow-hidden">
         {/* Background texture */}
         <div className="absolute inset-0 opacity-10" style={{
           backgroundImage: 'radial-gradient(circle at 20% 80%, #CDAD7D 0%, transparent 50%), radial-gradient(circle at 80% 20%, #C8A97E 0%, transparent 50%)'
         }} />
-        
+
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-16">
             <div className="bg-[#CDAD7D] p-2 rounded-xl">
@@ -39,7 +39,7 @@ export default function Login() {
           <div className="space-y-6 max-w-sm">
             <h2 className="text-4xl font-bold leading-tight">Where Quality Meets Tradition</h2>
             <p className="text-amber-100/80 text-base leading-relaxed">
-              From farm to table, we deliver the finest cuts of meat with a commitment to excellence, freshness, and sustainability. 
+              From farm to table, we deliver the finest cuts of meat with a commitment to excellence, freshness, and sustainability.
             </p>
           </div>
         </div>
@@ -89,7 +89,7 @@ export default function Login() {
                   name="email"
                   value={data.email}
                   onChange={e => setData('email', e.target.value)}
-                  placeholder="admin@amanibrew.com"
+                  placeholder="Enter your email address"
                   required
                   className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                 />
@@ -141,16 +141,9 @@ export default function Login() {
                 {processing ? 'Signing In...' : 'Sign In'}
               </button>
             </form>
-
-            <div className="mt-6 pt-6 border-t border-[var(--color-sys-border)] text-center">
-              <p className="text-xs text-[var(--color-sys-text-secondary)]">
-                Demo credentials: <span className="font-medium text-[var(--color-brand-tan)]">admin@amanibrew.com</span> / <span className="font-medium text-[var(--color-brand-tan)]">password</span>
-              </p>
-            </div>
           </div>
         </div>
       </div>
-
     </div>
   );
 }
