@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Link, useForm } from '@inertiajs/react';
+import { Link, useForm, usePage } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
+  const { flash } = usePage().props;
   const [showPassword, setShowPassword] = useState(false);
   const { data, setData, post, processing, errors } = useForm({
     email: '',
@@ -78,8 +79,20 @@ export default function Login() {
           <div className="bg-white rounded-3xl shadow-xl p-10">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Welcome back</h2>
-              <p className="text-sm text-[var(--color-sys-text-secondary)] mt-1.5">Sign in to your admin dashboard</p>
+              <p className="mt-1.5 text-sm text-[var(--color-sys-text-secondary)]">
+                Staff and customers use this same sign-in page. Your role decides where you go after login.
+              </p>
             </div>
+
+            {(flash?.success || flash?.error) && (
+              <div className={`mb-6 rounded-2xl border px-4 py-3 text-sm font-medium ${
+                flash.error
+                  ? 'border-red-200 bg-red-50 text-red-700'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              }`}>
+                {flash.error || flash.success}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
@@ -141,6 +154,13 @@ export default function Login() {
                 {processing ? 'Signing In...' : 'Sign In'}
               </button>
             </form>
+
+            <p className="mt-6 text-center text-sm text-[var(--color-sys-text-secondary)]">
+              New customer?{' '}
+              <Link href="/register" className="font-semibold text-[var(--color-brand-dark)] hover:underline">
+                Create a customer account
+              </Link>
+            </p>
           </div>
         </div>
       </div>

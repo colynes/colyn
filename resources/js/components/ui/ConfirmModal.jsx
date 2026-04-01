@@ -27,7 +27,7 @@ export default function ConfirmModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 py-6">
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" 
@@ -35,7 +35,7 @@ export default function ConfirmModal({
       />
 
       {/* Modal panel */}
-      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all p-6">
+      <div className="relative my-auto max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-xl transition-all">
         <div className="absolute top-4 right-4">
           <button onClick={onClose} className="text-gray-400 hover:text-gray-500 focus:outline-none">
             <X size={20} />

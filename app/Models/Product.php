@@ -15,7 +15,8 @@ class Product extends Model
         'name',
         'slug',
         'description',
-        'image',
+        'supplier_name',
+        'supplier_contact',
         'sku',
         'barcode',
         'unit',
@@ -67,6 +68,11 @@ class Product extends Model
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function salesTargets()
+    {
+        return $this->hasMany(SalesTarget::class);
     }
 
     // Scopes

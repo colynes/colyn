@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Customer extends Model
 {
-    protected $fillable = ['user_id', 'full_name', 'phone', 'email', 'status'];
+    protected $fillable = ['user_id', 'full_name', 'phone', 'email', 'address', 'status'];
 
     public function user()
     {
@@ -16,5 +16,15 @@ class Customer extends Model
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function addresses()
+    {
+        return $this->hasMany(CustomerAddress::class);
+    }
+
+    public function defaultAddress()
+    {
+        return $this->hasOne(CustomerAddress::class)->where('is_default', true);
     }
 }

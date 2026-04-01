@@ -1,0 +1,20 @@
+import React from 'react';
+import StoreLayout from '@/components/StoreLayout';
+import PromotionsSection from '@/components/customer/PromotionsSection';
+import PacksSection from '@/components/customer/PacksSection';
+import ProductsSection from '@/components/customer/ProductsSection';
+
+export default function CustomerHome({ promotions = [], packs = [], products = [] }) {
+  return (
+    <StoreLayout
+      title="Welcome back to Amani Brew"
+      subtitle="Your customer home puts active promotions first, curated packs second, and everyday products third so the return shopping flow feels fast and intentional."
+    >
+      <div className="space-y-12">
+        <PromotionsSection promotions={promotions} />
+        <PacksSection packs={packs} />
+        <ProductsSection products={products} />
+      </div>
+    </StoreLayout>
+  );
+}

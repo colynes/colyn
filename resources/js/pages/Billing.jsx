@@ -1,121 +1,175 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import { Plus, Search, Calendar, Eye, Download, Bell } from 'lucide-react';
+import { Bell, CalendarDays, Download, Eye, Plus, Printer, Search } from 'lucide-react';
 
-const statusStyles = {
-  paid:    'bg-green-100 text-green-700',
+const money = (value) => `Tsh ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 0 }).format(value || 0)}`;
+
+const statusTone = {
+  paid: 'bg-emerald-100 text-emerald-700',
   pending: 'bg-amber-100 text-amber-700',
-  overdue: 'bg-red-100 text-red-700',
+  overdue: 'bg-rose-100 text-rose-600',
+  sent: 'bg-blue-100 text-blue-700',
+  draft: 'bg-slate-100 text-slate-600',
 };
 
-const INVOICES = [
-  { invoice: 'INV-2026-001', sub: 'SUB-001', customer: 'John Smith',    amount: 'Tsh 95,500',  due: '2026-02-28', status: 'paid',    note: 'Payment received' },
-  { invoice: 'INV-2026-002', sub: 'SUB-002', customer: 'Sarah Johnson', amount: 'Tsh 180,000', due: '2026-03-01', status: 'pending', note: 'Due tomorrow – Notify customer' },
-  { invoice: 'INV-2026-003', sub: 'SUB-003', customer: 'Mike Davis',    amount: 'Tsh 78,900',  due: '2026-02-25', status: 'overdue', note: 'Due tomorrow – Notify customer' },
-  { invoice: 'INV-2026-004', sub: 'SUB-004', customer: 'Emily Brown',   amount: 'Tsh 245,000', due: '2026-03-10', status: 'pending', note: 'Due tomorrow – Notify customer' },
-];
+const notificationTone = {
+  success: 'text-emerald-600',
+  warning: 'text-amber-700',
+  danger: 'text-red-500',
+};
 
-export default function Billing({ auth }) {
-  const [search, setSearch] = useState('');
-
-  const filtered = INVOICES.filter(i =>
-    i.customer.toLowerCase().includes(search.toLowerCase()) ||
-    i.invoice.toLowerCase().includes(search.toLowerCase())
-  );
+function SummaryCard({ label, value, tone = 'default' }) {
+  const toneClass = tone === 'success'
+    ? 'text-emerald-600'
+    : tone === 'warning'
+      ? 'text-orange-500'
+      : tone === 'danger'
+        ? 'text-red-500'
+        : 'text-[#3a2513]';
 
   return (
+    <Card className="rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
+      <CardContent className="px-7 py-8">
+        <p className="text-[1rem] text-[#6f5238]">{label}</p>
+        <p className={`mt-4 text-[2.2rem] font-semibold tracking-[-0.03em] ${toneClass}`}>{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Billing({ auth, invoices = [], summary = {}, filters = {} }) {
+  return (
     <AppLayout user={auth?.user}>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Billing & Invoices</h1>
-          <p className="text-sm text-[var(--color-brand-tan)] mt-0.5">Manage invoices and payment tracking</p>
+      <div className="space-y-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-[2.45rem] font-semibold tracking-[-0.04em] text-[#3a2513]">Billing &amp; Invoices</h1>
+            <p className="mt-2 text-[0.95rem] text-[#73563a]">Manage invoices and payment tracking</p>
+          </div>
+
+          <Link
+            href="/fat-clients/billing/create"
+            className="inline-flex items-center gap-3 self-start rounded-[1.05rem] bg-[#4f3118] px-6 py-3.5 text-[1.05rem] font-semibold text-white transition hover:bg-[#402612]"
+          >
+            <Plus className="h-5 w-5" strokeWidth={2.25} />
+            Create Invoice
+          </Link>
         </div>
-        <Button variant="primary" className="flex items-center gap-2">
-          <Plus size={16} /> Create Invoice
-        </Button>
-      </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-        <Card className="rounded-xl border border-[var(--color-sys-border)] shadow-none">
-          <CardContent className="p-6">
-            <p className="text-sm text-[var(--color-sys-text-secondary)] mb-2">Total Received</p>
-            <p className="text-3xl font-bold text-[var(--color-status-success)]">Tsh 95,500</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-xl border border-[var(--color-sys-border)] shadow-none">
-          <CardContent className="p-6">
-            <p className="text-sm text-[var(--color-sys-text-secondary)] mb-2">Pending Payments</p>
-            <p className="text-3xl font-bold text-[var(--color-brand-tan)]">Tsh 425,000</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-xl border border-[var(--color-sys-border)] shadow-none">
-          <CardContent className="p-6">
-            <p className="text-sm text-[var(--color-sys-text-secondary)] mb-2">Overdue Payments</p>
-            <p className="text-3xl font-bold text-[var(--color-status-danger)]">Tsh 78,900</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex gap-3 mb-5">
-        <div className="relative flex-1">
-          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input placeholder="Search invoices..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 bg-white" />
+        <div className="grid gap-5 lg:grid-cols-3">
+          <SummaryCard label="Total Received" value={money(summary.total_received)} tone="success" />
+          <SummaryCard label="Pending Payments" value={money(summary.pending_payments)} tone="warning" />
+          <SummaryCard label="Overdue Payments" value={money(summary.overdue_payments)} tone="danger" />
         </div>
-        <button className="p-2.5 bg-white border border-[var(--color-sys-border)] rounded-lg text-gray-400 hover:text-gray-700">
-          <Calendar size={18} />
-        </button>
-        <select className="bg-white border border-[var(--color-sys-border)] rounded-lg px-3 text-sm outline-none">
-          {['All','Paid','Pending','Overdue'].map(s => <option key={s}>{s}</option>)}
-        </select>
-      </div>
 
-      {/* Table */}
-      <Card className="rounded-xl border-none shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--color-sys-border)] bg-[var(--color-sys-muted)]">
-              {['Invoice','Customer','Amount','Due Date','Status','Notification','Actions'].map(h => (
-                <th key={h} className="text-left px-5 py-3.5 font-semibold text-[var(--color-sys-text-primary)]">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((inv, i) => (
-              <tr key={inv.invoice} className={`border-b border-[var(--color-sys-border)] hover:bg-[var(--color-sys-muted)] transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-[#FDFCFB]'}`}>
-                <td className="px-5 py-4">
-                  <p className="font-semibold text-[var(--color-sys-text-primary)]">{inv.invoice}</p>
-                  <p className="text-xs text-[var(--color-sys-text-secondary)]">{inv.sub}</p>
-                </td>
-                <td className="px-5 py-4 font-medium text-[var(--color-brand-tan)]">{inv.customer}</td>
-                <td className="px-5 py-4 font-semibold">{inv.amount}</td>
-                <td className="px-5 py-4 text-[var(--color-sys-text-secondary)]">{inv.due}</td>
-                <td className="px-5 py-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${statusStyles[inv.status]}`}>
-                    {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
-                  </span>
-                </td>
-                <td className="px-5 py-4">
-                  <div className={`flex items-center gap-1.5 text-xs font-medium ${inv.status === 'paid' ? 'text-green-600' : 'text-amber-600'}`}>
-                    <Bell size={13} />
-                    {inv.note}
-                  </div>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <button className="text-gray-400 hover:text-[var(--color-brand-dark)] transition-colors"><Eye size={17} /></button>
-                    <button className="text-gray-400 hover:text-[var(--color-brand-dark)] transition-colors"><Download size={17} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+        <form method="get" action="/fat-clients/billing" className="flex items-center gap-4 overflow-x-auto">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#866748]" strokeWidth={2} />
+            <input
+              type="text"
+              name="search"
+              defaultValue={filters.search || ''}
+              placeholder="Search invoices..."
+              className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white pl-14 pr-4 text-[1rem] text-[#3a2513] outline-none transition placeholder:text-[#b09983] focus:border-[#b69066]"
+            />
+          </div>
+
+          <div className="flex h-14 w-[52px] shrink-0 items-center justify-center rounded-[1.05rem] border border-[#dcccba] bg-white text-[#7a5b3d]">
+            <CalendarDays className="h-5 w-5" strokeWidth={2} />
+          </div>
+
+          <select
+            name="status"
+            defaultValue={filters.status || 'all'}
+            className="h-14 w-[170px] shrink-0 rounded-[1.05rem] border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+          >
+            <option value="all">All</option>
+            <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
+            <option value="overdue">Overdue</option>
+            <option value="sent">Sent</option>
+            <option value="draft">Draft</option>
+          </select>
+        </form>
+
+        <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left">
+                <thead className="bg-[#ede1cf]">
+                  <tr>
+                    {['Invoice', 'Customer', 'Amount', 'Due Date', 'Status', 'Notification', 'Actions'].map((header) => (
+                      <th key={header} className="px-8 py-5 text-[1rem] font-semibold text-[#2f2115]">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.length > 0 ? invoices.map((invoice, index) => (
+                    <tr key={invoice.id} className={`${index !== invoices.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
+                      <td className="px-8 py-6">
+                        <p className="text-[1.05rem] font-semibold text-[#352314]">{invoice.invoice_number}</p>
+                        <p className="mt-1 text-[0.95rem] text-[#6f5238]">{invoice.sub_reference}</p>
+                      </td>
+                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{invoice.customer_name}</td>
+                      <td className="px-8 py-6 text-[1.1rem] font-semibold text-[#352314]">{money(invoice.amount)}</td>
+                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{invoice.due_date || 'N/A'}</td>
+                      <td className="px-8 py-6">
+                        <span className={`inline-flex rounded-full px-4 py-2 text-[1rem] font-medium capitalize ${statusTone[invoice.status] || 'bg-slate-100 text-slate-700'}`}>
+                          {invoice.status}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className={`flex items-center gap-3 text-[1rem] ${notificationTone[invoice.notification.tone] || 'text-[#5f4328]'}`}>
+                          <Bell className="h-4 w-4" />
+                          <span>{invoice.notification.text}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-5 text-[#4f3118]">
+                          <Link
+                            href={`/invoices/${invoice.id}`}
+                            className="transition hover:text-[#2f1c0d]"
+                            aria-label={`View ${invoice.invoice_number}`}
+                          >
+                            <Eye className="h-5 w-5" strokeWidth={2} />
+                          </Link>
+                          <a
+                            href={`/invoices/${invoice.id}/download`}
+                            className="transition hover:text-[#2f1c0d]"
+                            aria-label={`Download ${invoice.invoice_number}`}
+                          >
+                            <Download className="h-5 w-5" strokeWidth={2} />
+                          </a>
+                          <a
+                            href={`/invoices/${invoice.id}/print`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="transition hover:text-[#2f1c0d]"
+                            aria-label={`Print ${invoice.invoice_number}`}
+                          >
+                            <Printer className="h-5 w-5" strokeWidth={2} />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={7} className="px-8 py-12 text-center">
+                        <p className="text-lg font-medium text-[#4d3218]">No invoices found.</p>
+                        <p className="mt-2 text-sm text-[#7a5c3e]">Create an invoice to start tracking billing records.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </AppLayout>
   );
 }

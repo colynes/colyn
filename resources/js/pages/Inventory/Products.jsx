@@ -1,162 +1,398 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { Plus, Search, Edit2, Trash2, SlidersHorizontal, Package, Tag, ShoppingCart, User } from 'lucide-react';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 
-const PRODUCTS = [
-  { id: 1, name: 'Inter-chick Chicken', category: 'Chicken', quantity: '100 kg', buyingPrice: 'Tsh 7,500', sellingPrice: 'Tsh 9,000', supplier: 'Inter-Chick Ltd', contact: '+255 712 345 678' },
-  { id: 2, name: 'Premium Ribeye Steak', category: 'Beef', quantity: '50 kg', buyingPrice: 'Tsh 25,000', sellingPrice: 'Tsh 32,000', supplier: 'Prime Beef Co', contact: '+255 713 456 789' },
-  { id: 3, name: 'Ground Beef', category: 'Beef', quantity: '80 kg', buyingPrice: 'Tsh 10,000', sellingPrice: 'Tsh 14,000', supplier: 'Prime Beef Co', contact: '+255 713 456 789' },
-  { id: 4, name: 'Pork Chops', category: 'Pork', quantity: '45 kg', buyingPrice: 'Tsh 12,000', sellingPrice: 'Tsh 16,000', supplier: 'Heritage Farms', contact: '+255 714 567 890' },
-  { id: 5, name: 'Italian Sausages', category: 'Sausages', quantity: '60 kg', buyingPrice: 'Tsh 8,000', sellingPrice: 'Tsh 12,000', supplier: 'Artisan Meats', contact: '+255 715 678 901' },
-  { id: 6, name: 'Fresh Eggs', category: 'Eggs', quantity: '200 trays', buyingPrice: 'Tsh 8,000', sellingPrice: 'Tsh 10,000', supplier: 'Poultry Farm Ltd', contact: '+255 716 789 012' },
-];
+function formatCurrency(value) {
+  return new Intl.NumberFormat('en-TZ', {
+    style: 'currency',
+    currency: 'TZS',
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+}
 
-export default function Products({ auth }) {
-  const [search, setSearch] = useState('');
+export default function Products({ auth, products, categories, filters = {} }) {
+  const { flash } = usePage().props;
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [deletingProduct, setDeletingProduct] = useState(null);
+  const search = filters.search || '';
+  const categoryId = filters.category_id || '';
 
-  const filtered = PRODUCTS.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) || 
-    p.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const productForm = useForm({
+    category_id: '',
+    name: '',
+    supplier_name: '',
+    supplier_contact: '',
+    unit: 'kg',
+    weight: '',
+    price: '',
+    promo_price: '',
+    low_stock_alert: '',
+    is_active: true,
+  });
+
+  const rows = useMemo(() => products?.data || [], [products]);
+
+  const openCreateModal = () => {
+    setEditingProduct(null);
+    productForm.reset();
+    productForm.setData({
+      category_id: '',
+      name: '',
+      supplier_name: '',
+      supplier_contact: '',
+      unit: 'kg',
+      weight: '',
+      price: '',
+      promo_price: '',
+      low_stock_alert: '',
+      is_active: true,
+    });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (product) => {
+    setEditingProduct(product);
+    productForm.setData({
+      category_id: product.category?.id ? String(product.category.id) : '',
+      name: product.name || '',
+      supplier_name: product.supplier_name || '',
+      supplier_contact: product.supplier_contact || '',
+      unit: product.unit || 'kg',
+      weight: product.weight || '',
+      price: product.current_price?.price ?? '',
+      promo_price: product.current_price?.promo_price ?? '',
+      low_stock_alert: product.low_stock_alert ?? '',
+      is_active: Boolean(product.is_active),
+    });
+    setIsModalOpen(true);
+  };
+
+  const submitProduct = (e) => {
+    e.preventDefault();
+
+    const endpoint = editingProduct ? `/inventory/products/${editingProduct.id}` : '/inventory/products';
+    const method = editingProduct ? 'put' : 'post';
+
+    productForm[method](endpoint, {
+      preserveScroll: true,
+      onSuccess: () => {
+        setEditingProduct(null);
+        productForm.reset();
+        productForm.setData('unit', 'kg');
+        productForm.setData('is_active', true);
+        setIsModalOpen(false);
+      },
+    });
+  };
 
   return (
     <AppLayout user={auth?.user}>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Products</h1>
-          <p className="text-sm text-[var(--color-sys-text-secondary)] mt-0.5">Manage inventory products</p>
+          <p className="text-sm text-[var(--color-sys-text-secondary)] mt-0.5">
+            Create products using the categories that already exist in your system.
+          </p>
         </div>
-        <Button variant="primary" onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
-          <Plus size={16} /> Add Product
+        <Button variant="primary" onClick={openCreateModal} className="flex items-center gap-2">
+          <Plus size={16} />
+          Add Product
         </Button>
       </div>
 
-      <div className="flex gap-3 mb-5">
-        <div className="relative flex-1 max-w-xl">
+      <ConfirmModal
+        isOpen={Boolean(deletingProduct)}
+        onClose={() => setDeletingProduct(null)}
+        onConfirm={() => {
+          if (deletingProduct) {
+            router.delete(`/inventory/products/${deletingProduct.id}`, {
+              preserveScroll: true,
+            });
+          }
+        }}
+        title="Delete Product"
+        message={deletingProduct ? `You are deleting product ${deletingProduct.name}. This action cannot be undone.` : ''}
+        confirmText="Delete"
+        type="danger"
+      />
+
+      {(flash?.success || flash?.error) && (
+        <div className={`mb-5 rounded-2xl border px-5 py-4 text-sm font-medium ${
+          flash.error
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        }`}>
+          {flash.error || flash.success}
+        </div>
+      )}
+
+      <form method="get" action="/inventory/products" className="mb-5 flex flex-col gap-3 lg:flex-row">
+        <div className="relative flex-1">
           <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input 
-            placeholder="Search products..." 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-10 bg-white" 
+          <Input
+            name="search"
+            defaultValue={search}
+            placeholder="Search products by name or SKU"
+            className="pl-10 bg-white h-11"
           />
         </div>
-        <div className="flex items-center gap-2 bg-white border border-[var(--color-sys-border)] rounded-lg px-3 cursor-pointer">
-          <SlidersHorizontal size={16} className="text-gray-400" />
-          <span className="text-sm text-gray-600">All</span>
-        </div>
-      </div>
+        <select
+          name="category_id"
+          defaultValue={categoryId}
+          className="h-11 rounded-lg border border-[var(--color-sys-border)] bg-white px-4 text-sm outline-none"
+        >
+          <option value="">All categories</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+        <Button type="submit" variant="outline" className="h-11 px-5">Filter</Button>
+      </form>
 
-      <Card className="rounded-2xl border-none shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--color-sys-border)] bg-[#F5F2EF]/50">
-              {['Product','Category','Quantity','Buying Price','Selling Price','Supplier','Actions'].map(h => (
-                <th key={h} className="text-left px-6 py-4 font-bold text-[var(--color-sys-text-primary)] uppercase text-[10px] tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p, i) => (
-              <tr key={p.id} className={`border-b border-[var(--color-sys-border)] hover:bg-[#F5F2EF]/30 transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'}`}>
-                <td className="px-6 py-5 font-bold text-[var(--color-sys-text-primary)]">{p.name}</td>
-                <td className="px-6 py-5">
-                  <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">{p.category}</span>
-                </td>
-                <td className="px-6 py-5 font-medium text-[var(--color-sys-text-secondary)]">{p.quantity}</td>
-                <td className="px-6 py-5 font-bold text-[var(--color-sys-text-primary)]">{p.buyingPrice}</td>
-                <td className="px-6 py-5 font-bold text-[var(--color-sys-text-primary)]">{p.sellingPrice}</td>
-                <td className="px-6 py-5">
-                   <div className="flex flex-col">
-                      <span className="font-semibold text-[var(--color-sys-text-primary)]">{p.supplier}</span>
-                      <span className="text-[10px] text-gray-400 font-medium">{p.contact}</span>
-                   </div>
-                </td>
-                <td className="px-6 py-5 text-gray-400">
-                  <div className="flex items-center gap-3">
-                    <button className="hover:text-[var(--color-brand-dark)] transition-colors"><Edit2 size={16} /></button>
-                    <button className="hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
-                  </div>
-                </td>
+      <Card className="rounded-2xl border-none shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-sys-border)] bg-[#F5F2EF]/50">
+                {['Product', 'Category', 'Supplier', 'Unit', 'Quantity', 'Price', 'Status', 'Actions'].map((header) => (
+                  <th key={header} className="px-6 py-4 text-left font-bold uppercase tracking-wider text-[10px] text-[var(--color-sys-text-primary)]">
+                    {header}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.length ? rows.map((product, index) => (
+                <tr
+                  key={product.id}
+                  className={`border-b border-[var(--color-sys-border)] ${index % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'}`}
+                >
+                  <td className="px-6 py-5">
+                    <p className="font-bold text-[var(--color-sys-text-primary)]">{product.name}</p>
+                    <p className="mt-1 text-xs text-[var(--color-sys-text-secondary)]">{product.sku || 'SKU auto-generated'}</p>
+                    <p className="mt-1 text-xs text-[var(--color-sys-text-secondary)]">
+                      Low stock alert: {product.low_stock_alert ?? 0} {product.unit}
+                    </p>
+                  </td>
+                  <td className="px-6 py-5">
+                    <span className="rounded-full bg-gray-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                      {product.category?.name || 'Unassigned'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-5">
+                    <p className="font-medium text-[var(--color-sys-text-primary)]">{product.supplier_name || 'No supplier'}</p>
+                    <p className="mt-1 text-sm text-[var(--color-sys-text-secondary)]">{product.supplier_contact || 'No contact'}</p>
+                  </td>
+                  <td className="px-6 py-5 font-medium text-[var(--color-sys-text-secondary)]">{product.unit || '-'}</td>
+                  <td className="px-6 py-5 font-medium text-[var(--color-sys-text-secondary)]">
+                    {product.stock_quantity}
+                  </td>
+                  <td className="px-6 py-5 font-bold text-[var(--color-sys-text-primary)]">
+                    {product.current_price ? formatCurrency(product.current_price.price) : 'No price'}
+                  </td>
+                  <td className="px-6 py-5">
+                    <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                      product.status === 'In Stock'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : product.status === 'Low Stock'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-red-100 text-red-600'
+                    }`}>
+                      {product.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex items-center gap-4 text-[var(--color-brand-dark)]">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(product)}
+                        className="transition hover:text-[#2f1c0d]"
+                        aria-label={`Edit ${product.name}`}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingProduct(product)}
+                        className="transition hover:text-red-600"
+                        aria-label={`Delete ${product.name}`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan="8" className="px-6 py-12 text-center text-sm text-[var(--color-sys-text-secondary)]">
+                    No products matched the current filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
-      {/* Modal - Create Product */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#1A1A1A]/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-8 pb-4">
-              <h2 className="text-2xl font-bold text-[var(--color-sys-text-primary)] mb-6">Add New Product</h2>
-              
-              <div className="space-y-6">
-                <div>
-                   <label className="text-xs font-bold text-[var(--color-sys-text-primary)] uppercase tracking-wider mb-2 block">Product Name</label>
-                   <Input placeholder="e.g., Inter-chick Chicken" className="bg-[#F9F9F9]" />
-                </div>
-
-                <div>
-                   <label className="text-xs font-bold text-[var(--color-sys-text-primary)] uppercase tracking-wider mb-2 block">Category</label>
-                   <select className="w-full bg-[#F9F9F9] border border-[var(--color-sys-border)] rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)]">
-                     <option>Select category</option>
-                     <option>Beef</option>
-                     <option>Chicken</option>
-                     <option>Pork</option>
-                     <option>Sausages</option>
-                     <option>Eggs</option>
-                   </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                   <div>
-                     <label className="text-xs font-bold text-[var(--color-sys-text-primary)] uppercase tracking-wider mb-2 block">Quantity</label>
-                     <Input placeholder="100" className="bg-[#F9F9F9]" />
-                   </div>
-                   <div>
-                     <label className="text-xs font-bold text-[var(--color-sys-text-primary)] uppercase tracking-wider mb-2 block">Unit</label>
-                     <select className="w-full bg-[#F9F9F9] border border-[var(--color-sys-border)] rounded-xl px-4 py-3 text-sm outline-none">
-                       <option>kg</option>
-                       <option>pieces</option>
-                       <option>trays</option>
-                       <option>trays</option>
-                     </select>
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                   <div>
-                     <label className="text-xs font-bold text-[var(--color-sys-text-primary)] uppercase tracking-wider mb-2 block">Buying Price (Tsh)</label>
-                     <Input placeholder="7500" className="bg-[#F9F9F9]" />
-                   </div>
-                   <div>
-                     <label className="text-xs font-bold text-[var(--color-sys-text-primary)] uppercase tracking-wider mb-2 block">Selling Price (Tsh)</label>
-                     <Input placeholder="9000" className="bg-[#F9F9F9]" />
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                   <div>
-                     <label className="text-xs font-bold text-[var(--color-sys-text-primary)] uppercase tracking-wider mb-2 block">Supplier Name</label>
-                     <Input placeholder="Supplier name" className="bg-[#F9F9F9]" />
-                   </div>
-                   <div>
-                     <label className="text-xs font-bold text-[var(--color-sys-text-primary)] uppercase tracking-wider mb-2 block">Supplier Contact</label>
-                     <Input placeholder="+255 712 345 678" className="bg-[#F9F9F9]" />
-                   </div>
-                </div>
+        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-[#1A1A1A]/60 p-4 backdrop-blur-sm">
+          <div className="my-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[var(--color-sys-border)] px-8 py-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">
+                  {editingProduct ? 'Edit Product' : 'Add New Product'}
+                </h2>
+                <p className="mt-1 text-sm text-[var(--color-sys-text-secondary)]">
+                  {editingProduct ? 'Update product details and pricing.' : 'Choose one of the existing categories before saving the product.'}
+                </p>
               </div>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={22} />
+              </button>
             </div>
 
-            <div className="p-8 pt-6 border-t border-[var(--color-sys-border)] flex gap-4">
-               <Button onClick={() => setIsModalOpen(false)} variant="outline" className="flex-1 py-3 text-sm font-bold uppercase tracking-widest text-gray-500">Cancel</Button>
-               <Button className="flex-1 py-3 text-sm font-bold uppercase tracking-widest bg-[var(--color-brand-dark)]">Add Product</Button>
-            </div>
+            <form onSubmit={submitProduct} className="space-y-6 p-8">
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--color-sys-text-primary)]">
+                  Category
+                </label>
+                <select
+                  value={productForm.data.category_id}
+                  onChange={(e) => productForm.setData('category_id', e.target.value)}
+                  className="w-full rounded-xl border border-[var(--color-sys-border)] bg-[#F9F9F9] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)]"
+                >
+                  <option value="">Select existing category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                {productForm.errors.category_id && <p className="mt-1 text-xs text-red-500">{productForm.errors.category_id}</p>}
+              </div>
+
+              <div>
+                <Input
+                  label="Product Name"
+                  value={productForm.data.name}
+                  onChange={(e) => productForm.setData('name', e.target.value)}
+                  placeholder="e.g., Inter-chick Chicken"
+                  error={productForm.errors.name}
+                  className="bg-[#F9F9F9] h-11"
+                />
+              </div>
+
+              <div>
+                <Input
+                  label="Supplier Name"
+                  value={productForm.data.supplier_name}
+                  onChange={(e) => productForm.setData('supplier_name', e.target.value)}
+                  placeholder="e.g., Amani Brew Supplier"
+                  error={productForm.errors.supplier_name}
+                  className="bg-[#F9F9F9] h-11"
+                />
+              </div>
+
+              <div>
+                <Input
+                  label="Supplier Contact"
+                  value={productForm.data.supplier_contact}
+                  onChange={(e) => productForm.setData('supplier_contact', e.target.value)}
+                  placeholder="e.g., +255 712 345 678"
+                  error={productForm.errors.supplier_contact}
+                  className="bg-[#F9F9F9] h-11"
+                />
+              </div>
+
+              <Input
+                type="number"
+                label="Low Stock Alert"
+                value={productForm.data.low_stock_alert}
+                onChange={(e) => productForm.setData('low_stock_alert', e.target.value)}
+                placeholder="Enter alert threshold"
+                error={productForm.errors.low_stock_alert}
+                className="bg-[#F9F9F9] h-11"
+              />
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--color-sys-text-primary)]">
+                    Unit
+                  </label>
+                  <select
+                    value={productForm.data.unit}
+                    onChange={(e) => productForm.setData('unit', e.target.value)}
+                    className="w-full rounded-xl border border-[var(--color-sys-border)] bg-[#F9F9F9] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)]"
+                  >
+                    <option value="kg">kg</option>
+                    <option value="pcs">pcs</option>
+                    <option value="pack">pack</option>
+                    <option value="gram">gram</option>
+                    <option value="litre">litre</option>
+                  </select>
+                  {productForm.errors.unit && <p className="mt-1 text-xs text-red-500">{productForm.errors.unit}</p>}
+                </div>
+
+                <Input
+                  type="number"
+                  label="Weight"
+                  value={productForm.data.weight}
+                  onChange={(e) => productForm.setData('weight', e.target.value)}
+                  placeholder="Optional"
+                  error={productForm.errors.weight}
+                  className="bg-[#F9F9F9] h-11"
+                />
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <Input
+                  type="number"
+                  label="Price (TZS)"
+                  value={productForm.data.price}
+                  onChange={(e) => productForm.setData('price', e.target.value)}
+                  placeholder="18000"
+                  error={productForm.errors.price}
+                  className="bg-[#F9F9F9] h-11"
+                />
+
+                <Input
+                  type="number"
+                  label="Promo Price (TZS)"
+                  value={productForm.data.promo_price}
+                  onChange={(e) => productForm.setData('promo_price', e.target.value)}
+                  placeholder="Optional"
+                  error={productForm.errors.promo_price}
+                  className="bg-[#F9F9F9] h-11"
+                />
+              </div>
+
+              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-sys-border)] bg-[#F9F9F9] px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={productForm.data.is_active}
+                  onChange={(e) => productForm.setData('is_active', e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium text-[var(--color-sys-text-primary)]">Set product as active</span>
+              </label>
+
+              <div className="flex gap-4 border-t border-[var(--color-sys-border)] pt-6">
+                <Button type="button" onClick={() => setIsModalOpen(false)} variant="outline" className="flex-1 py-3 font-bold">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={productForm.processing} className="flex-1 py-3 font-bold">
+                  {productForm.processing ? 'Saving...' : editingProduct ? 'Update Product' : 'Save Product'}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

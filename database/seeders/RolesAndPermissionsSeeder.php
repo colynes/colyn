@@ -28,5 +28,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $staff = Role::firstOrCreate(['name' => 'Staff', 'guard_name' => 'web']);
         $staff->syncPermissions(['manage orders']);
+
+        Role::firstOrCreate(['name' => 'Customer', 'guard_name' => 'web']);
     }
 }

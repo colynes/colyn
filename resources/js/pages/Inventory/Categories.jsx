@@ -1,84 +1,234 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import { Plus, Search, Edit2, Trash2, Tag } from 'lucide-react';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
 
-const CATEGORIES = [
-  { id: 1, name: 'Beef', description: 'All beef products', count: 12, date: '2025-01-15' },
-  { id: 2, name: 'Chicken', description: 'Poultry products', count: 8, date: '2025-01-15' },
-  { id: 3, name: 'Pork', description: 'Pork products', count: 6, date: '2025-01-16' },
-  { id: 4, name: 'Sausages', description: 'Various sausage types', count: 10, date: '2025-01-16' },
-  { id: 5, name: 'Eggs', description: 'Egg and egg products', count: 4, date: '2025-01-20' },
-];
+function CategoryModal({ category, onClose }) {
+  const isEditing = Boolean(category?.id);
+  const form = useForm({
+    name: category?.name || '',
+    description: category?.description || '',
+    is_active: category?.is_active ?? true,
+  });
 
-export default function Categories({ auth }) {
-  const [search, setSearch] = useState('');
+  useEffect(() => {
+    form.setData({
+      name: category?.name || '',
+      description: category?.description || '',
+      is_active: category?.is_active ?? true,
+    });
+  }, [category]);
 
-  const filtered = CATEGORIES.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase())
+  if (!category) {
+    return null;
+  }
+
+  const submit = (event) => {
+    event.preventDefault();
+
+    const options = {
+      preserveScroll: true,
+      onSuccess: () => onClose(),
+    };
+
+    if (isEditing) {
+      form.put(`/inventory/categories/${category.id}`, options);
+      return;
+    }
+
+    form.post('/inventory/categories', options);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-6">
+      <div className="my-auto max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-[1.75rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between px-8 py-8">
+          <div>
+            <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">
+              {isEditing ? 'Edit Category' : 'Add New Category'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6d5036] transition hover:bg-[#f3ede5]"
+            aria-label="Close category modal"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-5 px-8 pb-8">
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Category Name</label>
+            <input
+              type="text"
+              value={form.data.name}
+              onChange={(e) => form.setData('name', e.target.value)}
+              placeholder="e.g., Beef, Chicken, Eggs"
+              className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition placeholder:text-[#b09983] focus:border-[#b69066]"
+            />
+            {form.errors.name ? <p className="mt-2 text-xs text-red-500">{form.errors.name}</p> : null}
+          </div>
+
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Description</label>
+            <textarea
+              value={form.data.description}
+              onChange={(e) => form.setData('description', e.target.value)}
+              placeholder="Enter category description"
+              rows="5"
+              className="w-full rounded-xl border border-[#dcccba] bg-white px-5 py-4 text-[1rem] text-[#3a2513] outline-none transition placeholder:text-[#b09983] focus:border-[#b69066]"
+            />
+            {form.errors.description ? <p className="mt-2 text-xs text-red-500">{form.errors.description}</p> : null}
+          </div>
+
+          <div className="grid gap-3 pt-1 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-14 rounded-xl border border-[#d9c4a9] bg-white text-[1rem] font-semibold text-[#4f3118]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={form.processing}
+              className="h-14 rounded-xl bg-[#4f3118] text-[1rem] font-semibold text-white transition hover:bg-[#402612]"
+            >
+              {form.processing ? 'Saving...' : isEditing ? 'Save Category' : 'Add Category'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
+}
+
+export default function Categories({ auth, categories, filters = {} }) {
+  const rows = categories?.data || [];
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [deletingCategory, setDeletingCategory] = useState(null);
+
+  const hasFilters = useMemo(
+    () => Boolean((filters.search || '').trim()),
+    [filters.search],
+  );
+
+  const deleteCategory = (category) => {
+    router.delete(`/inventory/categories/${category.id}`, {
+      preserveScroll: true,
+    });
+  };
 
   return (
     <AppLayout user={auth?.user}>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Product Categories</h1>
-          <p className="text-sm text-[var(--color-sys-text-secondary)] mt-0.5">Manage product categories</p>
-        </div>
-        <Button variant="primary" className="flex items-center gap-2">
-          <Plus size={16} /> Add Category
-        </Button>
-      </div>
+      <CategoryModal category={activeCategory} onClose={() => setActiveCategory(null)} />
+      <ConfirmModal
+        isOpen={Boolean(deletingCategory)}
+        onClose={() => setDeletingCategory(null)}
+        onConfirm={() => deletingCategory ? deleteCategory(deletingCategory) : null}
+        title="Delete Category"
+        message={deletingCategory ? `You are deleting the category "${deletingCategory.name}". This action cannot be undone.` : ''}
+        confirmText="Delete"
+        type="danger"
+      />
 
-      <div className="flex gap-3 mb-6">
-        <div className="relative flex-1 max-w-xl">
-          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input 
-            placeholder="Search categories..." 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-10 bg-white" 
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((cat) => (
-          <Card key={cat.id} className="rounded-2xl border-none shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div className="bg-[#F5F2EF] p-3 rounded-xl text-[var(--color-brand-dark)]">
-                  <Tag size={24} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="p-2 text-gray-400 hover:text-[var(--color-brand-dark)] hover:bg-[#F5F2EF] rounded-lg transition-all">
-                    <Edit2 size={16} />
-                  </button>
-                  <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-bold text-[var(--color-sys-text-primary)] mb-1">{cat.name}</h3>
-                <p className="text-sm text-[var(--color-sys-text-secondary)] mb-4">{cat.description}</p>
-                
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-[var(--color-sys-border)]">
-                  <span className="text-xs font-medium text-[var(--color-brand-tan)] uppercase tracking-wider">{cat.count} products</span>
-                  <span className="text-[10px] text-gray-400">Added: {cat.date}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-        {filtered.length === 0 && (
-          <div className="col-span-full py-12 text-center text-[var(--color-sys-text-secondary)]">
-            No categories found matching your search.
+      <div className="space-y-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-[2.45rem] font-semibold tracking-[-0.04em] text-[#3a2513]">Product Categories</h1>
+            <p className="mt-2 text-[0.95rem] text-[#73563a]">Manage product categories</p>
           </div>
-        )}
+
+          <button
+            type="button"
+            onClick={() => setActiveCategory({})}
+            className="inline-flex items-center gap-3 self-start rounded-[1.05rem] bg-[#4f3118] px-6 py-3.5 text-[1.05rem] font-semibold text-white transition hover:bg-[#402612]"
+          >
+            <Plus className="h-5 w-5" strokeWidth={2.25} />
+            Add Category
+          </button>
+        </div>
+
+        <form method="get" action="/inventory/categories" className="flex items-center gap-4">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#866748]" strokeWidth={2} />
+            <input
+              type="text"
+              name="search"
+              defaultValue={filters.search || ''}
+              placeholder="Search categories..."
+              className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white pl-14 pr-4 text-[1rem] text-[#3a2513] outline-none transition placeholder:text-[#b09983] focus:border-[#b69066]"
+            />
+          </div>
+        </form>
+
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {rows.length > 0 ? rows.map((category) => (
+            <Card key={category.id} className="rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
+              <CardContent className="p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="icon-surface-sm bg-[#efebe6] text-[#4f3118]">
+                    <Tag className="h-7 w-7" />
+                  </div>
+
+                  <div className="flex items-center gap-4 text-[#4f3118]">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCategory(category)}
+                      className="transition hover:text-[#2f1c0d]"
+                      aria-label={`Edit ${category.name}`}
+                    >
+                      <Pencil className="h-5 w-5" strokeWidth={2} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingCategory(category)}
+                      className="transition hover:text-red-600"
+                      aria-label={`Delete ${category.name}`}
+                    >
+                      <Trash2 className="h-5 w-5 text-red-500" strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-7">
+                  <h2 className="text-[1.25rem] font-semibold text-[#352314]">{category.name}</h2>
+                  <p className="mt-3 min-h-[3.2rem] text-[1rem] text-[#5f4328]">
+                    {category.description || 'No category description added yet.'}
+                  </p>
+                </div>
+
+                <div className="mt-8 flex items-end justify-between gap-4">
+                  <p className="text-[1.05rem] font-medium text-[#4f3118]">
+                    {category.products_count} {category.products_count === 1 ? 'product' : 'products'}
+                  </p>
+                  <p className="text-[0.95rem] text-[#7b5d3d]">
+                    Added: {category.created_at || 'N/A'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )) : (
+            <Card className="rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none md:col-span-2 xl:col-span-3">
+              <CardContent className="px-8 py-16 text-center">
+                <p className="text-lg font-medium text-[#4d3218]">No categories found.</p>
+                <p className="mt-2 text-sm text-[#7a5c3e]">Try another search or add a new category.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {hasFilters ? (
+          <div className="flex justify-end">
+            <Link href="/inventory/categories" className="text-sm font-semibold text-[#4f3118]">
+              Clear filters
+            </Link>
+          </div>
+        ) : null}
       </div>
     </AppLayout>
   );

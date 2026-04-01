@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\CartManager;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -37,7 +38,20 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            //
+            'auth' => [
+                'user' => $request->user() ? [
+                    'id'    => $request->user()->id,
+                    'name'  => $request->user()->name,
+                    'email' => $request->user()->email,
+                    'role'  => $request->user()->getRoleNames()->first(),
+                    'role_key' => strtolower((string) $request->user()->getRoleNames()->first()),
+                ] : null,
+            ],
+            'flash' => [
+                'success' => $request->session()->get('success'),
+                'error'   => $request->session()->get('error'),
+            ],
+            'cart' => fn () => CartManager::summary(),
         ];
     }
 }

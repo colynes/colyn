@@ -1,129 +1,507 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import { Plus, Search, Edit2, Trash2, Key, Users as UsersIcon, ShieldCheck, UserCheck, UserPlus } from 'lucide-react';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { Eye, EyeOff, Lock, Pencil, Plus, Search, Shield, Trash2, X } from 'lucide-react';
 
-const USERS = [
-  { id: 1, name: 'Admin User', role: 'Administrator', email: 'admin@amanibrew.com', status: 'Active', login: '2026-02-26 09:30', created: '2025-01-01', initials: 'AU', roleColor: 'bg-red-50 text-red-600', statusColor: 'bg-green-100 text-green-700' },
-  { id: 2, name: 'John Manager', role: 'Manager', email: 'john.manager@amanibrew.com', status: 'Active', login: '2026-02-26 08:15', created: '2025-06-15', initials: 'JM', roleColor: 'bg-blue-50 text-blue-600', statusColor: 'bg-green-100 text-green-700' },
-  { id: 3, name: 'Sarah Staff', role: 'Staff', email: 'sarah.staff@amanibrew.com', status: 'Active', login: '2026-02-25 16:45', created: '2025-09-01', initials: 'SS', roleColor: 'bg-green-50 text-green-600', statusColor: 'bg-green-100 text-green-700' },
-  { id: 4, name: 'Mike Employee', role: 'Staff', email: 'mike.employee@amanibrew.com', status: 'Active', login: '2026-02-26 07:20', created: '2025-11-10', initials: 'ME', roleColor: 'bg-green-50 text-green-600', statusColor: 'bg-green-100 text-green-700' },
-];
+const roleTone = {
+  administrator: 'bg-rose-100 text-rose-600',
+  admin: 'bg-rose-100 text-rose-600',
+  manager: 'bg-blue-100 text-blue-600',
+  staff: 'bg-emerald-100 text-emerald-700',
+};
 
-export default function Users({ auth }) {
-  const [search, setSearch] = useState('');
+function UserModal({ user, roles, onClose }) {
+  const isEditing = Boolean(user?.id);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const form = useForm({
+    name: user?.name || '',
+    email: user?.email || '',
+    role: user?.role || roles[0]?.name || '',
+    password: '',
+    password_confirmation: '',
+  });
 
-  const filtered = USERS.filter(u => 
-    u.name.toLowerCase().includes(search.toLowerCase()) || 
-    u.email.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    form.setData({
+      name: user?.name || '',
+      email: user?.email || '',
+      role: user?.role || roles[0]?.name || '',
+      password: '',
+      password_confirmation: '',
+    });
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  }, [user, roles]);
+
+  if (!user) {
+    return null;
+  }
+
+  const submit = (event) => {
+    event.preventDefault();
+
+    const options = {
+      preserveScroll: true,
+      onSuccess: () => onClose(),
+    };
+
+    if (isEditing) {
+      form.transform((data) => ({
+        name: data.name,
+        email: data.email,
+        role: data.role,
+      })).put(`/users/${user.id}`, options);
+      return;
+    }
+
+    form.post('/users', options);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-6">
+      <div className="my-auto max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-[1.75rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between px-7 py-6">
+          <div>
+            <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">
+              {isEditing ? 'Edit Staff Member' : 'Add New Staff'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6d5036] transition hover:bg-[#f3ede5]"
+            aria-label="Close user modal"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-5 px-7 pb-7">
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Full Name</label>
+            <input
+              type="text"
+              value={form.data.name}
+              onChange={(e) => form.setData('name', e.target.value)}
+              placeholder="Enter full name"
+              className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+            />
+            {form.errors.name ? <p className="mt-2 text-xs text-red-500">{form.errors.name}</p> : null}
+          </div>
+
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Email Address</label>
+            <input
+              type="email"
+              value={form.data.email}
+              onChange={(e) => form.setData('email', e.target.value)}
+              placeholder="user@amanibrew.com"
+              className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+            />
+            {form.errors.email ? <p className="mt-2 text-xs text-red-500">{form.errors.email}</p> : null}
+          </div>
+
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Role</label>
+            <select
+              value={form.data.role}
+              onChange={(e) => form.setData('role', e.target.value)}
+              className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+            >
+              {roles.map((role) => (
+                <option key={role.id} value={role.name}>{role.name}</option>
+              ))}
+            </select>
+            {form.errors.role ? <p className="mt-2 text-xs text-red-500">{form.errors.role}</p> : null}
+          </div>
+
+          {!isEditing ? (
+            <>
+              <div>
+                <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={form.data.password}
+                    onChange={(e) => form.setData('password', e.target.value)}
+                    placeholder="Enter password"
+                    className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 pr-14 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7b5d3d] transition hover:text-[#4f3118]"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+                {form.errors.password ? <p className="mt-2 text-xs text-red-500">{form.errors.password}</p> : null}
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Confirm Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={form.data.password_confirmation}
+                    onChange={(e) => form.setData('password_confirmation', e.target.value)}
+                    placeholder="Confirm password"
+                    className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 pr-14 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((current) => !current)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7b5d3d] transition hover:text-[#4f3118]"
+                    aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : null}
+
+          <div className="grid gap-3 pt-1 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-14 rounded-xl border border-[#d9c4a9] bg-white text-[1rem] font-semibold text-[#4f3118]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={form.processing}
+              className="h-14 rounded-xl bg-[#4f3118] text-[1rem] font-semibold text-white transition hover:bg-[#402612]"
+            >
+              {form.processing ? 'Saving...' : isEditing ? 'Save Staff' : 'Create Staff'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
+}
+
+function PasswordModal({ user, onClose }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const form = useForm({
+    password: '',
+    password_confirmation: '',
+  });
+
+  useEffect(() => {
+    form.reset('password', 'password_confirmation');
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  }, [user]);
+
+  if (!user) {
+    return null;
+  }
+
+  const submit = (event) => {
+    event.preventDefault();
+    form.post(`/users/${user.id}/reset-password`, {
+      preserveScroll: true,
+      onSuccess: () => onClose(),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-6">
+      <div className="my-auto max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-[1.75rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between px-7 py-6">
+          <div>
+            <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Reset Password</h2>
+            <p className="mt-1 text-[0.95rem] text-[#76593d]">{user.name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6d5036] transition hover:bg-[#f3ede5]"
+            aria-label="Close password modal"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-5 px-7 pb-7">
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">New Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={form.data.password}
+                onChange={(e) => form.setData('password', e.target.value)}
+                placeholder="Enter password"
+                className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 pr-14 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7b5d3d] transition hover:text-[#4f3118]"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+            {form.errors.password ? <p className="mt-2 text-xs text-red-500">{form.errors.password}</p> : null}
+          </div>
+
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Confirm Password</label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={form.data.password_confirmation}
+                onChange={(e) => form.setData('password_confirmation', e.target.value)}
+                placeholder="Confirm password"
+                className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 pr-14 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((current) => !current)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#7b5d3d] transition hover:text-[#4f3118]"
+                aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'}
+              >
+                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 pt-1 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-14 rounded-xl border border-[#d9c4a9] bg-white text-[1rem] font-semibold text-[#4f3118]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={form.processing}
+              className="h-14 rounded-xl bg-[#4f3118] text-[1rem] font-semibold text-white transition hover:bg-[#402612]"
+            >
+              {form.processing ? 'Saving...' : 'Reset Password'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function Users({ auth, users, roles = [], filters = {} }) {
+  const rows = users?.data || [];
+  const [activeUser, setActiveUser] = useState(null);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [deletingUser, setDeletingUser] = useState(null);
+
+  const hasFilters = useMemo(
+    () => Boolean((filters.search || '').trim() || (filters.role || '').trim()),
+    [filters.search, filters.role],
+  );
+
+  const deleteUser = (user) => {
+    router.delete(`/users/${user.id}`, {
+      preserveScroll: true,
+    });
+  };
 
   return (
     <AppLayout user={auth?.user}>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">User Management</h1>
-          <p className="text-sm text-[var(--color-sys-text-secondary)] mt-0.5">Manage system users and permissions</p>
-        </div>
-        <Button variant="primary" className="flex items-center gap-2">
-          <Plus size={16} /> Add User
-        </Button>
-      </div>
+      <UserModal user={activeUser} roles={roles} onClose={() => setActiveUser(null)} />
+      <PasswordModal user={passwordUser} onClose={() => setPasswordUser(null)} />
+      <ConfirmModal
+        isOpen={Boolean(deletingUser)}
+        onClose={() => setDeletingUser(null)}
+        onConfirm={() => deletingUser ? deleteUser(deletingUser) : null}
+        title="Delete Staff Member"
+        message={deletingUser ? `You are deleting staff member ${deletingUser.name}. This action cannot be undone.` : ''}
+        confirmText="Delete"
+        type="danger"
+      />
 
-      {/* Stats Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {[
-          { label: 'Active Users', value: 4, icon: UsersIcon, color: 'text-gray-400' },
-          { label: 'Administrators', value: 1, icon: ShieldCheck, color: 'text-red-400' },
-          { label: 'Managers', value: 1, icon: UserCheck, color: 'text-blue-400' },
-          { label: 'Staff Members', value: 3, icon: UserPlus, color: 'text-green-400' },
-        ].map((stat, i) => (
-          <Card key={i} className="rounded-2xl border-none shadow-sm h-full">
+      <div className="space-y-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-[2.45rem] font-semibold tracking-[-0.04em] text-[#3a2513]">Staff Management</h1>
+            <p className="mt-2 text-[0.95rem] text-[#73563a]">Manage staff accounts and access permissions</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setActiveUser({})}
+            className="inline-flex items-center gap-3 self-start rounded-[1.05rem] bg-[#4f3118] px-6 py-3.5 text-[1.05rem] font-semibold text-white transition hover:bg-[#402612]"
+          >
+            <Plus className="h-5 w-5" strokeWidth={2.25} />
+            Add Staff
+          </button>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-3">
+          <Card className="rounded-[1.4rem] border border-[#e0d1bf] bg-white shadow-none">
             <CardContent className="p-6">
-               <div className="flex flex-col h-full justify-between">
-                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-[#F5F2EF] mb-4 ${stat.color}`}>
-                   <stat.icon size={22} />
-                 </div>
-                 <div>
-                    <h3 className="text-3xl font-bold text-[var(--color-sys-text-primary)]">{stat.value}</h3>
-                    <p className="text-xs font-medium text-[var(--color-sys-text-secondary)] uppercase tracking-wider">{stat.label}</p>
-                 </div>
-               </div>
+              <div className="icon-surface-sm bg-[#f3ecdf] text-[#4f3118]">
+                <Shield className="h-7 w-7" />
+              </div>
+              <p className="mt-5 text-[2.2rem] font-black text-[#352314]">{rows.length}</p>
+              <p className="mt-1 text-[1rem] text-[#73563a]">Backoffice Accounts</p>
             </CardContent>
           </Card>
-        ))}
-      </div>
-
-      <div className="flex gap-3 mb-6">
-        <div className="relative flex-1 max-w-xl">
-          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input 
-            placeholder="Search users by name or email..." 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-10 bg-white" 
-          />
+          <Card className="rounded-[1.4rem] border border-[#e0d1bf] bg-white shadow-none">
+            <CardContent className="p-6">
+              <div className="icon-surface-sm bg-[#eef5e9] text-emerald-700">
+                <Shield className="h-7 w-7" />
+              </div>
+              <p className="mt-5 text-[2.2rem] font-black text-[#352314]">
+                {rows.filter((user) => ['administrator', 'admin'].includes(String(user.role || '').toLowerCase())).length}
+              </p>
+              <p className="mt-1 text-[1rem] text-[#73563a]">Administrators</p>
+            </CardContent>
+          </Card>
+          <Card className="rounded-[1.4rem] border border-[#e0d1bf] bg-white shadow-none">
+            <CardContent className="p-6">
+              <div className="icon-surface-sm bg-[#eef5e9] text-emerald-700">
+                <Shield className="h-7 w-7" />
+              </div>
+              <p className="mt-5 text-[2.2rem] font-black text-[#352314]">
+                {rows.filter((user) => ['staff', 'manager'].includes(String(user.role || '').toLowerCase())).length}
+              </p>
+              <p className="mt-1 text-[1rem] text-[#73563a]">Staff Members</p>
+            </CardContent>
+          </Card>
         </div>
-        <div className="flex items-center gap-2 px-3 bg-white border border-[var(--color-sys-border)] rounded-lg">
-           <ShieldCheck size={16} className="text-gray-400" />
-           <select className="bg-transparent text-sm text-[var(--color-sys-text-secondary)] outline-none border-none pr-6 cursor-pointer">
-              <option>All Roles</option>
-              <option>Administrator</option>
-              <option>Manager</option>
-              <option>Staff</option>
-           </select>
-        </div>
-      </div>
 
-      <Card className="rounded-2xl border-none shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-[#F5F2EF]/50 border-b border-[var(--color-sys-border)] uppercase text-[10px] font-bold tracking-wider text-[var(--color-sys-text-secondary)]">
-              {['User', 'Email', 'Role', 'Status', 'Last Login', 'Created', 'Actions'].map(h => (
-                <th key={h} className="text-left px-6 py-4">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u, i) => (
-              <tr key={u.id} className={`border-b border-[var(--color-sys-border)] hover:bg-[#F5F2EF]/20 transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'}`}>
-                <td className="px-6 py-5">
-                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-400 uppercase tracking-tighter shadow-sm">{u.initials}</div>
-                     <div>
-                       <p className="font-bold text-[var(--color-sys-text-primary)]">{u.name}</p>
-                       <p className="text-[10px] text-gray-400 font-medium tracking-tight">USR-{String(u.id).padStart(3, '0')}</p>
-                     </div>
-                   </div>
-                </td>
-                <td className="px-6 py-5">
-                   <div className="flex items-center gap-2 text-[var(--color-sys-text-secondary)]">
-                      <div className="w-5 h-5 flex items-center justify-center text-gray-400 border border-gray-200 rounded p-1"><ShieldCheck size={12} /></div>
-                      <span className="text-xs font-medium">{u.email}</span>
-                   </div>
-                </td>
-                <td className="px-6 py-5">
-                   <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.roleColor}`}>{u.role}</span>
-                </td>
-                <td className="px-6 py-5">
-                   <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.statusColor}`}>{u.status}</span>
-                </td>
-                <td className="px-6 py-5 text-[var(--color-sys-text-secondary)] font-medium">{u.login}</td>
-                <td className="px-6 py-5 text-[var(--color-sys-text-secondary)] font-medium">{u.created}</td>
-                <td className="px-6 py-5">
-                   <div className="flex items-center gap-3 text-gray-400">
-                     <button className="hover:text-[var(--color-brand-dark)]"><Key size={16} /></button>
-                     <button className="hover:text-[var(--color-brand-dark)]"><Edit2 size={16} /></button>
-                     <button className="hover:text-red-500"><Trash2 size={16} /></button>
-                   </div>
-                </td>
-              </tr>
+        <form method="get" action="/users" className="flex items-center gap-4 overflow-x-auto">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#866748]" strokeWidth={2} />
+            <input
+              type="text"
+              name="search"
+              defaultValue={filters.search || ''}
+              placeholder="Search backoffice users by name or email..."
+              className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white pl-14 pr-4 text-[1rem] text-[#3a2513] outline-none transition placeholder:text-[#b09983] focus:border-[#b69066]"
+            />
+          </div>
+
+          <div className="flex h-14 w-[52px] shrink-0 items-center justify-center rounded-[1.05rem] border border-[#dcccba] bg-white text-[#7a5b3d]">
+            <Shield className="h-5 w-5" strokeWidth={2} />
+          </div>
+
+          <select
+            name="role"
+            defaultValue={filters.role || ''}
+            className="h-14 w-[190px] shrink-0 rounded-[1.05rem] border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+          >
+            <option value="">All Roles</option>
+            {roles.map((role) => (
+              <option key={role.id} value={role.name}>{role.name}</option>
             ))}
-          </tbody>
-        </table>
-      </Card>
+          </select>
+        </form>
+
+        <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left">
+                <thead className="bg-[#ede1cf]">
+                  <tr>
+                    {['User', 'Email', 'Role', 'Status', 'Last Login', 'Created', 'Actions'].map((header) => (
+                      <th key={header} className="px-8 py-5 text-[1rem] font-semibold text-[#2f2115]">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.length > 0 ? rows.map((user, index) => {
+                    const roleKey = String(user.role || '').toLowerCase();
+
+                    return (
+                      <tr key={user.id} className={`${index !== rows.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
+                        <td className="px-8 py-6">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#efebe6] text-[1.1rem] font-medium text-[#6b5038]">
+                              {user.initials}
+                            </div>
+                            <div>
+                              <p className="text-[1.05rem] font-semibold text-[#352314]">{user.name}</p>
+                              <p className="mt-1 text-[0.95rem] text-[#6f5238]">{user.code}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{user.email}</td>
+                        <td className="px-8 py-6">
+                          <span className={`inline-flex rounded-full px-4 py-2 text-[1rem] font-medium ${roleTone[roleKey] || 'bg-[#f3ecdf] text-[#6d5036]'}`}>
+                            {user.role || 'No role'}
+                          </span>
+                        </td>
+                        <td className="px-8 py-6">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-[1rem] font-medium text-emerald-700">
+                            {user.status}
+                          </span>
+                        </td>
+                        <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{user.last_login || 'Never'}</td>
+                        <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{user.created}</td>
+                        <td className="px-8 py-6">
+                          <div className="flex items-center gap-5 text-[#4f3118]">
+                            <button
+                              type="button"
+                              onClick={() => setPasswordUser(user)}
+                              className="transition hover:text-[#2f1c0d]"
+                              aria-label={`Reset password for ${user.name}`}
+                            >
+                              <Lock className="h-5 w-5" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveUser(user)}
+                              className="transition hover:text-[#2f1c0d]"
+                              aria-label={`Edit ${user.name}`}
+                            >
+                              <Pencil className="h-5 w-5" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingUser(user)}
+                              className="transition hover:text-red-600"
+                              aria-label={`Delete ${user.name}`}
+                            >
+                              <Trash2 className="h-5 w-5" strokeWidth={2} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={7} className="px-8 py-12 text-center">
+                        <p className="text-lg font-medium text-[#4d3218]">No staff members found.</p>
+                        <p className="mt-2 text-sm text-[#7a5c3e]">Try another search or role filter.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {hasFilters ? (
+          <div className="flex justify-end">
+            <Link href="/users" className="text-sm font-semibold text-[#4f3118]">
+              Clear filters
+            </Link>
+          </div>
+        ) : null}
+      </div>
     </AppLayout>
   );
 }

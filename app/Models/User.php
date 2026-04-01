@@ -30,4 +30,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(ActivityLog::class);
     }
+
+    public function createdExpenses()
+    {
+        return $this->hasMany(Expense::class, 'created_by');
+    }
+
+    public function updatedExpenses()
+    {
+        return $this->hasMany(Expense::class, 'updated_by');
+    }
 }

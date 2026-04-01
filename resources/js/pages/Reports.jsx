@@ -1,165 +1,278 @@
 import React from 'react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
-import DataTable from '@/components/ui/DataTable';
-import StatusBadge from '@/components/ui/StatusBadge';
-import { Download, FileSpreadsheet, FileText, Printer, DollarSign, ShoppingCart, Users, FileBarChart } from 'lucide-react';
+import { CalendarDays, DollarSign, Download, FileText, Filter, Printer, ReceiptText, ShoppingCart, Users } from 'lucide-react';
 
-export default function Reports({ auth }) {
-  const transactions = [
-    { id: '#ORD-1045', date: '26-Feb-2026', customer: 'John Smith', type: 'Retail', orderType: 'Delivery', items: 3, amount: 'Tzs 145,000', status: 'completed', payment: 'Paid' },
-    { id: '#ORD-1044', date: '25-Feb-2026', customer: 'Sarah Johnson', type: 'Wholesale', orderType: 'Pickup', items: 12, amount: 'Tzs 850,000', status: 'pending', payment: 'Pending' },
-    { id: '#ORD-1043', date: '25-Feb-2026', customer: 'Mike Davis', type: 'Retail', orderType: 'Delivery', items: 1, amount: 'Tzs 35,000', status: 'completed', payment: 'Paid' },
-    { id: '#ORD-1042', date: '24-Feb-2026', customer: 'Amani Hotel', type: 'Wholesale', orderType: 'Delivery', items: 45, amount: 'Tzs 2,100,000', status: 'completed', payment: 'Paid' },
-  ];
+const money = (value) => new Intl.NumberFormat('en-TZ', {
+  style: 'currency',
+  currency: 'TZS',
+  maximumFractionDigits: 0,
+}).format(value || 0);
 
-  const columns = [
-    { header: 'Order ID', cell: (row) => <span className="font-medium">{row.id}</span> },
-    { header: 'Date', accessorKey: 'date' },
-    { header: 'Customer', accessorKey: 'customer' },
-    { header: 'Type', accessorKey: 'type' },
-    { header: 'Order Type', accessorKey: 'orderType' },
-    { header: 'Items', accessorKey: 'items' },
-    { header: 'Amount', cell: (row) => <span className="font-semibold">{row.amount}</span> },
-    { header: 'Status', cell: (row) => <StatusBadge status={row.status} /> },
-    { header: 'Payment', cell: (row) => (
-      <span className={`text-sm font-medium ${row.payment === 'Paid' ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-danger)]'}`}>
-        {row.payment}
-      </span>
-    ) },
-  ];
+const formatPayment = (value) => String(value || 'N/A')
+  .replaceAll('_', ' ')
+  .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+const statusTone = {
+  Paid: 'bg-emerald-100 text-emerald-700',
+  Pending: 'bg-amber-100 text-amber-700',
+};
+
+function MetricCard({ icon: Icon, value, label, footer, footerClassName = '' }) {
   return (
-    <AppLayout user={auth?.user}>
-      
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-sys-text-primary)] tracking-tight">Reports & Analytics</h1>
-          <p className="text-sm text-[var(--color-sys-text-secondary)] mt-1">Generate and export custom reports</p>
+    <Card className="rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
+      <CardContent className="p-7">
+        <div className="icon-surface-sm bg-[#efebe6] text-[#4f3118]">
+          <Icon className="h-7 w-7" />
         </div>
-        <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
-          <Button variant="outline" className="flex items-center gap-2 bg-white">
-            <Download size={16} /> CSV
-          </Button>
-          <Button variant="outline" className="flex items-center gap-2 bg-white">
-            <FileSpreadsheet size={16} /> Excel
-          </Button>
-          <Button variant="outline" className="flex items-center gap-2 bg-white">
-            <FileText size={16} /> PDF
-          </Button>
-          <Button variant="primary" className="flex items-center gap-2">
-            <Printer size={16} /> Print
-          </Button>
-        </div>
-      </div>
-
-      {/* Filters Row */}
-      <Card className="rounded-xl border-none shadow-sm mb-6">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-2 mb-4 text-[var(--color-sys-text-primary)] font-medium">
-            <FilterIcon /> Report Filters
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-            <div>
-              <label className="text-xs text-[var(--color-sys-text-secondary)] font-medium mb-1 block">Date From</label>
-              <Input type="date" defaultValue="2026-02-01" className="bg-white" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--color-sys-text-secondary)] font-medium mb-1 block">Date To</label>
-              <Input type="date" defaultValue="2026-02-26" className="bg-white" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--color-sys-text-secondary)] font-medium mb-1 block">Customer Type</label>
-              <Select options={[{label: 'All Types', value: 'all'}]} defaultValue="all" className="bg-white" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--color-sys-text-secondary)] font-medium mb-1 block">Payment Status</label>
-              <Select options={[{label: 'All Status', value: 'all'}]} defaultValue="all" className="bg-white" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--color-sys-text-secondary)] font-medium mb-1 block">Report Type</label>
-              <Select options={[{label: 'All Transactions', value: 'all'}]} defaultValue="all" className="bg-white" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <Card className="rounded-xl border-none shadow-sm flex flex-col justify-between">
-          <CardContent className="p-6">
-            <div className="bg-[#F3F4ED] p-3 inline-block rounded-xl text-[var(--color-sys-text-secondary)] mb-4">
-              <DollarSign size={22} />
-            </div>
-            <div className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Tzs 8,338,980</div>
-            <p className="text-sm text-[var(--color-sys-text-secondary)] mt-1">Total Revenue</p>
-            <div className="flex gap-2 text-xs mt-3 font-medium">
-              <span className="text-[var(--color-status-success)]">Paid: Tzs 4,043,520</span>
-              <span className="text-[var(--color-status-danger)]">Pending: Tzs 4,295,460</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border-none shadow-sm flex flex-col justify-between">
-          <CardContent className="p-6">
-            <div className="bg-[#F3F4ED] p-3 inline-block rounded-xl text-[var(--color-sys-text-secondary)] mb-4">
-              <ShoppingCart size={22} />
-            </div>
-            <div className="text-2xl font-bold text-[var(--color-sys-text-primary)]">15</div>
-            <p className="text-sm text-[var(--color-sys-text-secondary)] mt-1">Total Orders</p>
-            <div className="flex gap-2 text-xs mt-3 font-medium">
-              <span className="text-[var(--color-status-success)]">Paid: 10</span>
-              <span className="text-[var(--color-status-danger)]">Pending: 5</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border-none shadow-sm flex flex-col justify-between">
-          <CardContent className="p-6">
-            <div className="bg-[#F3F4ED] p-3 inline-block rounded-xl text-[var(--color-sys-text-secondary)] mb-4">
-              <Users size={22} />
-            </div>
-            <div className="text-2xl font-bold text-[var(--color-sys-text-primary)]">15</div>
-            <p className="text-sm text-[var(--color-sys-text-secondary)] mt-1">Unique Customers</p>
-            <div className="text-xs text-gray-400 mt-3 border-t border-transparent">
-               In selected period
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border-none shadow-sm flex flex-col justify-between">
-          <CardContent className="p-6">
-            <div className="bg-[#F3F4ED] p-3 inline-block rounded-xl text-[var(--color-sys-text-secondary)] mb-4">
-              <FileBarChart size={22} />
-            </div>
-            <div className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Tzs 555,932</div>
-            <p className="text-sm text-[var(--color-sys-text-secondary)] mt-1">Avg. Order Value</p>
-            <div className="text-xs text-gray-400 mt-3 border-t border-transparent">
-               Per transaction
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Results Table */}
-      <Card className="rounded-xl border-none shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-[var(--color-sys-border)] bg-[#F3F1ED] rounded-t-xl">
-           <h3 className="font-semibold text-base text-[var(--color-sys-text-primary)]">Report Results</h3>
-           <p className="text-sm text-[var(--color-sys-text-secondary)] text-xs mt-1">Showing 15 transactions from 2026-02-01 to 2026-02-26</p>
-        </div>
-        <DataTable columns={columns} data={transactions} />
-      </Card>
-      
-    </AppLayout>
+        <p className="mt-8 text-[2rem] font-semibold tracking-[-0.03em] text-[#352314]">{value}</p>
+        <p className="mt-2 text-[1rem] text-[#73563a]">{label}</p>
+        {footer ? <p className={`mt-4 text-sm ${footerClassName}`}>{footer}</p> : null}
+      </CardContent>
+    </Card>
   );
 }
 
-const FilterIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-  </svg>
-);
+export default function Reports({ auth, overview = {}, filters = {}, results = [], topProducts = [] }) {
+  const printPage = () => window.print();
+  const params = new URLSearchParams();
+
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value) {
+      params.set(key, value);
+    }
+  });
+
+  const query = params.toString();
+  const csvHref = `/reports/export/csv${query ? `?${query}` : ''}`;
+  const pdfHref = `/reports/export/pdf${query ? `?${query}` : ''}`;
+
+  return (
+    <AppLayout user={auth?.user}>
+      <div className="space-y-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-[2.45rem] font-semibold tracking-[-0.04em] text-[#3a2513]">Reports &amp; Analytics</h1>
+            <p className="mt-2 text-[0.95rem] text-[#73563a]">Generate and export custom reports</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href={csvHref}
+              className="inline-flex items-center gap-3 rounded-[1.05rem] border border-[#dcccba] bg-white px-5 py-3 text-[1.05rem] font-semibold text-[#4f3118] transition hover:bg-[#faf6f1]"
+            >
+              <Download className="h-5 w-5" />
+              CSV
+            </a>
+            <a
+              href={pdfHref}
+              className="inline-flex items-center gap-3 rounded-[1.05rem] border border-[#dcccba] bg-white px-5 py-3 text-[1.05rem] font-semibold text-[#4f3118] transition hover:bg-[#faf6f1]"
+            >
+              <FileText className="h-5 w-5" />
+              PDF
+            </a>
+            <button
+              type="button"
+              onClick={printPage}
+              className="inline-flex items-center gap-3 rounded-[1.05rem] bg-[#4f3118] px-5 py-3 text-[1.05rem] font-semibold text-white transition hover:bg-[#402612]"
+            >
+              <Printer className="h-5 w-5" />
+              Print
+            </button>
+          </div>
+        </div>
+
+        <Card className="rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
+          <CardContent className="p-7">
+            <div className="flex items-center gap-3">
+              <Filter className="h-6 w-6 text-[#6f4b26]" />
+              <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Report Filters</h2>
+            </div>
+
+            <form method="get" action="/reports" className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div>
+                <label className="mb-2 block text-[1rem] font-medium text-[#5f4328]">Date From</label>
+                <div className="relative">
+                  <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#866748]" />
+                  <input
+                    type="date"
+                    name="date_from"
+                    defaultValue={filters.date_from || ''}
+                    className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white pl-14 pr-4 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[1rem] font-medium text-[#5f4328]">Date To</label>
+                <div className="relative">
+                  <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#866748]" />
+                  <input
+                    type="date"
+                    name="date_to"
+                    defaultValue={filters.date_to || ''}
+                    className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white pl-14 pr-4 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[1rem] font-medium text-[#5f4328]">Customer Type</label>
+                <select
+                  name="customer_type"
+                  defaultValue={filters.customer_type || ''}
+                  className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                >
+                  <option value="">All Types</option>
+                  <option value="regular_customers">Regular Customers</option>
+                  <option value="fat_clients">Fat Clients</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[1rem] font-medium text-[#5f4328]">Payment Status</label>
+                <select
+                  name="payment_status"
+                  defaultValue={filters.payment_status || ''}
+                  className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                >
+                  <option value="">All Status</option>
+                  <option value="paid">Paid</option>
+                  <option value="pending">Pending</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[1rem] font-medium text-[#5f4328]">Report Type</label>
+                <select
+                  name="report_type"
+                  defaultValue={filters.report_type || ''}
+                  className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                >
+                  <option value="">All Transactions</option>
+                  <option value="deliveries">Deliveries</option>
+                  <option value="pickups">Pickups</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2 xl:col-span-5">
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-3 rounded-[1.05rem] bg-[#4f3118] px-6 py-3 text-[1rem] font-semibold text-white transition hover:bg-[#402612]"
+                >
+                  <Filter className="h-4 w-4" />
+                  Apply Filters
+                </button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            icon={DollarSign}
+            value={money(overview.total_revenue)}
+            label="Total Revenue"
+            footer={`Paid: ${money(overview.paid_revenue)}   Pending: ${money(overview.pending_revenue)}`}
+            footerClassName="text-[0.95rem] text-[#6b513a]"
+          />
+          <MetricCard
+            icon={ShoppingCart}
+            value={new Intl.NumberFormat('en-TZ').format(overview.total_orders || 0)}
+            label="Total Orders"
+            footer={`Paid: ${overview.paid_orders || 0}   Pending: ${overview.pending_orders || 0}`}
+            footerClassName="text-[0.95rem] text-[#6b513a]"
+          />
+          <MetricCard
+            icon={Users}
+            value={new Intl.NumberFormat('en-TZ').format(overview.unique_customers || 0)}
+            label="Unique Customers"
+            footer="In selected period"
+            footerClassName="text-[0.95rem] text-[#6b513a]"
+          />
+          <MetricCard
+            icon={ReceiptText}
+            value={money(overview.average_order_value)}
+            label="Avg. Order Value"
+            footer="Per transaction"
+            footerClassName="text-[0.95rem] text-[#6b513a]"
+          />
+        </div>
+
+        <Card className="overflow-hidden rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
+          <div className="border-b border-[#dccbb8] bg-[#efe4d3] px-8 py-6">
+            <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Report Results</h2>
+            <p className="mt-2 text-[1rem] text-[#73563a]">
+              Showing {results.length} transactions from {filters.date_from || 'N/A'} to {filters.date_to || 'N/A'}
+            </p>
+          </div>
+
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left">
+                <thead className="bg-white">
+                  <tr>
+                    {['Order ID', 'Date', 'Customer', 'Type', 'Order Type', 'Items', 'Amount', 'Status', 'Payment'].map((header) => (
+                      <th key={header} className="px-8 py-5 text-[1rem] font-semibold text-[#2f2115]">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.length > 0 ? results.map((row, index) => (
+                    <tr key={row.id} className={`${index !== results.length - 1 ? 'border-t border-[#eadcca]' : ''} bg-white`}>
+                      <td className="px-8 py-6 text-[1.05rem] font-medium text-[#352314]">{row.order_number}</td>
+                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{row.date}</td>
+                      <td className="px-8 py-6 text-[1.05rem] text-[#352314]">{row.customer}</td>
+                      <td className="px-8 py-6">
+                        <span className="inline-flex rounded-full bg-[#efebe6] px-4 py-2 text-[0.95rem] font-medium text-[#5f4328]">
+                          {row.type}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{row.order_type}</td>
+                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{row.items}</td>
+                      <td className="px-8 py-6 text-[1.05rem] font-medium text-[#352314]">{money(row.amount)}</td>
+                      <td className="px-8 py-6">
+                        <span className={`inline-flex rounded-full px-4 py-2 text-[0.95rem] font-medium ${statusTone[row.status] || 'bg-slate-100 text-slate-700'}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{formatPayment(row.payment)}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={9} className="px-8 py-12 text-center">
+                        <p className="text-lg font-medium text-[#4d3218]">No report results found.</p>
+                        <p className="mt-2 text-sm text-[#7a5c3e]">Try another date range or filter combination.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {topProducts.length > 0 ? (
+          <Card className="rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
+            <CardContent className="p-7">
+              <h2 className="text-[1.8rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Top Products</h2>
+              <div className="mt-6 space-y-4">
+                {topProducts.map((product) => (
+                  <div key={product.sku || product.name} className="flex items-center justify-between rounded-[1.1rem] bg-[#f7f1e8] px-5 py-4">
+                    <div>
+                      <p className="text-[1.05rem] font-semibold text-[#352314]">{product.name}</p>
+                      <p className="mt-1 text-sm text-[#73563a]">{product.sku || 'No SKU'} • {product.units} units sold</p>
+                    </div>
+                    <p className="text-[1.05rem] font-semibold text-[#4f3118]">{money(product.revenue)}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
+    </AppLayout>
+  );
+}

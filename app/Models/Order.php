@@ -15,6 +15,13 @@ class Order extends Model
         'tax',
         'total',
         'payment_method',
+        'delivery_region',
+        'delivery_area',
+        'delivery_address',
+        'delivery_landmark',
+        'delivery_phone',
+        'fulfillment_method',
+        'pickup_time',
         'is_paid',
         'notes',
     ];
@@ -39,5 +46,20 @@ class Order extends Model
     public function items()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function deliveries()
+    {
+        return $this->hasMany(Delivery::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
     }
 }

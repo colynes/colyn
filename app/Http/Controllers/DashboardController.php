@@ -2,30 +2,189 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
+use App\Models\Customer;
+use App\Models\Delivery;
 use App\Models\Order;
-use App\Models\Category;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
+use App\Models\Product;
+use App\Models\Promotion;
+use App\Models\SalesTarget;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        // Mocking some data for now but using real structures
-        $data = [
-            'totalSales'    => Order::whereDate('created_at', today())->sum('total'),
-            'totalOrders'   => Order::whereDate('created_at', today())->count(),
-            'totalProducts' => Product::active()->count(),
-            'totalRevenue'  => Order::sum('total'),
-            'lowStock'      => Product::with(['stocks'])
-                ->whereHas('stocks', function($q) {
-                    $q->whereColumn('quantity', '<=', 'reorder_level');
-                })->take(5)->get(),
-            'recentOrders'  => Order::latest()->take(5)->get(),
-        ];
+        $roleKeys = auth()->user()?->getRoleNames()->map(fn ($role) => strtolower($role)) ?? collect();
 
-        return Inertia::render('Dashboard', $data);
+        abort_if($roleKeys->contains('customer'), 403);
+
+        $today = today();
+        $yesterday = today()->copy()->subDay();
+        $monthStart = now()->startOfMonth();
+        $previousMonthStart = now()->copy()->subMonthNoOverflow()->startOfMonth();
+        $previousMonthEnd = now()->copy()->subMonthNoOverflow()->endOfMonth();
+        $todayLabel = $today->format('l, F j, Y');
+
+        $salesStart = now()->startOfWeek()->startOfDay();
+        $salesEnd = now()->endOfWeek()->endOfDay();
+
+        $targets = SalesTarget::query()
+            ->with('product:id,name')
+            ->whereDate('start_date', '<=', $salesEnd->toDateString())
+            ->whereDate('end_date', '>=', $salesStart->toDateString())
+            ->get()
+            ->keyBy('product_id');
+
+        $topProducts = Product::query()
+            ->active()
+            ->with('orderItems')
+            ->get(['id', 'name'])
+            ->map(function (Product $product) use ($salesStart, $salesEnd, $targets) {
+                $periodItems = $product->orderItems->whereBetween('created_at', [$salesStart, $salesEnd]);
+                $revenue = (float) $periodItems->sum('subtotal');
+                $targetRecord = $targets->get($product->id);
+                $target = (float) ($targetRecord?->target_amount ?? ($revenue > 0 ? round($revenue * 1.07, 2) : 0));
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'actual' => $revenue,
+                    'target' => $target,
+                ];
+            })
+            ->filter(fn (array $product) => $product['actual'] > 0 || $product['target'] > 0)
+            ->sortByDesc('actual')
+            ->take(4)
+            ->values();
+
+        $totalTarget = (float) $topProducts->sum('target');
+        $dailyTarget = round($totalTarget / 7, 2);
+
+        $salesTrend = collect(range(6, 0))
+            ->map(function (int $daysAgo) use ($salesEnd, $dailyTarget) {
+                $date = $salesEnd->copy()->subDays($daysAgo);
+                $actual = (float) Order::whereDate('created_at', $date)->sum('total');
+
+                return [
+                    'day' => $date->format('D'),
+                    'actual' => $actual,
+                    'target' => $dailyTarget > 0 ? $dailyTarget : ($actual > 0 ? round($actual * 0.94, 2) : 0),
+                ];
+            });
+
+        $productTrend = $topProducts->map(fn (array $product) => [
+            'name' => $product['name'],
+            'actual' => $product['actual'],
+            'target' => $product['target'],
+        ]);
+
+        $recentOrders = Order::query()
+            ->with('customer')
+            ->latest()
+            ->take(6)
+            ->get()
+            ->map(fn (Order $order) => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'customer' => $order->customer?->full_name,
+                'customer_id' => $order->customer_id,
+                'status' => $this->normalizeOrderStatus($order->status),
+                'total' => (float) $order->total,
+            ]);
+
+        $lowStock = Product::query()
+            ->active()
+            ->withSum('stocks as stock_quantity', 'quantity')
+            ->withSum('stocks as reorder_level_total', 'reorder_level')
+            ->havingRaw('COALESCE(stock_quantity, 0) <= COALESCE(reorder_level_total, 0)')
+            ->orderBy('stock_quantity')
+            ->take(5)
+            ->get(['id', 'name', 'unit'])
+            ->map(fn (Product $product) => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'unit' => $product->unit,
+                'stock_quantity' => (float) ($product->stock_quantity ?? 0),
+                'alert_level' => (float) ($product->reorder_level_total ?? 0),
+            ]);
+
+        $todaysSales = (float) Order::whereDate('created_at', $today)->sum('total');
+        $yesterdaySales = (float) Order::whereDate('created_at', $yesterday)->sum('total');
+        $todaysOrders = Order::whereDate('created_at', $today)->count();
+        $yesterdayOrders = Order::whereDate('created_at', $yesterday)->count();
+        $inventoryUnits = (float) DB::table('stocks')->sum('quantity');
+        $previousInventoryUnits = (float) DB::table('stocks')->sum('reorder_level');
+        $monthlyRevenue = (float) Order::whereBetween('created_at', [$monthStart, now()])->sum('total');
+        $previousMonthlyRevenue = (float) Order::whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])->sum('total');
+        $todaysPendingOrders = Order::query()
+            ->with(['customer', 'items.product'])
+            ->whereIn('status', ['pending', 'confirmed', 'processing', 'preparing'])
+            ->latest()
+            ->get()
+            ->map(function (Order $order) {
+                return [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'customer' => $order->customer?->full_name ?: "Customer #{$order->customer_id}",
+                    'status' => $this->normalizeOrderStatus($order->status),
+                    'created_at' => optional($order->created_at)->format('h:i A'),
+                    'fulfillment_method' => $order->fulfillment_method ?: 'delivery',
+                    'items' => $order->items->take(4)->map(function ($item) {
+                        $name = $item->displayName();
+                        $quantity = rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.');
+
+                        return trim("{$name} {$quantity}");
+                    })->values(),
+                ];
+            });
+
+        return Inertia::render('Dashboard', [
+            'stats' => [
+                'todays_sales' => $todaysSales,
+                'todays_orders' => $todaysOrders,
+                'inventory_items' => $inventoryUnits,
+                'monthly_revenue' => $monthlyRevenue,
+                'active_promotions' => Promotion::active()->count(),
+                'customers' => Customer::count(),
+                'sales_change' => $this->percentageChange($todaysSales, $yesterdaySales),
+                'orders_change' => $this->percentageChange($todaysOrders, $yesterdayOrders),
+                'inventory_change' => $inventoryUnits - $previousInventoryUnits,
+                'monthly_revenue_change' => $this->percentageChange($monthlyRevenue, $previousMonthlyRevenue),
+            ],
+            'deliverySummary' => [
+                'title' => "Today's Pending Orders",
+                'date' => $todayLabel,
+                'count' => $todaysPendingOrders->count(),
+            ],
+            'salesTrend' => $salesTrend,
+            'productTrend' => $productTrend,
+            'lowStock' => $lowStock,
+            'recentOrders' => $recentOrders,
+            'todaysPendingOrders' => $todaysPendingOrders,
+        ]);
+    }
+
+    private function percentageChange(float|int $current, float|int $previous): float
+    {
+        $current = (float) $current;
+        $previous = (float) $previous;
+
+        if ($previous === 0.0) {
+            return $current > 0 ? 100.0 : 0.0;
+        }
+
+        return round((($current - $previous) / $previous) * 100, 1);
+    }
+
+    private function normalizeOrderStatus(?string $status): string
+    {
+        return match (strtolower((string) $status)) {
+            'processing', 'preparing', 'confirmed' => 'pending',
+            'delivered', 'completed' => 'delivered',
+            'cancelled', 'canceled' => 'cancelled',
+            'dispatched' => 'dispatched',
+            default => 'pending',
+        };
     }
 }
