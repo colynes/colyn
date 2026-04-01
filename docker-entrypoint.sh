@@ -1,15 +1,18 @@
 #!/bin/sh
 set -e
 
-# 1. Clear the "Ghost" config cache from the build stage
-echo "Clearing config cache..."
-php artisan config:clear
-php artisan cache:clear
+echo "Starting Laravel container..."
 
-# 2. Sync the database with TiDB
-echo "Running migrations..."
-php artisan migrate --force
+# Clear only safe caches
+php artisan config:clear || true
+php artisan route:clear || true
+php artisan view:clear || true
 
-# 3. Start the server (using the CMD passed from Dockerfile)
-echo "Starting AmaniBrew..."
+# Run migrations
+php artisan migrate --force || true
+
+# Rebuild config cache
+php artisan config:cache || true
+
+# Start app
 exec "$@"
