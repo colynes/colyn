@@ -23,6 +23,7 @@ class StoreProductRequest extends FormRequest
             'barcode'     => ['nullable', 'string', Rule::unique('products', 'barcode')->ignore($productId)->whereNull('deleted_at')],
             'unit'        => ['required', 'string', 'in:kg,pcs,pack,litre,gram'],
             'weight'      => ['nullable', 'numeric', 'min:0'],
+            'stock_quantity' => ['nullable', 'numeric', 'min:0'],
             'low_stock_alert' => ['nullable', 'numeric', 'min:0'],
             'is_active'   => ['boolean'],
             // Pricing

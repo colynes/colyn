@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
+import BackofficePagination from '@/components/backoffice/BackofficePagination';
+import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { Eye, Filter, Pencil, Plus, Search, X } from 'lucide-react';
@@ -84,6 +86,29 @@ function OrdersViewModal({ order, onClose }) {
           <div className="rounded-2xl bg-[#f7f1e8] p-4 md:col-span-2">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Tracking</p>
             <p className="mt-2 text-lg font-semibold text-[#3a2513]">{order.tracking_number || 'Awaiting dispatch'}</p>
+          </div>
+          <div className="rounded-2xl bg-[#f7f1e8] p-4 md:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Items Ordered</p>
+            <div className="mt-3 space-y-3">
+              {(order.line_items || []).length > 0 ? order.line_items.map((item) => (
+                <div key={item.id} className="rounded-2xl bg-white px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-base font-semibold text-[#3a2513]">{item.name}</p>
+                      <p className="mt-1 text-sm text-[#76593d]">
+                        Qty {item.quantity}{item.unit ? ` • ${String(item.unit).toUpperCase()}` : ''}
+                      </p>
+                      {item.description ? (
+                        <p className="mt-1 text-sm text-[#8c6c4a]">{item.description}</p>
+                      ) : null}
+                    </div>
+                    <p className="text-sm font-semibold text-[#3a2513]">{money(item.subtotal)}</p>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-sm text-[#76593d]">No item details available for this order.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -215,7 +240,7 @@ function OrdersEditModal({ order, onClose }) {
   );
 }
 
-export default function Orders({ auth, orders, filters = {} }) {
+export default function Orders({ auth, orders, filters = {}, perPageOptions = [50, 100, 250, 500] }) {
   const rows = orders?.data || [];
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
@@ -224,6 +249,28 @@ export default function Orders({ auth, orders, filters = {} }) {
     () => Boolean((filters.search || '').trim() || (filters.status || '').trim()),
     [filters.search, filters.status],
   );
+
+  useEffect(() => {
+    const handleIncomingNotification = (event) => {
+      const notification = event.detail;
+
+      if (String(notification?.kind || '').toLowerCase() !== 'new_order') {
+        return;
+      }
+
+      router.reload({
+        only: ['orders', 'filters'],
+        preserveScroll: true,
+        preserveState: true,
+      });
+    };
+
+    window.addEventListener('app:notification-received', handleIncomingNotification);
+
+    return () => {
+      window.removeEventListener('app:notification-received', handleIncomingNotification);
+    };
+  }, []);
 
   return (
     <AppLayout user={auth?.user}>
@@ -277,6 +324,16 @@ export default function Orders({ auth, orders, filters = {} }) {
             <option value="delivered">Delivered</option>
             <option value="cancelled">Cancelled</option>
           </select>
+
+          <BackofficePerPageControl
+            options={perPageOptions}
+            value={filters.per_page || perPageOptions[0]}
+            onChange={(event) => router.get('/orders', {
+              search: filters.search || '',
+              status: filters.status || '',
+              per_page: event.target.value,
+            }, { preserveScroll: true, preserveState: true })}
+          />
         </form>
 
         <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
@@ -359,27 +416,7 @@ export default function Orders({ auth, orders, filters = {} }) {
           </div>
         ) : null}
 
-        {orders?.links?.length > 3 ? (
-          <div className="flex flex-wrap items-center gap-3">
-            {orders.links
-              .filter((link) => link.label !== '&laquo; Previous' && link.label !== 'Next &raquo;')
-              .map((link) => (
-                <Link
-                  key={`${link.label}-${link.url || 'none'}`}
-                  href={link.url || '#'}
-                  preserveScroll
-                  className={`inline-flex h-11 min-w-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition ${
-                    link.active
-                      ? 'bg-[#4f3118] text-white'
-                      : link.url
-                        ? 'border border-[#ddc9b3] bg-white text-[#4f3118] hover:bg-[#f7f1e8]'
-                        : 'cursor-not-allowed border border-[#efe3d4] bg-[#fbf8f4] text-[#b8a28b]'
-                  }`}
-                  dangerouslySetInnerHTML={{ __html: link.label }}
-                />
-              ))}
-          </div>
-        ) : null}
+        <BackofficePagination links={orders?.links} />
       </div>
     </AppLayout>
   );

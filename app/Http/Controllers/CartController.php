@@ -24,10 +24,21 @@ class CartController extends Controller
         $quantity = $validated['quantity'] ?? 1;
 
         if ($itemType === 'product') {
-            $product = Product::query()->active()->findOrFail($itemId);
+            $product = Product::query()
+                ->active()
+                ->with('currentPrice')
+                ->withSum('stocks as stock_quantity', 'quantity')
+                ->findOrFail($itemId);
 
             if (!$product->currentPrice) {
                 return back()->with('error', 'This product is not available for ordering right now.');
+            }
+
+            $currentLineQuantity = (int) (CartManager::raw()['product-' . $product->id]['quantity'] ?? 0);
+            $requestedQuantity = $currentLineQuantity + $quantity;
+
+            if ($requestedQuantity > (float) ($product->stock_quantity ?? 0)) {
+                return back()->with('error', 'Only ' . rtrim(rtrim(number_format((float) ($product->stock_quantity ?? 0), 2, '.', ''), '0'), '.') . ' unit(s) of ' . $product->name . ' are available right now.');
             }
 
             CartManager::addProduct($product->id, $quantity);
@@ -53,6 +64,23 @@ class CartController extends Controller
         $validated = $request->validate([
             'quantity' => ['required', 'integer', 'min:0'],
         ]);
+
+        if (str_starts_with($lineId, 'product-') && $validated['quantity'] > 0) {
+            $productId = (int) str_replace('product-', '', $lineId);
+            $product = Product::query()
+                ->active()
+                ->with('currentPrice')
+                ->withSum('stocks as stock_quantity', 'quantity')
+                ->find($productId);
+
+            if (!$product || !$product->currentPrice) {
+                return back()->with('error', 'This product is not available for ordering right now.');
+            }
+
+            if ($validated['quantity'] > (float) ($product->stock_quantity ?? 0)) {
+                return back()->with('error', 'Only ' . rtrim(rtrim(number_format((float) ($product->stock_quantity ?? 0), 2, '.', ''), '0'), '.') . ' unit(s) of ' . $product->name . ' are available right now.');
+            }
+        }
 
         CartManager::update($lineId, $validated['quantity']);
 

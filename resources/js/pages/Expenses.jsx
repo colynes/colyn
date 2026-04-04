@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
+import BackofficePagination from '@/components/backoffice/BackofficePagination';
+import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
@@ -125,9 +127,10 @@ function ExpenseModal({ expense, onClose }) {
   );
 }
 
-export default function Expenses({ auth, expenses = [], summary = {} }) {
+export default function Expenses({ auth, expenses = [], summary = {}, filters = {}, perPageOptions = [50, 100, 250, 500] }) {
   const [activeExpense, setActiveExpense] = useState(null);
   const [deletingExpense, setDeletingExpense] = useState(null);
+  const rows = expenses?.data || [];
 
   const deleteExpense = (expense) => {
     router.delete(`/expenses/${expense.id}`, {
@@ -180,6 +183,14 @@ export default function Expenses({ auth, expenses = [], summary = {} }) {
           </Card>
         </div>
 
+        <div className="flex justify-end">
+          <BackofficePerPageControl
+            options={perPageOptions}
+            value={filters.per_page || perPageOptions[0]}
+            onChange={(event) => router.get('/expenses', { per_page: event.target.value }, { preserveScroll: true, preserveState: true })}
+          />
+        </div>
+
         <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -194,8 +205,8 @@ export default function Expenses({ auth, expenses = [], summary = {} }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {expenses.length > 0 ? expenses.map((expense, index) => (
-                    <tr key={expense.id} className={`${index !== expenses.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
+                  {rows.length > 0 ? rows.map((expense, index) => (
+                    <tr key={expense.id} className={`${index !== rows.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
                       <td className="px-8 py-6 text-[1.05rem] text-[#352314]">{expense.date}</td>
                       <td className="px-8 py-6 text-[1.05rem] font-medium text-[#352314]">{expense.description}</td>
                       <td className="px-8 py-6 text-[1.05rem] font-semibold text-[#352314]">{money(expense.amount)}</td>
@@ -249,6 +260,8 @@ export default function Expenses({ auth, expenses = [], summary = {} }) {
             </div>
           </CardContent>
         </Card>
+
+        <BackofficePagination links={expenses?.links} />
       </div>
     </AppLayout>
   );

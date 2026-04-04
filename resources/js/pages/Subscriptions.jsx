@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/layouts/AppLayout';
+import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { CalendarDays, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
@@ -384,11 +385,13 @@ function SubscriptionModal({ subscription, customers, products, onClose, onSave 
   );
 }
 
-export default function Subscriptions({ auth, customers = [], products = [] }) {
+export default function Subscriptions({ auth, customers = [], products = [], perPageOptions = [50, 100, 250, 500] }) {
   const productChoices = products;
   const [subscriptions, setSubscriptions] = useState(() => buildInitialSubscriptions(customers));
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [perPage, setPerPage] = useState(perPageOptions[0]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [activeSubscription, setActiveSubscription] = useState(null);
   const [deletingSubscription, setDeletingSubscription] = useState(null);
 
@@ -406,6 +409,14 @@ export default function Subscriptions({ auth, customers = [], products = [] }) {
       return matchesSearch && matchesStatus;
     });
   }, [search, statusFilter, subscriptions]);
+
+  const visibleRows = useMemo(() => {
+    return filteredRows.slice(0, currentPage * perPage);
+  }, [currentPage, filteredRows, perPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, perPage]);
 
   const saveSubscription = (payload) => {
     setSubscriptions((current) => {
@@ -498,6 +509,13 @@ export default function Subscriptions({ auth, customers = [], products = [] }) {
             <option value="Paused">Paused</option>
             <option value="Inactive">Inactive</option>
           </select>
+
+          <BackofficePerPageControl
+            options={perPageOptions}
+            value={perPage}
+            name="subscriptions_per_page"
+            onChange={(event) => setPerPage(Number(event.target.value))}
+          />
         </div>
 
         <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
@@ -514,8 +532,8 @@ export default function Subscriptions({ auth, customers = [], products = [] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.length > 0 ? filteredRows.map((subscription, index) => (
-                    <tr key={subscription.id} className={`${index !== filteredRows.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
+                  {visibleRows.length > 0 ? visibleRows.map((subscription, index) => (
+                    <tr key={subscription.id} className={`${index !== visibleRows.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
                       <td className="px-8 py-6">
                         <p className="text-[1.05rem] font-semibold text-[#352314]">{subscription.customer_name}</p>
                         <p className="mt-1 text-[0.95rem] text-[#6f5238]">{subscription.phone}</p>
@@ -574,6 +592,18 @@ export default function Subscriptions({ auth, customers = [], products = [] }) {
             </div>
           </CardContent>
         </Card>
+
+        {filteredRows.length > visibleRows.length ? (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => page + 1)}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-[#ddc9b3] bg-white px-5 text-sm font-semibold text-[#4f3118] transition hover:bg-[#f7f1e8]"
+            >
+              Load more
+            </button>
+          </div>
+        ) : null}
       </div>
     </AppLayout>
   );

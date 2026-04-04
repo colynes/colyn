@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
+import DeliveryLocationSelector from '@/components/customer/DeliveryLocationSelector';
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-TZ', {
@@ -10,11 +11,14 @@ function formatCurrency(value) {
   }).format(value || 0);
 }
 
-export default function Checkout({ cart, customer }) {
+export default function Checkout({ cart, customer, pickupHours }) {
   const { auth, flash } = usePage().props;
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const isGuest = !auth?.user;
+  const pickupAvailable = pickupHours?.available ?? false;
+  const pickupMinTime = pickupHours?.min_time || null;
+  const pickupCloseTime = pickupHours?.close_time || null;
 
   const { data, setData, post, processing, errors } = useForm({
     full_name: customer?.full_name || '',
@@ -23,12 +27,94 @@ export default function Checkout({ cart, customer }) {
     region_city: customer?.region_city || '',
     district_area: customer?.district_area || '',
     delivery_address: customer?.delivery_address || '',
-    landmark: customer?.landmark || '',
+    delivery_latitude: customer?.delivery_latitude || '',
+    delivery_longitude: customer?.delivery_longitude || '',
+    delivery_notes: customer?.delivery_notes || '',
+    delivery_location_confirmed: false,
     fulfillment_method: 'delivery',
     pickup_time: '',
     password: '',
     password_confirmation: '',
   });
+
+  const timeChoices = useMemo(() => {
+    if (!pickupMinTime || !pickupCloseTime) {
+      return { hours: [], minutesByHour: {} };
+    }
+
+    const [minHour, minMinute] = pickupMinTime.split(':').map(Number);
+    const [closeHour, closeMinute] = pickupCloseTime.split(':').map(Number);
+    const minutesByHour = {};
+    const hours = [];
+
+    let currentHour = minHour;
+    let currentMinute = minMinute;
+
+    while (currentHour < closeHour || (currentHour === closeHour && currentMinute <= closeMinute)) {
+      if (!minutesByHour[currentHour]) {
+        minutesByHour[currentHour] = [];
+        hours.push(currentHour);
+      }
+
+      minutesByHour[currentHour].push(currentMinute);
+      currentMinute += 1;
+
+      if (currentMinute >= 60) {
+        currentHour += 1;
+        currentMinute = 0;
+      }
+    }
+
+    return { hours, minutesByHour };
+  }, [pickupMinTime, pickupCloseTime]);
+
+  const selectedPickupHour = data.pickup_time ? Number(data.pickup_time.split(':')[0]) : null;
+  const selectedPickupMinute = data.pickup_time ? Number(data.pickup_time.split(':')[1]) : null;
+
+  useEffect(() => {
+    if (data.fulfillment_method !== 'pickup') {
+      if (data.pickup_time) {
+        setData('pickup_time', '');
+      }
+      return;
+    }
+
+    if (!pickupAvailable) {
+      setData('pickup_time', '');
+      return;
+    }
+
+    if (!data.pickup_time && pickupHours?.min_time) {
+      setData('pickup_time', pickupHours.min_time);
+    }
+  }, [data.fulfillment_method, pickupAvailable, pickupHours?.min_time]);
+
+  const handlePickupHourChange = (hourValue) => {
+    if (!hourValue) {
+      setData('pickup_time', '');
+      return;
+    }
+
+    const hour = Number(hourValue);
+    const availableMinutes = timeChoices.minutesByHour[hour] || [];
+    const minute = availableMinutes.includes(selectedPickupMinute) ? selectedPickupMinute : availableMinutes[0];
+
+    if (minute == null) {
+      setData('pickup_time', '');
+      return;
+    }
+
+    setData('pickup_time', `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+  };
+
+  const handlePickupMinuteChange = (minuteValue) => {
+    if (selectedPickupHour == null || !minuteValue) {
+      setData('pickup_time', '');
+      return;
+    }
+
+    setData('pickup_time', `${String(selectedPickupHour).padStart(2, '0')}:${String(Number(minuteValue)).padStart(2, '0')}`);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -44,8 +130,8 @@ export default function Checkout({ cart, customer }) {
             <h1 className="mt-2 text-4xl font-black text-[#241816]">Confirm your order</h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-[#6f5d57]">
               {isGuest
-                ? 'Create your customer account while confirming the order. We will collect your details, location, delivery or pickup choice, pickup time if needed, and your password.'
-                : 'Review your details below and confirm the order. Delivery or pickup information is required before submission.'}
+                ? 'Create your customer account while confirming the order. We will collect your details, delivery or pickup choice, precise delivery location when needed, pickup time if needed, and your password.'
+                : 'Review your details below and confirm the order. Delivery orders require a confirmed location before submission.'}
             </p>
           </div>
           <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[#3b241d]/15 bg-white px-5 py-3 text-sm font-bold text-[#241816]">
@@ -69,7 +155,7 @@ export default function Checkout({ cart, customer }) {
               <div>
                 <h2 className="text-2xl font-black text-[#241816]">{isGuest ? 'Customer account details' : 'Customer details'}</h2>
                 <p className="mt-2 text-sm text-[#6f5d57]">
-                  Full name, phone, email, and location are required to confirm the order.
+                  Full name, phone, and email are required. Delivery orders also need a confirmed map location.
                 </p>
               </div>
 
@@ -108,60 +194,7 @@ export default function Checkout({ cart, customer }) {
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-xl font-black text-[#241816]">Delivery location</h3>
-                <p className="mt-2 text-sm text-[#6f5d57]">
-                  Location is required every time an order is confirmed.
-                </p>
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">Region / City</label>
-                  <input
-                    type="text"
-                    value={data.region_city}
-                    onChange={(e) => setData('region_city', e.target.value)}
-                    className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d]"
-                  />
-                  {errors.region_city && <div className="mt-1 text-xs text-red-500">{errors.region_city}</div>}
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">District / Area</label>
-                  <input
-                    type="text"
-                    value={data.district_area}
-                    onChange={(e) => setData('district_area', e.target.value)}
-                    className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d]"
-                  />
-                  {errors.district_area && <div className="mt-1 text-xs text-red-500">{errors.district_area}</div>}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[#241816]">Full Delivery Address / Street Description</label>
-                <textarea
-                  rows={4}
-                  value={data.delivery_address}
-                  onChange={(e) => setData('delivery_address', e.target.value)}
-                  className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d] resize-none"
-                />
-                {errors.delivery_address && <div className="mt-1 text-xs text-red-500">{errors.delivery_address}</div>}
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[#241816]">Landmark (Optional)</label>
-                <input
-                  type="text"
-                  value={data.landmark}
-                  onChange={(e) => setData('landmark', e.target.value)}
-                  className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d]"
-                />
-                {errors.landmark && <div className="mt-1 text-xs text-red-500">{errors.landmark}</div>}
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid gap-5 md:grid-cols-3">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-[#241816]">Delivery Or Pickup</label>
                   <select
@@ -175,18 +208,67 @@ export default function Checkout({ cart, customer }) {
                   {errors.fulfillment_method && <div className="mt-1 text-xs text-red-500">{errors.fulfillment_method}</div>}
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">Pickup Time</label>
-                  <input
-                    type="text"
-                    value={data.pickup_time}
-                    onChange={(e) => setData('pickup_time', e.target.value)}
-                    placeholder="Required if pickup is selected"
-                    className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d]"
-                  />
-                  {errors.pickup_time && <div className="mt-1 text-xs text-red-500">{errors.pickup_time}</div>}
-                </div>
+                {data.fulfillment_method === 'pickup' ? (
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">Hour</label>
+                      <select
+                        value={selectedPickupHour ?? ''}
+                        onChange={(e) => handlePickupHourChange(e.target.value)}
+                        disabled={!pickupAvailable}
+                        className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {timeChoices.hours.map((hour) => (
+                          <option key={hour} value={hour}>
+                            {String(hour).padStart(2, '0')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">Minutes</label>
+                      <select
+                        value={selectedPickupMinute ?? ''}
+                        onChange={(e) => handlePickupMinuteChange(e.target.value)}
+                        disabled={!pickupAvailable}
+                        className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {(timeChoices.minutesByHour[selectedPickupHour] || []).map((minute) => (
+                          <option key={minute} value={minute}>
+                            {String(minute).padStart(2, '0')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : null}
               </div>
+
+              {data.fulfillment_method === 'delivery' ? (
+                <DeliveryLocationSelector
+                  visible
+                  data={data}
+                  setData={setData}
+                  errors={errors}
+                />
+              ) : null}
+
+              {data.fulfillment_method === 'pickup' ? (
+                <div className="rounded-2xl border border-[#eadfce] bg-[#fbf7f1] p-5">
+                  <p className="text-xs text-[#6f5d57]">
+                    {pickupAvailable
+                      ? `Choose a pickup time from ${pickupHours?.min_time} until ${pickupHours?.close_time}.`
+                      : `Pickup is currently unavailable. Admin working hours are ${pickupHours?.open_time} to ${pickupHours?.close_time}.`}
+                  </p>
+                  {!pickupAvailable ? (
+                    <div className="mt-3 rounded-xl border border-[#e8ddd2] bg-white px-4 py-3 text-sm text-[#6f5d57]">
+                      No pickup times are available right now.
+                    </div>
+                  ) : null}
+                  {errors.pickup_time && <div className="mt-2 text-xs text-red-500">{errors.pickup_time}</div>}
+                </div>
+              ) : null}
 
               {isGuest && (
                 <>

@@ -9,7 +9,7 @@ export default function ProductsSection({ products = [] }) {
         <h2 className="mt-2 text-3xl font-black tracking-tight text-[var(--color-sys-text-primary)]">Browse fresh products</h2>
       </div>
       {products.length > 0 ? (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {products.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}

@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Branch;
-use App\Models\Product;
-use App\Models\Category;
 use App\Http\Requests\StoreProductRequest;
+use App\Models\Branch;
+use App\Models\Category;
+use App\Models\Product;
+use App\Models\User;
+use App\Notifications\SystemAlertNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -77,9 +80,8 @@ class ProductController extends Controller
         $this->ensureBackoffice();
 
         $validated = $request->validated();
-        $product = Product::create(collect($validated)->except('low_stock_alert')->all());
+        $product = Product::create(collect($validated)->except(['low_stock_alert', 'stock_quantity'])->all());
 
-        // Create initial price if provided
         if ($request->filled('price')) {
             $product->prices()->create([
                 'price'          => $request->price,
@@ -89,6 +91,9 @@ class ProductController extends Controller
         }
 
         $this->syncLowStockAlert($product, $validated['low_stock_alert'] ?? null);
+        $this->syncStockQuantity($product, $validated['stock_quantity'] ?? null);
+        $product->refresh()->load('stocks');
+        $this->notifyInventoryStatusIfNeeded($product, null);
 
         return back()->with('success', 'Product created successfully.');
     }
@@ -98,18 +103,26 @@ class ProductController extends Controller
         $this->ensureBackoffice();
 
         $validated = $request->validated();
+        $previousStatus = $this->inventoryStatus($product->load('stocks'));
 
-        $product->update(collect($validated)->except('low_stock_alert')->all());
+        $product->update(collect($validated)->except(['low_stock_alert', 'stock_quantity'])->all());
 
-        // Update/create pricing
         if ($request->filled('price')) {
-            $product->prices()->updateOrCreate(
-                ['effective_to' => null],
-                ['price' => $request->price, 'promo_price' => $request->promo_price]
-            );
+            $currentPrice = $product->prices()->firstOrNew(['effective_to' => null]);
+
+            if (! $currentPrice->exists) {
+                $currentPrice->effective_from = now();
+            }
+
+            $currentPrice->price = $request->price;
+            $currentPrice->promo_price = $request->promo_price;
+            $currentPrice->save();
         }
 
         $this->syncLowStockAlert($product, $validated['low_stock_alert'] ?? null);
+        $this->syncStockQuantity($product, $validated['stock_quantity'] ?? null);
+        $product->refresh()->load('stocks');
+        $this->notifyInventoryStatusIfNeeded($product, $previousStatus);
 
         return back()->with('success', 'Product updated successfully.');
     }
@@ -160,5 +173,83 @@ class ProductController extends Controller
             'min_stock' => $threshold,
             'reorder_level' => $threshold,
         ]);
+    }
+
+    protected function syncStockQuantity(Product $product, mixed $quantity): void
+    {
+        if ($quantity === null || $quantity === '') {
+            return;
+        }
+
+        $targetQuantity = max(0, (float) $quantity);
+        $branchId = Branch::query()->where('is_active', true)->value('id')
+            ?? Branch::query()->value('id');
+
+        if (! $branchId) {
+            return;
+        }
+
+        $targetStock = $product->stocks()->firstOrCreate(
+            ['branch_id' => $branchId],
+            [
+                'quantity' => 0,
+                'min_stock' => 0,
+                'reorder_level' => 0,
+            ],
+        );
+
+        $targetStock->update(['quantity' => $targetQuantity]);
+
+        $product->stocks()
+            ->where('id', '!=', $targetStock->id)
+            ->update(['quantity' => 0]);
+    }
+
+    protected function inventoryStatus(Product $product): string
+    {
+        $quantity = (float) ($product->stocks->sum('quantity') ?? 0);
+        $threshold = (float) ($product->stocks->max('reorder_level') ?? 0);
+
+        if ($quantity <= 0) {
+            return 'out_of_stock';
+        }
+
+        if ($threshold > 0 && $quantity <= $threshold) {
+            return 'low_stock';
+        }
+
+        return 'in_stock';
+    }
+
+    protected function notifyInventoryStatusIfNeeded(Product $product, ?string $previousStatus): void
+    {
+        if (!Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $status = $this->inventoryStatus($product);
+
+        if (!in_array($status, ['low_stock', 'out_of_stock'], true)) {
+            return;
+        }
+
+        if ($previousStatus === $status) {
+            return;
+        }
+
+        $title = $status === 'out_of_stock' ? 'Out of stock' : 'Low stock';
+        $message = $status === 'out_of_stock'
+            ? $product->name . ' is now out of stock.'
+            : $product->name . ' stock is running low.';
+
+        User::role(['administrator', 'admin', 'manager', 'staff', 'Administrator', 'Manager', 'Staff'])
+            ->get()
+            ->each(fn (User $user) => $user->notify(new SystemAlertNotification([
+                'title' => $title,
+                'message' => $message,
+                'kind' => $status,
+                'status' => $status,
+                'action_url' => '/inventory/products',
+            ])));
     }
 }

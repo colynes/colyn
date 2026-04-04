@@ -14,33 +14,62 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\SalesTarget;
+use App\Models\Stock;
 use App\Models\User;
+use App\Notifications\NewOrderPlacedNotification;
+use App\Notifications\OrderStatusUpdatedNotification;
+use App\Notifications\SystemAlertNotification;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class OperationsController extends Controller
 {
+    protected array $allowedPerPageOptions = [50, 100, 250, 500];
+
     protected function ensureBackoffice(): void
     {
         abort_if(auth()->user()?->hasRole('Customer'), 403);
     }
 
+    protected function resolvePerPage(Request $request, int $default = 50): int
+    {
+        $perPage = (int) $request->integer('per_page', $default);
+
+        return in_array($perPage, $this->allowedPerPageOptions, true) ? $perPage : $default;
+    }
+
+    protected function paginateCollection($items, int $perPage, Request $request): LengthAwarePaginator
+    {
+        $page = max(1, (int) $request->integer('page', 1));
+        $collection = collect($items)->values();
+
+        return new LengthAwarePaginator(
+            $collection->forPage($page, $perPage)->values(),
+            $collection->count(),
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ],
+        );
+    }
+
     protected function ensurePackManagers(): void
     {
-        $roleNames = collect(auth()->user()?->getRoleNames() ?? [])
-            ->map(fn ($role) => strtolower((string) $role));
-
-        abort_unless($roleNames->intersect(['administrator', 'admin', 'manager'])->isNotEmpty(), 403);
+        $this->ensureBackoffice();
     }
 
     public function orders(Request $request)
     {
         $this->ensureBackoffice();
+        $perPage = $this->resolvePerPage($request);
 
         $orders = Order::query()
-            ->with(['customer', 'items', 'payments', 'deliveries'])
+            ->with(['customer', 'items.product', 'payments', 'deliveries'])
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
                 $query->where(function ($builder) use ($search) {
@@ -51,7 +80,7 @@ class OperationsController extends Controller
             })
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->latest()
-            ->paginate(12)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(function (Order $order) {
                 return [
@@ -68,18 +97,28 @@ class OperationsController extends Controller
                     'delivery_region' => $order->delivery_region,
                     'delivery_area' => $order->delivery_area,
                     'notes' => $order->notes,
+                    'line_items' => $order->items->map(fn ($item) => [
+                        'id' => $item->id,
+                        'name' => $item->displayName(),
+                        'quantity' => (float) $item->quantity,
+                        'subtotal' => (float) $item->subtotal,
+                        'unit' => $item->product?->unit,
+                        'description' => $item->displayDescription(),
+                        'type' => $item->displayType(),
+                    ])->values(),
                 ];
             });
 
         return Inertia::render('Orders', [
             'orders' => $orders,
-            'filters' => $request->only(['search', 'status']),
+            'filters' => $request->only(['search', 'status', 'per_page']),
             'summary' => [
                 'total_orders' => Order::count(),
                 'pending_orders' => Order::whereIn('status', ['pending', 'confirmed', 'processing', 'preparing'])->count(),
                 'completed_orders' => Order::where('status', 'delivered')->count(),
                 'todays_revenue' => (float) Order::whereDate('created_at', today())->sum('total'),
             ],
+            'perPageOptions' => $this->allowedPerPageOptions,
         ]);
     }
 
@@ -548,17 +587,18 @@ class OperationsController extends Controller
         return Inertia::render('Subscriptions', [
             'customers' => $customers,
             'products' => $products,
+            'perPageOptions' => $this->allowedPerPageOptions,
         ]);
     }
 
     public function billing(Request $request)
     {
         $this->ensureBackoffice();
-
+        $perPage = $this->resolvePerPage($request);
         $statusFilter = strtolower((string) $request->string('status'));
         $search = trim((string) $request->string('search'));
 
-        $invoices = Invoice::query()
+        $invoiceRows = Invoice::query()
             ->with(['order.customer', 'items.product', 'payments'])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($builder) use ($search) {
@@ -591,10 +631,13 @@ class OperationsController extends Controller
             ->when($statusFilter !== '' && $statusFilter !== 'all', fn ($collection) => $collection->where('status', strtolower($statusFilter))->values())
             ->values();
 
+        $invoices = $this->paginateCollection($invoiceRows, $perPage, $request)
+            ->through(fn (array $invoice) => $invoice);
+
         $summary = [
-            'total_received' => (float) $invoices->where('status', 'paid')->sum('amount'),
-            'pending_payments' => (float) $invoices->where('status', 'pending')->sum('amount'),
-            'overdue_payments' => (float) $invoices->where('status', 'overdue')->sum('amount'),
+            'total_received' => (float) $invoiceRows->where('status', 'paid')->sum('amount'),
+            'pending_payments' => (float) $invoiceRows->where('status', 'pending')->sum('amount'),
+            'overdue_payments' => (float) $invoiceRows->where('status', 'overdue')->sum('amount'),
         ];
 
         return Inertia::render('Billing', [
@@ -603,7 +646,9 @@ class OperationsController extends Controller
             'filters' => [
                 'search' => $search,
                 'status' => $statusFilter,
+                'per_page' => $perPage,
             ],
+            'perPageOptions' => $this->allowedPerPageOptions,
         ]);
     }
 
@@ -951,6 +996,7 @@ class OperationsController extends Controller
     public function customers(Request $request)
     {
         $this->ensureBackoffice();
+        $perPage = $this->resolvePerPage($request);
 
         $this->syncCustomerProfilesFromUsers();
 
@@ -968,7 +1014,7 @@ class OperationsController extends Controller
             })
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->latest()
-            ->paginate(12)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(fn (Customer $customer) => [
                 'id' => $customer->id,
@@ -984,11 +1030,12 @@ class OperationsController extends Controller
 
         return Inertia::render('Customers', [
             'customers' => $customers,
-            'filters' => $request->only(['search', 'status']),
+            'filters' => $request->only(['search', 'status', 'per_page']),
             'summary' => [
                 'total_customers' => Customer::count(),
                 'total_orders' => Order::count(),
             ],
+            'perPageOptions' => $this->allowedPerPageOptions,
         ]);
     }
 
@@ -1011,9 +1058,10 @@ class OperationsController extends Controller
             });
     }
 
-    public function expenses()
+    public function expenses(Request $request)
     {
         $this->ensureBackoffice();
+        $perPage = $this->resolvePerPage($request);
 
         if (! Schema::hasTable('expenses')) {
             return Inertia::render('Expenses', [
@@ -1023,6 +1071,8 @@ class OperationsController extends Controller
                 ],
                 'expenses' => [],
                 'tableReady' => false,
+                'filters' => ['per_page' => $perPage],
+                'perPageOptions' => $this->allowedPerPageOptions,
             ]);
         }
 
@@ -1056,13 +1106,18 @@ class OperationsController extends Controller
                 'last_edited_by' => $expense->editor?->name,
             ]);
 
+        $expenses = $this->paginateCollection($expenseRows, $perPage, $request)
+            ->through(fn (array $expense) => $expense);
+
         return Inertia::render('Expenses', [
             'summary' => [
                 'total' => (float) $expenseRows->sum('amount'),
                 'count' => $expenseRows->count(),
             ],
-            'expenses' => $expenseRows->values(),
+            'expenses' => $expenses,
             'tableReady' => true,
+            'filters' => ['per_page' => $perPage],
+            'perPageOptions' => $this->allowedPerPageOptions,
         ]);
     }
 
@@ -1211,6 +1266,12 @@ class OperationsController extends Controller
         ]);
 
         $this->syncPackItems($pack, $validated['items']);
+        $this->notifyCustomerAudience([
+            'title' => 'New pack available',
+            'message' => $pack->name . ' is now available to order.',
+            'kind' => 'new_pack',
+            'action_url' => '/packs',
+        ]);
 
         return back()->with('success', 'Pack created successfully.');
     }
@@ -1330,6 +1391,11 @@ class OperationsController extends Controller
             ?? Branch::where('is_active', true)->value('id');
 
         abort_unless($branchId, 422, 'No active branch found for order creation.');
+        $stockError = $this->validateRequestedStock($validated['items'], $branchId);
+
+        if ($stockError) {
+            return back()->with('error', $stockError);
+        }
 
         $productIds = collect($validated['items'])->pluck('product_id')->all();
         $products = Product::query()->with('currentPrice')->whereIn('id', $productIds)->get()->keyBy('id');
@@ -1383,6 +1449,8 @@ class OperationsController extends Controller
             return $order;
         });
 
+        $this->notifyBackofficeUsers($order, $request->user()?->id);
+
         return redirect()->route('orders')->with('success', "Order {$order->order_number} created successfully.");
     }
 
@@ -1411,8 +1479,29 @@ class OperationsController extends Controller
             'notes' => ['nullable', 'string'],
         ]);
 
+        $originalStatus = $this->normalizeOrderStatus($order->status);
+        $dispatchingNow = $validated['status'] === 'dispatched' && $originalStatus !== 'dispatched';
+
+        if ($dispatchingNow) {
+            $stockError = $this->validateRequestedStock(
+                $order->items()->get(['product_id', 'quantity'])->map(fn ($item) => [
+                    'product_id' => $item->product_id,
+                    'quantity' => (float) $item->quantity,
+                ])->all(),
+                $order->branch_id,
+            );
+
+            if ($stockError) {
+                return back()->with('error', $stockError);
+            }
+        }
+
         DB::transaction(function () use ($order, $validated) {
             $order->update($validated);
+
+            if ($validated['status'] === 'dispatched') {
+                $this->deductOrderStock($order);
+            }
 
             if ($order->fulfillment_method === 'delivery') {
                 $existingDelivery = $order->deliveries()->latest('id')->first();
@@ -1431,6 +1520,13 @@ class OperationsController extends Controller
             }
         });
 
+        $order->refresh();
+        $updatedStatus = $this->normalizeOrderStatus($order->status);
+
+        if ($updatedStatus !== $originalStatus) {
+            $this->notifyCustomerAboutOrderStatus($order, $updatedStatus);
+        }
+
         return back()->with('success', "Order {$order->order_number} updated successfully.");
     }
 
@@ -1439,9 +1535,21 @@ class OperationsController extends Controller
         $this->ensureBackoffice();
 
         abort_unless($this->normalizeOrderStatus($order->status) === 'pending', 422, 'Only pending orders can be dispatched.');
+        $stockError = $this->validateRequestedStock(
+            $order->items()->get(['product_id', 'quantity'])->map(fn ($item) => [
+                'product_id' => $item->product_id,
+                'quantity' => (float) $item->quantity,
+            ])->all(),
+            $order->branch_id,
+        );
+
+        if ($stockError) {
+            return back()->with('error', $stockError);
+        }
 
         DB::transaction(function () use ($order) {
             $order->update(['status' => 'dispatched']);
+            $this->deductOrderStock($order);
 
             $existingDelivery = $order->deliveries()->latest('id')->first();
 
@@ -1457,6 +1565,9 @@ class OperationsController extends Controller
                 ]
             );
         });
+
+        $order->refresh();
+        $this->notifyCustomerAboutOrderStatus($order, 'dispatched');
 
         return back()->with('success', "Order {$order->order_number} dispatched successfully.");
     }
@@ -1480,6 +1591,65 @@ class OperationsController extends Controller
         return back()->with('success', "Order {$orderNumber} deleted successfully.");
     }
 
+    protected function validateRequestedStock(array $items, int $branchId): ?string
+    {
+        $requestedQuantities = collect($items)
+            ->filter(fn ($item) => !empty($item['product_id']))
+            ->groupBy('product_id')
+            ->map(fn ($group) => (float) collect($group)->sum('quantity'));
+
+        if ($requestedQuantities->isEmpty()) {
+            return null;
+        }
+
+        $products = Product::query()
+            ->withSum(['stocks as branch_stock_quantity' => fn ($query) => $query->where('branch_id', $branchId)], 'quantity')
+            ->whereIn('id', $requestedQuantities->keys())
+            ->get()
+            ->keyBy('id');
+
+        foreach ($requestedQuantities as $productId => $requestedQuantity) {
+            $product = $products->get((int) $productId);
+            $availableQuantity = (float) ($product?->branch_stock_quantity ?? 0);
+
+            if (!$product || $requestedQuantity > $availableQuantity) {
+                $productName = $product?->name ?? 'This product';
+                $formattedAvailable = rtrim(rtrim(number_format($availableQuantity, 2, '.', ''), '0'), '.');
+
+                return "{$productName} only has {$formattedAvailable} item(s) available right now.";
+            }
+        }
+
+        return null;
+    }
+
+    protected function deductOrderStock(Order $order): void
+    {
+        $order->loadMissing('items.product');
+
+        foreach ($order->items as $item) {
+            if (!$item->product_id) {
+                continue;
+            }
+
+            $stock = Stock::query()
+                ->where('product_id', $item->product_id)
+                ->where('branch_id', $order->branch_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$stock) {
+                abort(422, $item->displayName() . ' has no stock record for this branch.');
+            }
+
+            if ((float) $stock->quantity < (float) $item->quantity) {
+                abort(422, $item->displayName() . ' does not have enough stock to dispatch this order.');
+            }
+
+            $stock->decrement('quantity', (float) $item->quantity);
+        }
+    }
+
     protected function normalizeOrderStatus(?string $status): string
     {
         return match (strtolower((string) $status)) {
@@ -1489,6 +1659,42 @@ class OperationsController extends Controller
             'dispatched' => 'dispatched',
             default => 'pending',
         };
+    }
+
+    protected function notifyBackofficeUsers(Order $order, ?int $excludeUserId = null): void
+    {
+        if (!Schema::hasTable('notifications')) {
+            return;
+        }
+
+        User::role(['administrator', 'admin', 'manager', 'staff', 'Administrator', 'Manager', 'Staff'])
+            ->when($excludeUserId, fn ($query) => $query->where('id', '!=', $excludeUserId))
+            ->get()
+            ->each(fn (User $user) => $user->notify(new NewOrderPlacedNotification($order)));
+    }
+
+    protected function notifyCustomerAboutOrderStatus(Order $order, string $status): void
+    {
+        if (!Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $order->loadMissing('customer.user');
+
+        $customerUser = $order->customer?->user;
+
+        if (!$customerUser) {
+            return;
+        }
+
+        $label = match ($status) {
+            'delivered' => 'delivered',
+            'cancelled' => 'cancelled',
+            'dispatched' => 'dispatched',
+            default => 'updated',
+        };
+
+        $customerUser->notify(new OrderStatusUpdatedNotification($order, $label));
     }
 
     public function promotions(Request $request)
@@ -1545,9 +1751,16 @@ class OperationsController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
 
-        Promotion::create($validated + [
+        $promotion = Promotion::create($validated + [
             'created_by' => $request->user()?->id,
             'is_active' => (bool) ($validated['is_active'] ?? true),
+        ]);
+
+        $this->notifyCustomerAudience([
+            'title' => 'New promotion live',
+            'message' => $promotion->title . ' is now live for customers.',
+            'kind' => 'new_promotion',
+            'action_url' => '/promotions',
         ]);
 
         return back()->with('success', 'Promotion created successfully.');
@@ -1582,4 +1795,24 @@ class OperationsController extends Controller
 
         return back()->with('success', 'Promotion removed.');
     }
+
+    protected function notifyCustomerAudience(array $payload): void
+    {
+        if (!Schema::hasTable('notifications')) {
+            return;
+        }
+
+        User::query()
+            ->where(function ($query) {
+                $query->whereHas('customer')
+                    ->orWhereHas('roles', fn ($roleQuery) => $roleQuery->whereRaw('LOWER(name) = ?', ['customer']));
+            })
+            ->get()
+            ->each(fn (User $user) => $user->notify(new SystemAlertNotification($payload)));
+    }
 }
+
+
+
+
+

@@ -30,6 +30,7 @@ export default function Products({ auth, products, categories, filters = {} }) {
     supplier_contact: '',
     unit: 'kg',
     weight: '',
+    stock_quantity: '',
     price: '',
     promo_price: '',
     low_stock_alert: '',
@@ -48,6 +49,7 @@ export default function Products({ auth, products, categories, filters = {} }) {
       supplier_contact: '',
       unit: 'kg',
       weight: '',
+      stock_quantity: '',
       price: '',
       promo_price: '',
       low_stock_alert: '',
@@ -65,6 +67,7 @@ export default function Products({ auth, products, categories, filters = {} }) {
       supplier_contact: product.supplier_contact || '',
       unit: product.unit || 'kg',
       weight: product.weight || '',
+      stock_quantity: product.stock_quantity ?? '',
       price: product.current_price?.price ?? '',
       promo_price: product.current_price?.promo_price ?? '',
       low_stock_alert: product.low_stock_alert ?? '',
@@ -351,6 +354,16 @@ export default function Products({ auth, products, categories, filters = {} }) {
                   className="bg-[#F9F9F9] h-11"
                 />
               </div>
+
+              <Input
+                type="number"
+                label="Stock Quantity"
+                value={productForm.data.stock_quantity}
+                onChange={(e) => productForm.setData('stock_quantity', e.target.value)}
+                placeholder="Enter available quantity"
+                error={productForm.errors.stock_quantity}
+                className="bg-[#F9F9F9] h-11"
+              />
 
               <div className="grid gap-6 md:grid-cols-2">
                 <Input

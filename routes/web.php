@@ -9,6 +9,7 @@ use App\Http\Controllers\CommerceController;
 use App\Http\Controllers\CustomerHomeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StorefrontController;
@@ -20,6 +21,7 @@ Route::post('/cart/items', [CartController::class, 'store'])->name('cart.store')
 Route::patch('/cart/items/{productId}', [CartController::class, 'update'])->name('cart.update');
 Route::delete('/cart/items/{productId}', [CartController::class, 'destroy'])->name('cart.destroy');
 Route::get('/products', [CommerceController::class, 'products'])->name('products.browse');
+Route::get('/packs', [CommerceController::class, 'packs'])->name('packs.browse');
 Route::get('/cart', [CommerceController::class, 'cart'])->name('cart');
 Route::get('/promotions', [CommerceController::class, 'promotions'])->name('promotions');
 Route::get('/track-orders', [CommerceController::class, 'tracking'])->name('tracking');
@@ -36,6 +38,9 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::middleware(['auth'])->group(function () {
     Route::get('/customer/home', [CustomerHomeController::class, 'index'])->name('customer.home');
     Route::get('/my-orders', [CommerceController::class, 'tracking'])->name('my-orders');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::patch('/dashboard/orders/{order}/dispatch', [OperationsController::class, 'dispatchOrder'])->name('dashboard.orders.dispatch');
     Route::get('/orders', [OperationsController::class, 'orders'])->name('orders');
@@ -66,6 +71,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/create-order', [OperationsController::class, 'storeOrder'])->name('orders.store');
     Route::get('/profile', [CommerceController::class, 'profile'])->name('profile');
     Route::put('/profile', [CommerceController::class, 'updateProfile'])->name('profile.update');
+    Route::put('/profile/update', [CommerceController::class, 'updateProfile']);
     Route::patch('/my-orders/{order}/cancel', [CommerceController::class, 'cancelOrder'])->name('my-orders.cancel');
     Route::patch('/my-orders/{order}/deliver', [CommerceController::class, 'confirmDelivery'])->name('my-orders.deliver');
 
@@ -92,6 +98,7 @@ Route::middleware(['auth'])->group(function () {
     // Users
     Route::get('/users', [UserController::class, 'index'])->name('users');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::put('/users/pickup-hours', [UserController::class, 'updatePickupHours'])->name('users.pickup-hours.update');
     Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');

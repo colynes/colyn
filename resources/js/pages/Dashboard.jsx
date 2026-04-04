@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -97,7 +97,7 @@ function StatCard({ icon: Icon, value, label, change, changeSuffix = '%', iconCl
   );
 }
 
-function PendingOrdersModal({ open, onClose, dateLabel, orders }) {
+function PendingOrdersModal({ open, onClose, dateLabel, orders, onViewOrder }) {
   if (!open) {
     return null;
   }
@@ -122,37 +122,33 @@ function PendingOrdersModal({ open, onClose, dateLabel, orders }) {
 
         <div className="overflow-y-auto px-7 py-6">
           <div className="space-y-4">
-            {orders.length > 0 ? orders.map((order) => (
-              <div key={order.id} className="flex flex-col gap-5 rounded-[1.35rem] border border-[#e3d2bc] bg-[#f9f5ef] px-5 py-5 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <p className="text-[1.15rem] font-semibold text-[#352314]">{order.customer}</p>
-                    <p className="text-sm font-medium uppercase tracking-[0.08em] text-[#8a6847]">{order.order_number}</p>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-[#7c5d40]">
-                    <span className="rounded-full bg-[#efe4d3] px-3 py-1.5 font-medium capitalize">{order.fulfillment_method}</span>
-                    <span>Placed at {order.created_at || 'Today'}</span>
-                  </div>
-                  <p className="mt-4 text-base text-[#6d5036]">Items:</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {order.items.map((item) => (
-                      <span key={item} className="rounded-xl bg-[#efe4d3] px-3 py-2 text-sm font-medium text-[#5d3f23]">
-                        {item}
-                      </span>
-                    ))}
+              {orders.length > 0 ? orders.map((order) => (
+                <div
+                  key={order.id}
+                  onDoubleClick={() => onViewOrder(order)}
+                  className="cursor-pointer rounded-[1.35rem] border border-[#e3d2bc] bg-[#f9f5ef] px-5 py-5 transition hover:border-[#ceb08d] hover:bg-[#f6efe6]"
+                  title="Double-click to view order"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <p className="text-[1.15rem] font-semibold text-[#352314]">{order.customer}</p>
+                      <p className="text-sm font-medium uppercase tracking-[0.08em] text-[#8a6847]">{order.order_number}</p>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-[#7c5d40]">
+                      <span className="rounded-full bg-[#efe4d3] px-3 py-1.5 font-medium capitalize">{order.fulfillment_method}</span>
+                      <span>Placed at {order.created_at || 'Today'}</span>
+                    </div>
+                    <p className="mt-4 text-base text-[#6d5036]">Items:</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {order.items.map((item) => (
+                        <span key={item} className="rounded-xl bg-[#efe4d3] px-3 py-2 text-sm font-medium text-[#5d3f23]">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center justify-start md:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => router.patch(`/dashboard/orders/${order.id}/dispatch`, {}, { preserveScroll: true })}
-                    className="inline-flex items-center rounded-2xl bg-[#4f3118] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#402612]"
-                  >
-                    Dispatch
-                  </button>
-                </div>
-              </div>
-            )) : (
+              )) : (
               <div className="rounded-[1.35rem] border border-dashed border-[#ddc8ae] bg-[#fbf7f1] px-6 py-10 text-center">
                 <p className="text-xl font-medium text-[#4d3218]">No pending orders for today.</p>
                 <p className="mt-2 text-base text-[#7a5c3e]">Newly placed orders will appear here and can be dispatched from this panel.</p>
@@ -165,6 +161,93 @@ function PendingOrdersModal({ open, onClose, dateLabel, orders }) {
   );
 }
 
+function PendingOrderViewModal({ order, onClose }) {
+  if (!order) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-6">
+      <div className="my-auto max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[1.75rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-[#eadcca] px-6 py-5">
+          <div>
+            <h2 className="text-[1.9rem] font-semibold tracking-[-0.03em] text-[#3a2513]">View Order</h2>
+            <p className="mt-1 text-base text-[#76593d]">{order.order_number}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6d5036] transition hover:bg-[#f3ede5]"
+            aria-label="Close order viewer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid gap-4 px-6 py-6 md:grid-cols-2">
+          <div className="rounded-2xl bg-[#f7f1e8] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Customer</p>
+            <p className="mt-2 text-lg font-semibold text-[#3a2513]">{order.customer}</p>
+          </div>
+          <div className="rounded-2xl bg-[#f7f1e8] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Status</p>
+            <p className="mt-2 text-lg font-semibold capitalize text-[#3a2513]">{order.status}</p>
+          </div>
+          <div className="rounded-2xl bg-[#f7f1e8] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Placed At</p>
+            <p className="mt-2 text-lg font-semibold text-[#3a2513]">{order.created_at || 'Today'}</p>
+          </div>
+          <div className="rounded-2xl bg-[#f7f1e8] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Total</p>
+            <p className="mt-2 text-lg font-semibold text-[#3a2513]">{money(order.total)}</p>
+          </div>
+          <div className="rounded-2xl bg-[#f7f1e8] p-4 md:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Location</p>
+            <p className="mt-2 text-lg font-semibold text-[#3a2513]">{order.location || 'No location recorded'}</p>
+          </div>
+          <div className="rounded-2xl bg-[#f7f1e8] p-4 md:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Items Ordered</p>
+            <div className="mt-3 space-y-3">
+              {(order.line_items || []).length > 0 ? order.line_items.map((item, index) => (
+                <div key={`${item.name}-${index}`} className="rounded-2xl bg-white px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-base font-semibold text-[#3a2513]">{item.name}</p>
+                      <p className="mt-1 text-sm text-[#76593d]">
+                        Qty {item.quantity}{item.unit ? ` • ${String(item.unit).toUpperCase()}` : ''}
+                      </p>
+                      </div>
+                      <p className="text-sm font-semibold text-[#3a2513]">{money(item.subtotal)}</p>
+                    </div>
+                  </div>
+                )) : (
+                  <p className="text-sm text-[#76593d]">No item details available for this order.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {String(order.status || '').toLowerCase() === 'pending' ? (
+              <div className="border-t border-[#eadcca] px-6 py-5">
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      router.patch(`/dashboard/orders/${order.id}/dispatch`, {}, { preserveScroll: true });
+                    onClose();
+                  }}
+                  className="inline-flex items-center rounded-2xl bg-[#4f3118] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#402612]"
+                >
+                  Dispatch
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
 export default function Dashboard({
   auth,
   stats,
@@ -176,6 +259,29 @@ export default function Dashboard({
   todaysPendingOrders = [],
 }) {
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [selectedPendingOrder, setSelectedPendingOrder] = useState(null);
+
+  useEffect(() => {
+    const handleIncomingNotification = (event) => {
+      const notification = event.detail;
+
+      if (String(notification?.kind || '').toLowerCase() !== 'new_order') {
+        return;
+      }
+
+      router.reload({
+        only: ['deliverySummary', 'recentOrders', 'todaysPendingOrders', 'stats'],
+        preserveScroll: true,
+        preserveState: true,
+      });
+    };
+
+    window.addEventListener('app:notification-received', handleIncomingNotification);
+
+    return () => {
+      window.removeEventListener('app:notification-received', handleIncomingNotification);
+    };
+  }, []);
 
   const scheduleDateLabel = deliverySummary?.date || useMemo(() => {
     const today = new Date();
@@ -224,7 +330,9 @@ export default function Dashboard({
           onClose={() => setScheduleOpen(false)}
           dateLabel={scheduleDateLabel}
           orders={todaysPendingOrders}
+          onViewOrder={setSelectedPendingOrder}
         />
+        <PendingOrderViewModal order={selectedPendingOrder} onClose={() => setSelectedPendingOrder(null)} />
 
         <Card className="rounded-[1.65rem] border border-[#dac8b1] bg-[linear-gradient(90deg,#f3ebe0_0%,#f7f1e8_50%,#f5ecdf_100%)] shadow-none">
           <CardContent className="flex flex-col gap-5 p-5 md:flex-row md:items-center md:justify-between md:p-6">

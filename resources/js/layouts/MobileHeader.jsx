@@ -1,6 +1,7 @@
 import React from 'react';
 import { Menu } from 'lucide-react';
 import { Link } from '@inertiajs/react';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function MobileHeader({ onMenuClick }) {
   return (
@@ -16,9 +17,8 @@ export default function MobileHeader({ onMenuClick }) {
         <span className="text-lg font-bold text-[var(--color-brand-forest)] tracking-wider">Amani Brew</span>
         <span className="text-[9px] text-[var(--color-status-success)] font-medium uppercase tracking-widest leading-none">Premium Butchery</span>
       </Link>
-      
-      {/* Empty div to balance flex spacing */}
-      <div className="w-8"></div>
+
+      <NotificationBell compact />
     </div>
   );
 }

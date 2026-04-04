@@ -297,11 +297,15 @@ function PasswordModal({ user, onClose }) {
   );
 }
 
-export default function Users({ auth, users, roles = [], filters = {} }) {
+export default function Users({ auth, users, roles = [], filters = {}, pickupHours }) {
   const rows = users?.data || [];
   const [activeUser, setActiveUser] = useState(null);
   const [passwordUser, setPasswordUser] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
+  const pickupHoursForm = useForm({
+    pickup_open_time: pickupHours?.open_time || '08:00',
+    pickup_close_time: pickupHours?.close_time || '20:00',
+  });
 
   const hasFilters = useMemo(
     () => Boolean((filters.search || '').trim() || (filters.role || '').trim()),
@@ -310,6 +314,13 @@ export default function Users({ auth, users, roles = [], filters = {} }) {
 
   const deleteUser = (user) => {
     router.delete(`/users/${user.id}`, {
+      preserveScroll: true,
+    });
+  };
+
+  const submitPickupHours = (event) => {
+    event.preventDefault();
+    pickupHoursForm.put('/users/pickup-hours', {
       preserveScroll: true,
     });
   };
@@ -378,6 +389,51 @@ export default function Users({ auth, users, roles = [], filters = {} }) {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="rounded-[1.4rem] border border-[#e0d1bf] bg-white shadow-none">
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-[1.45rem] font-semibold text-[#3a2513]">Pickup Working Hours</h2>
+                <p className="mt-1 text-[0.95rem] text-[#73563a]">
+                  Customers choosing pickup can only select times from the current time up to this closing hour.
+                </p>
+              </div>
+
+              <form onSubmit={submitPickupHours} className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#3a2513]">Opening Time</label>
+                  <input
+                    type="time"
+                    value={pickupHoursForm.data.pickup_open_time}
+                    onChange={(e) => pickupHoursForm.setData('pickup_open_time', e.target.value)}
+                    className="h-12 w-full rounded-xl border border-[#dcccba] bg-white px-4 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                  />
+                  {pickupHoursForm.errors.pickup_open_time ? <p className="mt-2 text-xs text-red-500">{pickupHoursForm.errors.pickup_open_time}</p> : null}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#3a2513]">Closing Time</label>
+                  <input
+                    type="time"
+                    value={pickupHoursForm.data.pickup_close_time}
+                    onChange={(e) => pickupHoursForm.setData('pickup_close_time', e.target.value)}
+                    className="h-12 w-full rounded-xl border border-[#dcccba] bg-white px-4 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+                  />
+                  {pickupHoursForm.errors.pickup_close_time ? <p className="mt-2 text-xs text-red-500">{pickupHoursForm.errors.pickup_close_time}</p> : null}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={pickupHoursForm.processing}
+                  className="h-12 self-end rounded-xl bg-[#4f3118] px-5 text-[0.98rem] font-semibold text-white transition hover:bg-[#402612] disabled:opacity-50"
+                >
+                  {pickupHoursForm.processing ? 'Saving...' : 'Save Hours'}
+                </button>
+              </form>
+            </div>
+          </CardContent>
+        </Card>
 
         <form method="get" action="/users" className="flex items-center gap-4 overflow-x-auto">
           <div className="relative min-w-0 flex-1">

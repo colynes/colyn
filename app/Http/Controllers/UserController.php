@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
 
@@ -114,6 +116,7 @@ class UserController extends Controller
             'users'   => $users,
             'roles'   => $this->availableRoleOptions(),
             'filters' => $request->only(['search', 'role']),
+            'pickupHours' => $this->pickupHours(),
         ]);
     }
 
@@ -183,5 +186,37 @@ class UserController extends Controller
         $request->validate(['password' => 'required|min:8|confirmed']);
         $user->update(['password' => Hash::make($request->password)]);
         return back()->with('success', 'Password reset successfully.');
+    }
+
+    public function updatePickupHours(Request $request)
+    {
+        $this->ensureAdministrator();
+
+        abort_unless(Schema::hasTable('app_settings'), 422, 'Run the latest migrations before saving pickup hours.');
+
+        $validated = $request->validate([
+            'pickup_open_time' => ['required', 'date_format:H:i'],
+            'pickup_close_time' => ['required', 'date_format:H:i', 'after:pickup_open_time'],
+        ]);
+
+        AppSetting::setValue('pickup_open_time', $validated['pickup_open_time']);
+        AppSetting::setValue('pickup_close_time', $validated['pickup_close_time']);
+
+        return back()->with('success', 'Pickup working hours saved successfully.');
+    }
+
+    protected function pickupHours(): array
+    {
+        if (!Schema::hasTable('app_settings')) {
+            return [
+                'open_time' => '08:00',
+                'close_time' => '20:00',
+            ];
+        }
+
+        return [
+            'open_time' => AppSetting::getValue('pickup_open_time', '08:00'),
+            'close_time' => AppSetting::getValue('pickup_close_time', '20:00'),
+        ];
     }
 }

@@ -1,59 +1,335 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# AmaniBrew
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+AmaniBrew is a Laravel + React + Inertia web application for running a food and retail ordering business with both a customer storefront and a backoffice operations dashboard.
 
-## About Laravel
+The project combines:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- a customer-facing shopping experience for products, packs, promotions, cart, checkout, tracking, and profile management
+- a staff/admin backoffice for orders, dashboard monitoring, inventory, packs, promotions, expenses, users, reports, and billing
+- realtime notifications using Laravel Notifications, Pusher, Laravel Echo, and Sonner
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## What The Project Does
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Customer side
 
-## Learning Laravel
+Customers can:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+- browse products, packs, and promotions
+- add items to cart
+- place delivery or pickup orders
+- choose precise delivery locations using Google Places or device GPS
+- choose pickup time within configured working hours
+- track orders
+- view profile details
+- receive realtime notification updates
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Backoffice side
 
-## Laravel Sponsors
+Staff, managers, and administrators can:
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+- monitor pending orders from the dashboard
+- view and manage orders
+- dispatch orders
+- manage categories and products
+- manage stock-related thresholds
+- manage packs and promotions
+- manage customer records
+- manage users and pickup working hours
+- record expenses
+- work with fat-client subscriptions and billing
+- view reports and sales targets
+- receive realtime operational notifications
 
-### Premium Partners
+## Main Features
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+- Customer storefront with mobile-friendly layouts
+- Backoffice dashboard with pending-order monitoring
+- Product, category, pack, and promotion management
+- Cart and checkout flow
+- Delivery vs pickup fulfillment
+- GPS/location-assisted delivery address selection
+- Pickup hours controlled from backoffice settings
+- Realtime notification bell and popup toasts
+- Role-based access using Spatie Laravel Permission
+- Inventory-aware ordering and dispatch stock deduction
+- Invoice and billing flows
+- Expense management
+- Customer profile page and order tracking
 
-## Contributing
+## Tech Stack
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Backend
 
-## Code of Conduct
+- Laravel 12
+- PHP 8.2+
+- MySQL
+- Inertia Laravel
+- Spatie Laravel Permission
+- Laravel Notifications
+- Pusher PHP Server
+- DomPDF
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Frontend
 
-## Security Vulnerabilities
+- React 18
+- Inertia React
+- Vite
+- Tailwind CSS
+- shadcn-style UI building blocks in local components
+- Lucide React icons
+- Recharts
+- Sonner
+- Laravel Echo
+- Pusher JS
+- Google Places / Maps integration
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Project Structure
+
+Key application areas:
+
+- [`app/Http/Controllers`](/c:/xampp/htdocs/colyn/app/Http/Controllers)
+  Handles auth, checkout, storefront pages, dashboard data, operations, inventory, users, billing, and notifications.
+- [`resources/js/pages`](/c:/xampp/htdocs/colyn/resources/js/pages)
+  Inertia pages for customer and backoffice UIs.
+- [`resources/js/components`](/c:/xampp/htdocs/colyn/resources/js/components)
+  Shared UI pieces including cart, notification bell, profile, packs, and backoffice helpers.
+- [`routes/web.php`](/c:/xampp/htdocs/colyn/routes/web.php)
+  Main route definitions.
+- [`database/migrations`](/c:/xampp/htdocs/colyn/database/migrations)
+  Database schema history for packs, notifications, profile fields, delivery fields, settings, and more.
+
+## Main Pages
+
+### Customer pages
+
+- `/`
+- `/products`
+- `/packs`
+- `/promotions`
+- `/cart`
+- `/checkout`
+- `/track-orders`
+- `/customer/home`
+- `/my-orders`
+- `/profile`
+
+### Backoffice pages
+
+- `/dashboard`
+- `/orders`
+- `/create-order`
+- `/inventory/categories`
+- `/inventory/products`
+- `/dashboard/packs`
+- `/dashboard/promotions`
+- `/customers`
+- `/users`
+- `/expenses`
+- `/sales`
+- `/reports`
+- `/fat-clients/subscriptions`
+- `/fat-clients/billing`
+
+## Important Business Logic
+
+### Orders and stock
+
+- Product stock is managed through the `stocks` table.
+- Customer cart updates and checkout validate stock availability.
+- Staff-created orders also validate stock before saving.
+- Stock is reduced when an order is dispatched.
+- Customers should not be able to order beyond available quantity.
+
+### Pickup flow
+
+- Pickup working hours are managed from the backoffice users area.
+- Customers choosing pickup must select a valid pickup time.
+- Pickup time must stay within the configured working hours.
+
+### Delivery flow
+
+- Delivery location can be selected by typing an address with Google suggestions.
+- Customers can also use device GPS to detect their current location.
+- Delivery coordinates and notes are stored with the order.
+
+### Notifications
+
+- Notifications are stored in the database.
+- Realtime delivery is powered by Pusher and Laravel Echo.
+- Sonner displays live toast popups.
+- Notification bell data is shared through Inertia props.
+
+## Environment Variables
+
+The project uses a standard Laravel `.env` file.
+
+Important variables include:
+
+```env
+APP_NAME=AmaniBrew
+APP_URL=http://localhost:8000
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=amanibrew
+DB_USERNAME=root
+DB_PASSWORD=
+
+SESSION_DRIVER=database
+QUEUE_CONNECTION=database
+
+BROADCAST_CONNECTION=pusher
+PUSHER_APP_ID=
+PUSHER_APP_KEY=
+PUSHER_APP_SECRET=
+PUSHER_APP_CLUSTER=
+
+VITE_PUSHER_APP_KEY=
+VITE_PUSHER_APP_CLUSTER=
+VITE_GOOGLE_MAPS_API_KEY=
+```
+
+## Local Setup
+
+### 1. Install backend dependencies
+
+```powershell
+composer install
+```
+
+### 2. Install frontend dependencies
+
+```powershell
+npm install
+```
+
+### 3. Create environment file
+
+```powershell
+copy .env.example .env
+```
+
+Then update:
+
+- database credentials
+- Pusher credentials
+- Google Maps API key
+
+### 4. Generate application key
+
+```powershell
+php artisan key:generate
+```
+
+### 5. Run migrations
+
+```powershell
+php artisan migrate
+```
+
+### 6. Link storage if needed
+
+```powershell
+php artisan storage:link
+```
+
+### 7. Start the app
+
+You can use the combined dev script:
+
+```powershell
+composer run dev
+```
+
+That starts:
+
+- Laravel server
+- queue listener
+- Vite dev server
+
+Or run services separately:
+
+```powershell
+php artisan serve
+php artisan queue:listen --tries=1 --timeout=0
+npm run dev
+```
+
+## Build For Production
+
+```powershell
+npm run build
+```
+
+## Queue, Realtime, and Notifications
+
+For the notification system to work correctly:
+
+- `notifications` table must exist
+- broadcasting must be configured
+- Pusher credentials must be valid
+- queue worker should be running when queued jobs are used
+
+If configuration changes are not taking effect:
+
+```powershell
+php artisan optimize:clear
+```
+
+## Google Maps Requirements
+
+The checkout delivery-location feature depends on:
+
+- Google Places Autocomplete
+- Geocoding / reverse geocoding
+- a valid browser API key in `VITE_GOOGLE_MAPS_API_KEY`
+
+If address suggestions or GPS-to-address conversion fail, verify:
+
+- the API key is active
+- the correct Google APIs are enabled
+- key restrictions allow localhost usage
+
+## Roles
+
+The application supports multiple backoffice and customer roles. In the current database/history, role names may appear in mixed casing, including:
+
+- `admin`
+- `Administrator`
+- `manager`
+- `Manager`
+- `staff`
+- `customer`
+
+Access checks and notifications should account for those variants.
+
+## Useful Commands
+
+```powershell
+php artisan migrate
+php artisan optimize:clear
+php artisan queue:listen --tries=1 --timeout=0
+php artisan test
+npm run dev
+npm run build
+```
+
+## Screens and Artifacts In Repo
+
+The repository also includes some local screenshots and checks used during development, such as:
+
+- [`billing-page-shot.png`](/c:/xampp/htdocs/colyn/billing-page-shot.png)
+- [`create-invoice-shot.png`](/c:/xampp/htdocs/colyn/create-invoice-shot.png)
+- [`invoice-preview-shot.png`](/c:/xampp/htdocs/colyn/invoice-preview-shot.png)
+- [`invoice-download-check.txt`](/c:/xampp/htdocs/colyn/invoice-download-check.txt)
+
+## Notes
+
+- Currency formatting in the app uses `TSh` / `TZS` depending on context.
+- The UI is customer-facing on the storefront and operational on the dashboard.
+- The project has been customized significantly beyond the default Laravel starter.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is currently maintained as an application codebase rather than a reusable package. If you want a formal project license section, add your preferred license here.

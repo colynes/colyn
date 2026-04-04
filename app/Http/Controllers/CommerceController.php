@@ -10,10 +10,14 @@ use App\Models\Order;
 use App\Models\Pack;
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Models\User;
+use App\Notifications\SystemAlertNotification;
 use App\Support\CartManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class CommerceController extends Controller
@@ -158,6 +162,46 @@ class CommerceController extends Controller
         ]);
     }
 
+    public function packs()
+    {
+        $hasPackItemsTable = Schema::hasTable('pack_items');
+        $hasComesWithColumn = Schema::hasColumn('packs', 'comes_with');
+
+        $packsQuery = Pack::query()
+            ->active();
+
+        if ($hasPackItemsTable) {
+            $packsQuery->with(['items.product:id,name,unit']);
+        }
+
+        $packs = $packsQuery
+            ->orderBy('name')
+            ->get()
+            ->map(function (Pack $pack) use ($hasPackItemsTable, $hasComesWithColumn) {
+                $comesWith = $hasComesWithColumn ? $pack->comes_with : null;
+
+                return [
+                    'id' => $pack->id,
+                    'name' => $pack->name,
+                    'description' => $comesWith ?: $pack->description,
+                    'comes_with' => $comesWith,
+                    'items' => $hasPackItemsTable
+                        ? $pack->items->map(fn ($item) => [
+                            'product_name' => $item->product?->name,
+                            'quantity' => (float) $item->quantity,
+                            'unit' => $item->product?->unit,
+                        ])->values()
+                        : collect(),
+                    'price' => (float) $pack->price,
+                ];
+            });
+
+        return Inertia::render('Packs', [
+            'packs' => $packs,
+            'cart' => CartManager::summary(),
+        ]);
+    }
+
     public function profile(Request $request)
     {
         $user = $request->user();
@@ -167,11 +211,7 @@ class CommerceController extends Controller
         $customer->load(['defaultAddress', 'orders.items.product', 'orders.deliveries', 'orders.payments']);
 
         return Inertia::render('Profile', [
-            'profile' => [
-                'full_name' => $customer->full_name ?: $user->name,
-                'phone' => $customer->phone,
-                'email' => $customer->email ?: $user->email,
-                'address' => $customer->address,
+            'profileMeta' => [
                 'status' => $customer->status,
                 'loyalty_points' => $customer->loyalty_points ?? 0,
                 'default_address' => $customer->defaultAddress ? [
@@ -199,16 +239,30 @@ class CommerceController extends Controller
 
         $validated = $request->validate([
             'full_name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['required', 'string', 'max:30'],
-            'email' => ['required', 'email', 'max:255'],
+            'city' => ['required', 'string', 'max:255'],
+            'country' => ['required', 'string', 'max:255'],
             'address' => ['required', 'string', 'max:1000'],
-            'city' => ['nullable', 'string', 'max:255'],
             'postal_code' => ['nullable', 'string', 'max:40'],
+            'avatar' => ['nullable', 'image', 'max:4096'],
         ]);
+
+        if ($request->hasFile('avatar')) {
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+
+            $validated['avatar'] = $request->file('avatar')->store('profile', 'public');
+        }
 
         $user->update([
             'name' => $validated['full_name'],
             'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'city' => $validated['city'],
+            'country' => $validated['country'],
+            'avatar' => $validated['avatar'] ?? $user->avatar,
         ]);
 
         $customer->update([
@@ -278,6 +332,9 @@ class CommerceController extends Controller
             $order->deliveries()->update(['status' => 'cancelled']);
         });
 
+        $order->refresh();
+        $this->notifyBackofficeAboutCustomerOrderEvent($order, 'Order cancelled by customer', 'Order ' . $this->displayOrderNumber($order->order_number) . ' was cancelled by the customer.', 'order_cancelled');
+
         return back()->with('success', 'Order cancelled successfully.');
     }
 
@@ -292,6 +349,9 @@ class CommerceController extends Controller
             $order->deliveries()->update(['status' => 'delivered']);
         });
 
+        $order->refresh();
+        $this->notifyBackofficeAboutCustomerOrderEvent($order, 'Order delivered', 'Order ' . $this->displayOrderNumber($order->order_number) . ' was marked as delivered.', 'order_delivered');
+
         return back()->with('success', 'Order marked as delivered.');
     }
 
@@ -304,6 +364,7 @@ class CommerceController extends Controller
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
+            'display_order_number' => $this->displayOrderNumber($order->order_number),
             'customer' => $order->customer?->full_name,
             'status' => $status,
             'created_at' => optional($order->created_at)->toDayDateTimeString(),
@@ -343,6 +404,7 @@ class CommerceController extends Controller
             'timeline' => $this->buildTimeline($order, $delivery, $payment),
         ];
     }
+
 
     protected function buildTimeline(Order $order, $delivery, $payment): array
     {
@@ -430,4 +492,41 @@ class CommerceController extends Controller
             'status' => 'Active',
         ]);
     }
+
+    protected function notifyBackofficeAboutCustomerOrderEvent(Order $order, string $title, string $message, string $kind): void
+    {
+        if (!Schema::hasTable('notifications')) {
+            return;
+        }
+
+        User::role(['administrator', 'admin', 'manager', 'staff', 'Administrator', 'Manager', 'Staff'])
+            ->get()
+            ->each(fn (User $user) => $user->notify(new SystemAlertNotification([
+                'title' => $title,
+                'message' => $message,
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'display_order_number' => $this->displayOrderNumber($order->order_number),
+                'status' => (string) $order->status,
+                'amount' => (float) $order->total,
+                'action_url' => '/orders',
+                'kind' => $kind,
+            ])));
+    }
+
+    protected function displayOrderNumber(?string $orderNumber): string
+    {
+        $value = preg_replace('/^ORD-?/i', '', (string) $orderNumber);
+
+        if (preg_match('/^(\d{8})\d{6}(\d{3})$/', $value, $matches)) {
+            return $matches[1] . $matches[2];
+        }
+
+        return $value;
+    }
 }
+
+
+
+
+

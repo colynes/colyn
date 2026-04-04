@@ -16,8 +16,13 @@ class DashboardController extends Controller
     public function index()
     {
         $roleKeys = auth()->user()?->getRoleNames()->map(fn ($role) => strtolower($role)) ?? collect();
+        $backofficeRoles = collect(['administrator', 'admin', 'manager', 'staff']);
 
-        abort_if($roleKeys->contains('customer'), 403);
+        if ($roleKeys->isNotEmpty() && $roleKeys->intersect($backofficeRoles)->isEmpty()) {
+            return redirect()
+                ->route('customer.home')
+                ->with('error', 'This account does not have dashboard access.');
+        }
 
         $today = today();
         $yesterday = today()->copy()->subDay();
@@ -130,11 +135,22 @@ class DashboardController extends Controller
                     'status' => $this->normalizeOrderStatus($order->status),
                     'created_at' => optional($order->created_at)->format('h:i A'),
                     'fulfillment_method' => $order->fulfillment_method ?: 'delivery',
+                    'total' => (float) $order->total,
+                    'location' => collect([$order->delivery_region, $order->delivery_area])->filter()->implode(', '),
                     'items' => $order->items->take(4)->map(function ($item) {
                         $name = $item->displayName();
                         $quantity = rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.');
 
                         return trim("{$name} {$quantity}");
+                    })->values(),
+                    'line_items' => $order->items->map(function ($item) {
+                        return [
+                            'name' => $item->displayName(),
+                            'quantity' => (float) $item->quantity,
+                            'subtotal' => (float) $item->subtotal,
+                            'unit' => $item->product?->unit,
+                            'description' => $item->displayDescription(),
+                        ];
                     })->values(),
                 ];
             });

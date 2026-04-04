@@ -1,6 +1,8 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
+import BackofficePagination from '@/components/backoffice/BackofficePagination';
+import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Bell, CalendarDays, Download, Eye, Plus, Printer, Search } from 'lucide-react';
 
@@ -39,7 +41,9 @@ function SummaryCard({ label, value, tone = 'default' }) {
   );
 }
 
-export default function Billing({ auth, invoices = [], summary = {}, filters = {} }) {
+export default function Billing({ auth, invoices = [], summary = {}, filters = {}, perPageOptions = [50, 100, 250, 500] }) {
+  const rows = invoices?.data || [];
+
   return (
     <AppLayout user={auth?.user}>
       <div className="space-y-8">
@@ -92,6 +96,16 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
             <option value="sent">Sent</option>
             <option value="draft">Draft</option>
           </select>
+
+          <BackofficePerPageControl
+            options={perPageOptions}
+            value={filters.per_page || perPageOptions[0]}
+            onChange={(event) => router.get('/fat-clients/billing', {
+              search: filters.search || '',
+              status: filters.status || 'all',
+              per_page: event.target.value,
+            }, { preserveScroll: true, preserveState: true })}
+          />
         </form>
 
         <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
@@ -108,8 +122,8 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.length > 0 ? invoices.map((invoice, index) => (
-                    <tr key={invoice.id} className={`${index !== invoices.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
+                  {rows.length > 0 ? rows.map((invoice, index) => (
+                    <tr key={invoice.id} className={`${index !== rows.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
                       <td className="px-8 py-6">
                         <p className="text-[1.05rem] font-semibold text-[#352314]">{invoice.invoice_number}</p>
                         <p className="mt-1 text-[0.95rem] text-[#6f5238]">{invoice.sub_reference}</p>
@@ -169,6 +183,8 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
             </div>
           </CardContent>
         </Card>
+
+        <BackofficePagination links={invoices?.links} />
       </div>
     </AppLayout>
   );

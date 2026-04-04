@@ -8,7 +8,6 @@ export default function Login() {
   const { data, setData, post, processing, errors } = useForm({
     email: '',
     password: '',
-    remember: false,
   });
 
   const handleSubmit = (e) => {
@@ -132,17 +131,7 @@ export default function Login() {
                 {errors.password && <div className="text-red-500 text-xs mt-1">{errors.password}</div>}
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="remember"
-                    checked={data.remember}
-                    onChange={e => setData('remember', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-[var(--color-brand-dark)] focus:ring-[var(--color-brand-tan)]"
-                  />
-                  <span className="text-sm text-[var(--color-sys-text-secondary)]">Remember me</span>
-                </label>
+              <div className="flex items-center justify-end">
                 <a href="#" className="text-sm font-medium text-[var(--color-brand-tan)] hover:underline">Forgot password?</a>
               </div>
 

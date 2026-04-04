@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
+import BackofficePagination from '@/components/backoffice/BackofficePagination';
+import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Eye, Filter, Search, ShoppingCart, UsersRound, X } from 'lucide-react';
 
@@ -61,7 +63,7 @@ function CustomerViewModal({ customer, onClose }) {
   );
 }
 
-export default function Customers({ auth, customers, filters = {}, summary = {} }) {
+export default function Customers({ auth, customers, filters = {}, summary = {}, perPageOptions = [50, 100, 250, 500] }) {
   const rows = customers?.data || [];
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
@@ -131,6 +133,16 @@ export default function Customers({ auth, customers, filters = {}, summary = {} 
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
+
+          <BackofficePerPageControl
+            options={perPageOptions}
+            value={filters.per_page || perPageOptions[0]}
+            onChange={(event) => router.get('/customers', {
+              search: filters.search || '',
+              status: filters.status || '',
+              per_page: event.target.value,
+            }, { preserveScroll: true, preserveState: true })}
+          />
         </form>
 
         <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
@@ -198,27 +210,7 @@ export default function Customers({ auth, customers, filters = {}, summary = {} 
           </div>
         ) : null}
 
-        {customers?.links?.length > 3 ? (
-          <div className="flex flex-wrap items-center gap-3">
-            {customers.links
-              .filter((link) => link.label !== '&laquo; Previous' && link.label !== 'Next &raquo;')
-              .map((link) => (
-                <Link
-                  key={`${link.label}-${link.url || 'none'}`}
-                  href={link.url || '#'}
-                  preserveScroll
-                  className={`inline-flex h-11 min-w-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition ${
-                    link.active
-                      ? 'bg-[#4f3118] text-white'
-                      : link.url
-                        ? 'border border-[#ddc9b3] bg-white text-[#4f3118] hover:bg-[#f7f1e8]'
-                        : 'cursor-not-allowed border border-[#efe3d4] bg-[#fbf8f4] text-[#b8a28b]'
-                  }`}
-                  dangerouslySetInnerHTML={{ __html: link.label }}
-                />
-              ))}
-          </div>
-        ) : null}
+        <BackofficePagination links={customers?.links} />
       </div>
     </AppLayout>
   );

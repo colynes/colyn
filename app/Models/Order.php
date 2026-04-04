@@ -18,6 +18,9 @@ class Order extends Model
         'delivery_region',
         'delivery_area',
         'delivery_address',
+        'delivery_latitude',
+        'delivery_longitude',
+        'delivery_notes',
         'delivery_landmark',
         'delivery_phone',
         'fulfillment_method',
@@ -30,6 +33,8 @@ class Order extends Model
         'subtotal' => 'decimal:2',
         'tax'      => 'decimal:2',
         'total'    => 'decimal:2',
+        'delivery_latitude' => 'float',
+        'delivery_longitude' => 'float',
         'is_paid'  => 'boolean',
     ];
 

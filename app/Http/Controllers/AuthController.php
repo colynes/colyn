@@ -36,7 +36,7 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (Auth::attempt($credentials, true)) {
             $request->session()->regenerate();
 
             return redirect()->intended(route($this->redirectRouteFor($request->user())));
@@ -93,7 +93,7 @@ class AuthController extends Controller
             return $user;
         });
 
-        Auth::login($user);
+        Auth::login($user, true);
         $request->session()->regenerate();
 
         return redirect()->route('customer.home')->with('success', 'Customer account created successfully.');
