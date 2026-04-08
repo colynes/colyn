@@ -20,6 +20,7 @@
     "dependencies": {
         "@inertiajs/react": "^2.3.18",
         "@react-google-maps/api": "^2.20.8",
+        "firebase": "^12.11.0",
         "lucide-react": "^0.542.0",
         "puppeteer": "^24.40.0",
         "react": "^18.2.0",

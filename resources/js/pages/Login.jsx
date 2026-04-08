@@ -3,11 +3,12 @@ import { Link, useForm, usePage } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
-  const { flash } = usePage().props;
+  const { flash, formData } = usePage().props;
   const [showPassword, setShowPassword] = useState(false);
   const { data, setData, post, processing, errors } = useForm({
-    email: '',
+    email: formData?.email || '',
     password: '',
+    remember: Boolean(formData?.remember),
   });
 
   const handleSubmit = (e) => {
@@ -132,6 +133,15 @@ export default function Login() {
               </div>
 
               <div className="flex items-center justify-end">
+                <label className="mr-auto inline-flex items-center gap-2 text-sm text-[var(--color-sys-text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={data.remember}
+                    onChange={e => setData('remember', e.target.checked)}
+                    className="h-4 w-4 rounded border border-[var(--color-sys-border)] text-[var(--color-brand-dark)] focus:ring-[var(--color-brand-tan)]"
+                  />
+                  <span>Remember me</span>
+                </label>
                 <a href="#" className="text-sm font-medium text-[var(--color-brand-tan)] hover:underline">Forgot password?</a>
               </div>
 

@@ -26,6 +26,10 @@ function iconForNotification(item) {
     return Tag;
   }
 
+  if (kind === 'pickup_reminder') {
+    return Bell;
+  }
+
   if (kind === 'low_stock' || kind === 'out_of_stock') {
     return PackageSearch;
   }

@@ -17,7 +17,12 @@ class AuthController extends Controller
             return redirect()->route($this->redirectRouteFor(Auth::user()));
         }
 
-        return Inertia::render('Login');
+        return Inertia::render('Login', [
+            'formData' => [
+                'email' => old('email', ''),
+                'remember' => (bool) old('remember', false),
+            ],
+        ]);
     }
 
     public function showRegister()
@@ -34,9 +39,10 @@ class AuthController extends Controller
         $credentials = $request->validate([
             'email'    => 'required|email',
             'password' => 'required',
+            'remember' => 'nullable|boolean',
         ]);
 
-        if (Auth::attempt($credentials, true)) {
+        if (Auth::attempt($request->only('email', 'password'), (bool) $request->boolean('remember'))) {
             $user = $request->user()?->loadMissing('customer');
 
             if ($user && $user->customer && !$user->hasAnyRole(['Customer', 'Administrator', 'Admin', 'Manager', 'Staff'])) {
@@ -50,7 +56,7 @@ class AuthController extends Controller
 
         return back()->withErrors([
             'email' => 'The provided credentials do not match our records.',
-        ])->onlyInput('email');
+        ])->onlyInput('email', 'remember');
     }
 
     public function register(Request $request)
