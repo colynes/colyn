@@ -5,7 +5,7 @@ import BackofficePagination from '@/components/backoffice/BackofficePagination';
 import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
 import ConfirmModal from '@/components/ui/ConfirmModal';
-import { Eye, Filter, Pencil, Plus, Search, X } from 'lucide-react';
+import { Check, Eye, Filter, Pencil, Plus, Search, X } from 'lucide-react';
 
 const money = (value) => `Tzs ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 0 }).format(value || 0)}`;
 
@@ -23,9 +23,43 @@ const displayOrderNumber = (value) => String(value || '').replace(/^ORD-?/i, '')
 
 const statusStyles = {
   delivered: 'bg-emerald-100 text-emerald-700',
+  completed: 'bg-emerald-100 text-emerald-700',
   pending: 'bg-orange-100 text-orange-700',
   dispatched: 'bg-violet-100 text-violet-700',
   cancelled: 'bg-rose-100 text-rose-700',
+};
+
+const fulfillmentStyles = {
+  pickup: 'bg-amber-100 text-amber-700',
+  delivery: 'bg-sky-100 text-sky-700',
+};
+
+const formatFulfillmentMethod = (value) => {
+  const normalized = String(value || '').toLowerCase();
+
+  if (normalized === 'pickup') {
+    return 'Pickup';
+  }
+
+  if (normalized === 'delivery') {
+    return 'Delivery';
+  }
+
+  return 'N/A';
+};
+
+const formatStatusLabel = (value) => {
+  const normalized = String(value || '').toLowerCase();
+
+  if (normalized === 'delivered' || normalized === 'completed') {
+    return 'Completed';
+  }
+
+  if (!normalized) {
+    return 'N/A';
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
 
 function OrdersViewModal({ order, onClose }) {
@@ -75,7 +109,15 @@ function OrdersViewModal({ order, onClose }) {
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Status</p>
             <p className="mt-2">
               <span className={`inline-flex rounded-full px-4 py-1.5 text-sm font-medium capitalize ${statusStyles[String(order.status).toLowerCase()] || 'bg-slate-100 text-slate-700'}`}>
-                {order.status}
+                {formatStatusLabel(order.status)}
+              </span>
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#f7f1e8] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8c6c4a]">Fulfillment</p>
+            <p className="mt-2">
+              <span className={`inline-flex rounded-full px-4 py-1.5 text-sm font-medium ${fulfillmentStyles[String(order.fulfillment_method).toLowerCase()] || 'bg-slate-100 text-slate-700'}`}>
+                {formatFulfillmentMethod(order.fulfillment_method)}
               </span>
             </p>
           </div>
@@ -244,6 +286,7 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
   const rows = orders?.data || [];
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
+  const [pickupOrderToComplete, setPickupOrderToComplete] = useState(null);
 
   const hasFilters = useMemo(
     () => Boolean((filters.search || '').trim() || (filters.status || '').trim()),
@@ -272,10 +315,47 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
     };
   }, []);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      router.reload({
+        only: ['orders', 'filters', 'summary'],
+        preserveScroll: true,
+        preserveState: true,
+      });
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const submitPickupCompletion = () => {
+    if (!pickupOrderToComplete) {
+      return;
+    }
+
+    router.patch(`/orders/${pickupOrderToComplete.id}/complete-pickup`, {}, {
+      preserveScroll: true,
+      onSuccess: () => setPickupOrderToComplete(null),
+    });
+  };
+
   return (
     <AppLayout user={auth?.user}>
       <OrdersViewModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
       <OrdersEditModal order={editingOrder} onClose={() => setEditingOrder(null)} />
+      <ConfirmModal
+        isOpen={Boolean(pickupOrderToComplete)}
+        title="Complete Pickup Order"
+        message={
+          pickupOrderToComplete
+            ? `Mark order ${displayOrderNumber(pickupOrderToComplete.order_number)} as collected and completed?`
+            : ''
+        }
+        confirmText="Mark Completed"
+        cancelText="Cancel"
+        onConfirm={submitPickupCompletion}
+        onClose={() => setPickupOrderToComplete(null)}
+        type="primary"
+      />
 
       <div className="space-y-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -321,7 +401,7 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
             <option value="">All</option>
             <option value="pending">Pending</option>
             <option value="dispatched">Dispatched</option>
-            <option value="delivered">Delivered</option>
+            <option value="delivered">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
 
@@ -342,7 +422,7 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
               <table className="min-w-full text-left">
                 <thead className="bg-[#ede1cf]">
                   <tr>
-                    {['Order ID', 'Customer', 'Date', 'Items', 'Total', 'Payment', 'Status', 'Actions'].map((header) => (
+                    {['Order ID', 'Customer', 'Type', 'Items', 'Total', 'Payment', 'Status', 'Actions'].map((header) => (
                       <th
                         key={header}
                         className="px-8 py-5 text-[1rem] font-semibold text-[#2f2115]"
@@ -355,6 +435,8 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
                 <tbody>
                   {rows.length > 0 ? rows.map((order, index) => {
                     const statusKey = String(order.status || '').toLowerCase();
+                    const canCompletePickup = String(order.fulfillment_method || '').toLowerCase() === 'pickup'
+                      && !['delivered', 'completed', 'cancelled'].includes(statusKey);
 
                     return (
                       <tr
@@ -363,13 +445,17 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
                       >
                         <td className="px-8 py-7 text-[1.05rem] font-medium text-[#352314]">{displayOrderNumber(order.order_number)}</td>
                         <td className="px-8 py-7 text-[1.05rem] text-[#352314]">{order.customer}</td>
-                        <td className="px-8 py-7 text-[1.05rem] text-[#5f4328]">{order.date}</td>
+                        <td className="px-8 py-7">
+                          <span className={`inline-flex rounded-full px-4 py-2 text-[0.95rem] font-medium ${fulfillmentStyles[String(order.fulfillment_method).toLowerCase()] || 'bg-slate-100 text-slate-700'}`}>
+                            {formatFulfillmentMethod(order.fulfillment_method)}
+                          </span>
+                        </td>
                         <td className="px-8 py-7 text-[1.05rem] text-[#5f4328]">{order.items} items</td>
                         <td className="px-8 py-7 text-[1.05rem] font-medium text-[#352314]">{money(order.total)}</td>
                         <td className="px-8 py-7 text-[1.05rem] text-[#5f4328]">{formatPayment(order.payment)}</td>
                         <td className="px-8 py-7">
                           <span className={`inline-flex rounded-full px-4 py-2 text-[1rem] font-medium capitalize ${statusStyles[statusKey] || 'bg-slate-100 text-slate-700'}`}>
-                            {order.status}
+                            {formatStatusLabel(order.status)}
                           </span>
                         </td>
                         <td className="px-8 py-7">
@@ -390,6 +476,17 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
                             >
                               <Pencil className="h-5 w-5" strokeWidth={2} />
                             </button>
+                            {canCompletePickup ? (
+                              <button
+                                type="button"
+                                onClick={() => setPickupOrderToComplete(order)}
+                                className="transition hover:text-emerald-700"
+                                aria-label={`Mark ${displayOrderNumber(order.order_number)} as collected`}
+                                title="Mark pickup as collected"
+                              >
+                                <Check className="h-5 w-5" strokeWidth={2.5} />
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>

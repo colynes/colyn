@@ -18,6 +18,45 @@ export default function OrderTracking({ orders = [], filters = {} }) {
   const completedOrders = orders.filter((order) => completedStatuses.includes(order.status));
   const activeOrder = openOrders[0] || null;
 
+  const formatStatusLabel = (status) => {
+    const normalized = String(status || '').toLowerCase();
+
+    if (normalized === 'delivered') {
+      return 'Completed';
+    }
+
+    if (!normalized) {
+      return 'N/A';
+    }
+
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  };
+
+  const formatFulfillmentMethod = (value) => {
+    const normalized = String(value || '').toLowerCase();
+
+    if (normalized === 'pickup') {
+      return 'Pickup';
+    }
+
+    if (normalized === 'delivery') {
+      return 'Delivery';
+    }
+
+    return 'N/A';
+  };
+
+  const fulfillmentBadgeClass = (value) => {
+    switch (String(value || '').toLowerCase()) {
+      case 'pickup':
+        return 'bg-amber-100 text-amber-700';
+      case 'delivery':
+        return 'bg-sky-100 text-sky-700';
+      default:
+        return 'bg-gray-100 text-gray-500';
+    }
+  };
+
   const statusBadgeClass = (status) => {
     switch (status) {
       case 'cancelled':
@@ -62,7 +101,14 @@ export default function OrderTracking({ orders = [], filters = {} }) {
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">{activeOrder.display_order_number || activeOrder.order_number}</p>
-                      <p className="mt-2 text-2xl font-black capitalize">{activeOrder.status}</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(activeOrder.status)}`}>
+                          {formatStatusLabel(activeOrder.status)}
+                        </span>
+                        <span className={`rounded-full px-3 py-1 text-xs font-medium ${fulfillmentBadgeClass(activeOrder.location?.fulfillment_method)}`}>
+                          {formatFulfillmentMethod(activeOrder.location?.fulfillment_method)}
+                        </span>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-white/70">Total</p>
@@ -175,9 +221,12 @@ export default function OrderTracking({ orders = [], filters = {} }) {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-sys-text-secondary)]">{order.display_order_number || order.order_number}</p>
-                        <div className="mt-3">
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${statusBadgeClass(order.status)}`}>
-                            {order.status}
+                            {formatStatusLabel(order.status)}
+                          </span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-medium ${fulfillmentBadgeClass(order.location?.fulfillment_method)}`}>
+                            {formatFulfillmentMethod(order.location?.fulfillment_method)}
                           </span>
                         </div>
                       </div>
@@ -223,9 +272,12 @@ export default function OrderTracking({ orders = [], filters = {} }) {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-sys-text-secondary)]">{order.display_order_number || order.order_number}</p>
-                        <div className="mt-3">
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${statusBadgeClass(order.status)}`}>
-                            {order.status}
+                            {formatStatusLabel(order.status)}
+                          </span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-medium ${fulfillmentBadgeClass(order.location?.fulfillment_method)}`}>
+                            {formatFulfillmentMethod(order.location?.fulfillment_method)}
                           </span>
                         </div>
                       </div>

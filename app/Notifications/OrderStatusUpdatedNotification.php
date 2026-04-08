@@ -66,6 +66,11 @@ class OrderStatusUpdatedNotification extends Notification
                 'order_delivered',
                 'Your order ' . $displayNumber . ' was delivered successfully.',
             ],
+            'completed' => [
+                'Order completed',
+                'order_completed',
+                'Your pickup order ' . $displayNumber . ' has been collected and completed.',
+            ],
             default => [
                 'Order update',
                 'order_status',

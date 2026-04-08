@@ -37,9 +37,15 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials, true)) {
+            $user = $request->user()?->loadMissing('customer');
+
+            if ($user && $user->customer && !$user->hasAnyRole(['Customer', 'Administrator', 'Admin', 'Manager', 'Staff'])) {
+                $user->assignRole('Customer');
+            }
+
             $request->session()->regenerate();
 
-            return redirect()->intended(route($this->redirectRouteFor($request->user())));
+            return redirect()->intended(route($this->redirectRouteFor($user)));
         }
 
         return back()->withErrors([
@@ -114,10 +120,18 @@ class AuthController extends Controller
             return 'home';
         }
 
+        $user->loadMissing('customer');
+
         $roleKeys = $user->getRoleNames()->map(fn ($role) => strtolower($role));
 
-        return $roleKeys->intersect(['administrator', 'admin', 'manager', 'staff'])->isNotEmpty()
-            ? 'dashboard'
-            : 'customer.home';
+        if ($roleKeys->intersect(['administrator', 'admin', 'manager', 'staff'])->isNotEmpty()) {
+            return 'dashboard';
+        }
+
+        if ($roleKeys->contains('customer') || $user->customer) {
+            return 'customer.home';
+        }
+
+        return 'home';
     }
 }

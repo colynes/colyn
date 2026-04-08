@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use App\Notifications\NewOrderPlacedNotification;
+use App\Support\BackofficeAccess;
 use App\Support\CartManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,6 +33,27 @@ class CheckoutController extends Controller
         $user = $request->user();
         $customer = $user?->customer;
         $pickupConfig = $this->pickupConfig();
+        $oldInput = $request->session()->getOldInput();
+
+        $formData = [
+            'full_name' => $customer->full_name ?? $user?->name ?? '',
+            'phone' => $customer->phone ?? '',
+            'email' => $customer->email ?? $user?->email ?? '',
+            'region_city' => $customer->defaultAddress?->city ?? '',
+            'district_area' => '',
+            'delivery_address' => $customer->defaultAddress?->address_line1 ?? $customer?->address ?? '',
+            'delivery_latitude' => '',
+            'delivery_longitude' => '',
+            'delivery_notes' => $customer->defaultAddress?->address_line2 ?? '',
+            'fulfillment_method' => 'delivery',
+            'pickup_time' => '',
+        ];
+
+        foreach (array_keys($formData) as $key) {
+            if (array_key_exists($key, $oldInput)) {
+                $formData[$key] = $oldInput[$key];
+            }
+        }
 
         return Inertia::render('Checkout', [
             'cart'     => $cart,
@@ -46,6 +68,7 @@ class CheckoutController extends Controller
                 'delivery_latitude' => null,
                 'delivery_longitude' => null,
             ] : null,
+            'formData' => $formData,
             'pickupHours' => [
                 'open_time' => $pickupConfig['open_time'],
                 'close_time' => $pickupConfig['close_time'],
@@ -105,7 +128,6 @@ class CheckoutController extends Controller
             'delivery_latitude'  => ['nullable', 'numeric', 'between:-90,90', 'required_if:fulfillment_method,delivery'],
             'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_if:fulfillment_method,delivery'],
             'delivery_notes'     => ['nullable', 'string', 'max:1000'],
-            'delivery_location_confirmed' => ['nullable', 'accepted', 'required_if:fulfillment_method,delivery'],
             'fulfillment_method' => ['required', 'in:delivery,pickup'],
             'pickup_time'        => ['nullable', 'string', 'max:255', 'required_if:fulfillment_method,pickup'],
             'password'           => $user ? ['nullable'] : ['required', 'string', 'min:8', 'confirmed'],
@@ -114,9 +136,9 @@ class CheckoutController extends Controller
         $validated = $request->validate($rules);
         $pickupConfig = $this->pickupConfig();
 
-        if (($validated['fulfillment_method'] ?? null) === 'delivery' && empty($validated['delivery_location_confirmed'])) {
+        if (($validated['fulfillment_method'] ?? null) === 'delivery' && !$this->hasValidDeliveryLocation($validated)) {
             return back()->withErrors([
-                'delivery_location_confirmed' => 'Please confirm a delivery location before placing the order.',
+                'delivery_address' => 'Please select a valid delivery location from the suggestions or use your current location.',
             ])->withInput();
         }
 
@@ -125,18 +147,18 @@ class CheckoutController extends Controller
                 'pickup_time' => ['required', 'date_format:H:i'],
             ]);
 
-            abort_if(
-                !$this->isPickupTimeWithinWindow($validated['pickup_time'], $pickupConfig['min_time'], $pickupConfig['close_time']),
-                422,
-                'Pickup time must be between the current available time and closing hours.'
-            );
+            if (!$this->isPickupTimeWithinWindow($validated['pickup_time'], $pickupConfig['min_time'], $pickupConfig['close_time'])) {
+                return back()->withErrors([
+                    'pickup_time' => 'Pickup time must be between the current available time and closing hours.',
+                ])->withInput();
+            }
         }
 
         $branch = Branch::query()->where('is_active', true)->orderBy('id')->firstOrFail();
         $insufficientStockMessage = $this->validateAvailableStock($cart['items'], $branch->id);
 
         if ($insufficientStockMessage) {
-            return back()->with('error', $insufficientStockMessage);
+            return back()->with('error', $insufficientStockMessage)->withInput();
         }
 
         $order = DB::transaction(function () use ($validated, $cart, $user, $branch) {
@@ -234,7 +256,9 @@ class CheckoutController extends Controller
 
         CartManager::clear();
 
-        return redirect()->route('home')->with('success', 'Order ' . $this->displayOrderNumber($createdOrder->order_number) . ' placed successfully.');
+        return redirect()
+            ->route('my-orders')
+            ->with('success', 'Order ' . $this->displayOrderNumber($createdOrder->order_number) . ' placed successfully and sent to staff.');
     }
 
     protected function buildOrderNotes(array $validated): string
@@ -260,6 +284,13 @@ class CheckoutController extends Controller
         }
 
         return implode(PHP_EOL, $notes);
+    }
+
+    protected function hasValidDeliveryLocation(array $validated): bool
+    {
+        return filled($validated['delivery_address'] ?? null)
+            && filled($validated['delivery_latitude'] ?? null)
+            && filled($validated['delivery_longitude'] ?? null);
     }
 
     protected function generateDailyOrderNumber(): string
@@ -387,8 +418,9 @@ class CheckoutController extends Controller
             return;
         }
 
-        User::role(['administrator', 'admin', 'manager', 'staff', 'Administrator', 'Manager', 'Staff'])
+        User::query()
             ->get()
+            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(fn (User $user) => $user->notify(new NewOrderPlacedNotification($order)));
     }
 }

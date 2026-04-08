@@ -10,19 +10,19 @@ export function startEcho() {
     return window.Echo;
   }
 
-  const key = import.meta.env.VITE_PUSHER_APP_KEY;
-  const cluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
-
-  if (!key || !cluster) {
-    return null;
-  }
+  const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+  const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
 
   window.Pusher = Pusher;
 
+  if (!pusherKey || !pusherCluster) {
+    return null;
+  }
+
   window.Echo = new Echo({
     broadcaster: 'pusher',
-    key,
-    cluster,
+    key: pusherKey,
+    cluster: pusherCluster,
     forceTLS: true,
     enabledTransports: ['ws', 'wss'],
   });

@@ -11,7 +11,7 @@ function formatCurrency(value) {
   }).format(value || 0);
 }
 
-export default function Checkout({ cart, customer, pickupHours }) {
+export default function Checkout({ cart, customer, pickupHours, formData }) {
   const { auth, flash } = usePage().props;
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -21,18 +21,17 @@ export default function Checkout({ cart, customer, pickupHours }) {
   const pickupCloseTime = pickupHours?.close_time || null;
 
   const { data, setData, post, processing, errors } = useForm({
-    full_name: customer?.full_name || '',
-    phone: customer?.phone || '',
-    email: customer?.email || '',
-    region_city: customer?.region_city || '',
-    district_area: customer?.district_area || '',
-    delivery_address: customer?.delivery_address || '',
-    delivery_latitude: customer?.delivery_latitude || '',
-    delivery_longitude: customer?.delivery_longitude || '',
-    delivery_notes: customer?.delivery_notes || '',
-    delivery_location_confirmed: false,
-    fulfillment_method: 'delivery',
-    pickup_time: '',
+    full_name: formData?.full_name ?? customer?.full_name ?? '',
+    phone: formData?.phone ?? customer?.phone ?? '',
+    email: formData?.email ?? customer?.email ?? '',
+    region_city: formData?.region_city ?? customer?.region_city ?? '',
+    district_area: formData?.district_area ?? customer?.district_area ?? '',
+    delivery_address: formData?.delivery_address ?? customer?.delivery_address ?? '',
+    delivery_latitude: formData?.delivery_latitude ?? customer?.delivery_latitude ?? '',
+    delivery_longitude: formData?.delivery_longitude ?? customer?.delivery_longitude ?? '',
+    delivery_notes: formData?.delivery_notes ?? customer?.delivery_notes ?? '',
+    fulfillment_method: formData?.fulfillment_method ?? 'delivery',
+    pickup_time: formData?.pickup_time ?? '',
     password: '',
     password_confirmation: '',
   });
@@ -121,6 +120,32 @@ export default function Checkout({ cart, customer, pickupHours }) {
     post('/checkout');
   };
 
+  const deliveryLocationValid = Boolean(
+    String(data.delivery_address || '').trim()
+    && String(data.delivery_latitude || '').trim()
+    && String(data.delivery_longitude || '').trim(),
+  );
+
+  const canSubmit = data.fulfillment_method === 'delivery'
+    ? deliveryLocationValid && !processing
+    : !processing;
+
+  const hasTopLevelError = Boolean(
+    flash?.error ||
+    errors.pickup_time ||
+    errors.delivery_address ||
+    errors.delivery_latitude ||
+    errors.delivery_longitude ||
+    errors.full_name ||
+    errors.phone ||
+    errors.email ||
+    errors.password
+  );
+
+  const pickupWindowLabel = pickupAvailable
+    ? `Choose a pickup time from ${pickupHours?.min_time} until ${pickupHours?.close_time}.`
+    : `Pickup is currently unavailable. Working hours are ${pickupHours?.open_time} to ${pickupHours?.close_time}.`;
+
   return (
     <div className="min-h-screen bg-[#f7f2ea] px-6 py-10">
       <div className="mx-auto max-w-7xl">
@@ -139,13 +164,22 @@ export default function Checkout({ cart, customer, pickupHours }) {
           </Link>
         </div>
 
-        {(flash?.success || flash?.error) && (
+        {(flash?.success || flash?.error || hasTopLevelError) && (
           <div className={`mt-6 rounded-2xl border px-5 py-4 text-sm font-medium ${
-            flash.error
+            flash.error || hasTopLevelError
               ? 'border-red-200 bg-red-50 text-red-700'
               : 'border-emerald-200 bg-emerald-50 text-emerald-700'
           }`}>
-            {flash.error || flash.success}
+            {flash.error
+              || errors.pickup_time
+              || errors.delivery_address
+              || errors.delivery_latitude
+              || errors.delivery_longitude
+              || errors.full_name
+              || errors.phone
+              || errors.email
+              || errors.password
+              || flash.success}
           </div>
         )}
 
@@ -155,7 +189,7 @@ export default function Checkout({ cart, customer, pickupHours }) {
               <div>
                 <h2 className="text-2xl font-black text-[#241816]">{isGuest ? 'Customer account details' : 'Customer details'}</h2>
                 <p className="mt-2 text-sm text-[#6f5d57]">
-                  Full name, phone, and email are required. Delivery orders also need a confirmed map location.
+                  Full name, phone, and email are required. Delivery orders also need a valid selected location.
                 </p>
               </div>
 
@@ -218,6 +252,7 @@ export default function Checkout({ cart, customer, pickupHours }) {
                         disabled={!pickupAvailable}
                         className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d] disabled:cursor-not-allowed disabled:opacity-60"
                       >
+                        {!timeChoices.hours.length && <option value="">No hours available</option>}
                         {timeChoices.hours.map((hour) => (
                           <option key={hour} value={hour}>
                             {String(hour).padStart(2, '0')}
@@ -231,9 +266,10 @@ export default function Checkout({ cart, customer, pickupHours }) {
                       <select
                         value={selectedPickupMinute ?? ''}
                         onChange={(e) => handlePickupMinuteChange(e.target.value)}
-                        disabled={!pickupAvailable}
+                        disabled={!pickupAvailable || selectedPickupHour == null}
                         className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d] disabled:cursor-not-allowed disabled:opacity-60"
                       >
+                        {selectedPickupHour == null && <option value="">Select hour first</option>}
                         {(timeChoices.minutesByHour[selectedPickupHour] || []).map((minute) => (
                           <option key={minute} value={minute}>
                             {String(minute).padStart(2, '0')}
@@ -256,11 +292,7 @@ export default function Checkout({ cart, customer, pickupHours }) {
 
               {data.fulfillment_method === 'pickup' ? (
                 <div className="rounded-2xl border border-[#eadfce] bg-[#fbf7f1] p-5">
-                  <p className="text-xs text-[#6f5d57]">
-                    {pickupAvailable
-                      ? `Choose a pickup time from ${pickupHours?.min_time} until ${pickupHours?.close_time}.`
-                      : `Pickup is currently unavailable. Admin working hours are ${pickupHours?.open_time} to ${pickupHours?.close_time}.`}
-                  </p>
+                  <p className="text-xs text-[#6f5d57]">{pickupWindowLabel}</p>
                   {!pickupAvailable ? (
                     <div className="mt-3 rounded-xl border border-[#e8ddd2] bg-white px-4 py-3 text-sm text-[#6f5d57]">
                       No pickup times are available right now.
@@ -324,11 +356,16 @@ export default function Checkout({ cart, customer, pickupHours }) {
 
               <button
                 type="submit"
-                disabled={processing}
+                disabled={!canSubmit}
                 className="w-full rounded-xl bg-[#3b241d] py-3.5 text-sm font-bold text-white transition hover:bg-[#241816] disabled:opacity-50"
               >
                 {processing ? 'Confirming Order...' : 'Confirm Order'}
               </button>
+              {data.fulfillment_method === 'delivery' && !deliveryLocationValid ? (
+                <p className="text-xs text-[#7d6a5f]">
+                  Select a suggested address or use your current location before confirming a delivery order.
+                </p>
+              ) : null}
             </form>
           </div>
 

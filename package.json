@@ -7,20 +7,21 @@
         "build": "vite build"
     },
     "devDependencies": {
+        "@laravel/echo-react": "^2.3.3",
         "@tailwindcss/vite": "^4.2.2",
         "@vitejs/plugin-react": "^6.0.1",
         "axios": "^1.11.0",
+        "laravel-echo": "^2.3.4",
         "laravel-vite-plugin": "^3.0.0",
+        "pusher-js": "^8.5.0",
         "tailwindcss": "^4.0.0",
         "vite": "^8.0.2"
     },
     "dependencies": {
         "@inertiajs/react": "^2.3.18",
         "@react-google-maps/api": "^2.20.8",
-        "laravel-echo": "^2.3.3",
         "lucide-react": "^0.542.0",
         "puppeteer": "^24.40.0",
-        "pusher-js": "^8.5.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "react-is": "^18.2.0",

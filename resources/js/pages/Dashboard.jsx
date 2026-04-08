@@ -283,6 +283,18 @@ export default function Dashboard({
     };
   }, []);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      router.reload({
+        only: ['deliverySummary', 'recentOrders', 'todaysPendingOrders', 'stats'],
+        preserveScroll: true,
+        preserveState: true,
+      });
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const scheduleDateLabel = deliverySummary?.date || useMemo(() => {
     const today = new Date();
 

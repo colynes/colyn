@@ -1,38 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, LoaderCircle, MapPin, Navigation } from 'lucide-react';
-
-const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-places-script';
-
-function loadGoogleMaps(apiKey) {
-  return new Promise((resolve, reject) => {
-    if (window.google?.maps?.places) {
-      resolve(window.google);
-      return;
-    }
-
-    if (!apiKey) {
-      reject(new Error('Google Maps API key is missing.'));
-      return;
-    }
-
-    const existingScript = document.getElementById(GOOGLE_MAPS_SCRIPT_ID);
-
-    if (existingScript) {
-      existingScript.addEventListener('load', () => resolve(window.google));
-      existingScript.addEventListener('error', () => reject(new Error('Failed to load Google Maps.')));
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = GOOGLE_MAPS_SCRIPT_ID;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve(window.google);
-    script.onerror = () => reject(new Error('Failed to load Google Maps.'));
-    document.head.appendChild(script);
-  });
-}
+import { loadGoogleMapsPlaces } from '@/lib/googleMaps';
 
 function pickAddressPart(components = [], preferredTypes = []) {
   for (const type of preferredTypes) {
@@ -64,6 +32,7 @@ export default function DeliveryLocationSelector({ data, setData, errors = {}, v
   const autocompleteServiceRef = useRef(null);
   const placesServiceRef = useRef(null);
   const geocoderRef = useRef(null);
+  const sessionTokenRef = useRef(null);
   const searchTokenRef = useRef(0);
   const [placesReady, setPlacesReady] = useState(false);
   const [loadingPlaces, setLoadingPlaces] = useState(false);
@@ -83,7 +52,7 @@ export default function DeliveryLocationSelector({ data, setData, errors = {}, v
     let cancelled = false;
 
     setLoadingPlaces(true);
-    loadGoogleMaps(googleMapsApiKey)
+    loadGoogleMapsPlaces(googleMapsApiKey)
       .then((google) => {
         if (cancelled) {
           return;
@@ -92,6 +61,7 @@ export default function DeliveryLocationSelector({ data, setData, errors = {}, v
         autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
         placesServiceRef.current = new google.maps.places.PlacesService(document.createElement('div'));
         geocoderRef.current = new google.maps.Geocoder();
+        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
         setPlacesReady(true);
         setLocationError('');
       })
@@ -136,7 +106,7 @@ export default function DeliveryLocationSelector({ data, setData, errors = {}, v
         {
           input: query,
           componentRestrictions: { country: 'tz' },
-          types: ['geocode'],
+          sessionToken: sessionTokenRef.current,
         },
         (predictions, status) => {
           if (currentToken !== searchTokenRef.current) {
@@ -198,7 +168,8 @@ export default function DeliveryLocationSelector({ data, setData, errors = {}, v
     placesServiceRef.current.getDetails(
       {
         placeId: suggestion.place_id,
-        fields: ['formatted_address', 'geometry', 'address_component', 'name'],
+        fields: ['formatted_address', 'geometry', 'address_components', 'name'],
+        sessionToken: sessionTokenRef.current,
       },
       (result, status) => {
         if (status !== window.google?.maps?.places?.PlacesServiceStatus?.OK || !result) {
@@ -207,6 +178,7 @@ export default function DeliveryLocationSelector({ data, setData, errors = {}, v
         }
 
         applyLocationResult(extractLocationDetails(result));
+        sessionTokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
       },
     );
   };
@@ -296,6 +268,7 @@ export default function DeliveryLocationSelector({ data, setData, errors = {}, v
               onChange={(event) => markUnconfirmed(event.target.value)}
               placeholder="Search street, estate, area, or building"
               className="w-full rounded-xl border border-[#e8ddd2] bg-white px-11 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d]"
+              autoComplete="off"
             />
             {loadingPlaces ? <LoaderCircle className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#8e796b]" /> : null}
           </div>
@@ -317,7 +290,6 @@ export default function DeliveryLocationSelector({ data, setData, errors = {}, v
           ) : null}
 
           {errors.delivery_address ? <div className="mt-1 text-xs text-red-500">{errors.delivery_address}</div> : null}
-          {errors.delivery_location_confirmed ? <div className="mt-1 text-xs text-red-500">{errors.delivery_location_confirmed}</div> : null}
         </div>
 
         <div className="flex flex-col justify-end gap-2">

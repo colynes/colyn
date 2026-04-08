@@ -42,6 +42,8 @@ class HandleInertiaRequests extends Middleware
         $user = $request->user()?->loadMissing('customer.defaultAddress');
         $defaultAddress = $user?->customer?->defaultAddress;
         $hasNotificationsTable = Schema::hasTable('notifications');
+        $primaryRole = $user?->getRoleNames()->first();
+        $roleKey = $primaryRole ? strtolower((string) $primaryRole) : ($user?->customer ? 'customer' : null);
 
         return [
             ...parent::share($request),
@@ -56,8 +58,8 @@ class HandleInertiaRequests extends Middleware
                     'address' => $user->customer?->address ?: $defaultAddress?->address_line1,
                     'avatar' => $user->avatar,
                     'avatar_url' => $user->avatar ? Storage::disk('public')->url($user->avatar) : null,
-                    'role'  => $user->getRoleNames()->first(),
-                    'role_key' => strtolower((string) $user->getRoleNames()->first()),
+                    'role'  => $primaryRole ?: ($user->customer ? 'Customer' : null),
+                    'role_key' => $roleKey,
                 ] : null,
             ],
             'notifications' => fn () => ($user && $hasNotificationsTable) ? [

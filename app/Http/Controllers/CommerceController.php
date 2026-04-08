@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Notifications\SystemAlertNotification;
+use App\Support\BackofficeAccess;
 use App\Support\CartManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -499,8 +500,9 @@ class CommerceController extends Controller
             return;
         }
 
-        User::role(['administrator', 'admin', 'manager', 'staff', 'Administrator', 'Manager', 'Staff'])
+        User::query()
             ->get()
+            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(fn (User $user) => $user->notify(new SystemAlertNotification([
                 'title' => $title,
                 'message' => $message,
@@ -525,7 +527,6 @@ class CommerceController extends Controller
         return $value;
     }
 }
-
 
 
 

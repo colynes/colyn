@@ -103,6 +103,22 @@ export default function NotificationBell({ className = '', compact = false }) {
     };
   }, [userId]);
 
+  useEffect(() => {
+    if (!userId) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      router.reload({
+        only: ['notifications'],
+        preserveScroll: true,
+        preserveState: true,
+      });
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [userId]);
+
   const hasNotifications = items.length > 0;
   const buttonClasses = compact
     ? 'inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--color-sys-border)] bg-white text-[var(--color-brand-dark)] shadow-sm'

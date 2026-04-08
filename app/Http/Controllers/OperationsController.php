@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Notifications\NewOrderPlacedNotification;
 use App\Notifications\OrderStatusUpdatedNotification;
 use App\Notifications\SystemAlertNotification;
+use App\Support\BackofficeAccess;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -92,6 +93,7 @@ class OperationsController extends Controller
                     'total' => (float) $order->total,
                     'payment' => $order->payments->sortByDesc('created_at')->first()?->method ?? $order->payment_method,
                     'status' => $this->normalizeOrderStatus($order->status),
+                    'fulfillment_method' => $order->fulfillment_method,
                     'tracking_number' => $order->deliveries->sortByDesc('created_at')->first()?->tracking_number,
                     'location' => collect([$order->delivery_region, $order->delivery_area])->filter()->implode(', '),
                     'delivery_region' => $order->delivery_region,
@@ -1572,6 +1574,43 @@ class OperationsController extends Controller
         return back()->with('success', "Order {$order->order_number} dispatched successfully.");
     }
 
+    public function completePickup(Order $order)
+    {
+        $this->ensureBackoffice();
+
+        abort_unless($order->fulfillment_method === 'pickup', 422, 'Only pickup orders can be marked as collected.');
+
+        $currentStatus = $this->normalizeOrderStatus($order->status);
+
+        abort_if($currentStatus === 'cancelled', 422, 'Cancelled pickup orders cannot be completed.');
+        abort_if($currentStatus === 'delivered', 422, 'This pickup order has already been completed.');
+
+        DB::transaction(function () use ($order, $currentStatus) {
+            if ($currentStatus === 'pending') {
+                $stockError = $this->validateRequestedStock(
+                    $order->items()->get(['product_id', 'quantity'])->map(fn ($item) => [
+                        'product_id' => $item->product_id,
+                        'quantity' => (float) $item->quantity,
+                    ])->all(),
+                    $order->branch_id,
+                );
+
+                if ($stockError) {
+                    abort(422, $stockError);
+                }
+
+                $this->deductOrderStock($order);
+            }
+
+            $order->update(['status' => 'completed']);
+        });
+
+        $order->refresh();
+        $this->notifyCustomerAboutOrderStatus($order, 'completed');
+
+        return back()->with('success', "Pickup order {$order->order_number} marked as completed.");
+    }
+
     public function destroyOrder(Order $order)
     {
         $this->ensureBackoffice();
@@ -1667,9 +1706,10 @@ class OperationsController extends Controller
             return;
         }
 
-        User::role(['administrator', 'admin', 'manager', 'staff', 'Administrator', 'Manager', 'Staff'])
+        User::query()
             ->when($excludeUserId, fn ($query) => $query->where('id', '!=', $excludeUserId))
             ->get()
+            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(fn (User $user) => $user->notify(new NewOrderPlacedNotification($order)));
     }
 
@@ -1689,6 +1729,7 @@ class OperationsController extends Controller
 
         $label = match ($status) {
             'delivered' => 'delivered',
+            'completed' => 'completed',
             'cancelled' => 'cancelled',
             'dispatched' => 'dispatched',
             default => 'updated',
@@ -1811,8 +1852,6 @@ class OperationsController extends Controller
             ->each(fn (User $user) => $user->notify(new SystemAlertNotification($payload)));
     }
 }
-
-
 
 
 

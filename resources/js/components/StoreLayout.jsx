@@ -11,6 +11,22 @@ function navClass(active) {
     : 'text-[var(--color-sys-text-secondary)] hover:text-[var(--color-brand-dark)]';
 }
 
+function SmartNavLink({ item, onClick }) {
+  if (item.href.startsWith('#')) {
+    return (
+      <a href={item.href} onClick={onClick} className={`${navClass(item.active)} text-[0.95rem]`}>
+        {item.label}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={item.href} onClick={onClick} className={`${navClass(item.active)} text-[0.95rem]`}>
+      {item.label}
+    </Link>
+  );
+}
+
 export default function StoreLayout({ children, title, subtitle, showLiveCart = true }) {
   const { auth, cart = { line_count: 0 } } = usePage().props;
   const currentUrl = usePage().url;
@@ -62,9 +78,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
 
           <nav className="hidden items-center justify-center gap-8 md:flex">
             {navItems.map((item) => (
-              <a key={item.label} href={item.href} className={`${navClass(item.active)} text-[0.95rem]`}>
-                {item.label}
-              </a>
+              <SmartNavLink key={item.label} item={item} />
             ))}
           </nav>
 
@@ -150,7 +164,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
             <div className="flex-1 overflow-y-auto px-5 py-5">
               <nav className="space-y-2">
                 {navItems.map((item) => (
-                  <a
+                  <Link
                     key={item.label}
                     href={item.href}
                     onClick={() => setSidebarOpen(false)}
@@ -161,7 +175,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                     }`}
                   >
                     {item.label}
-                  </a>
+                  </Link>
                 ))}
               </nav>
 

@@ -129,6 +129,22 @@ function FlashBanner({ flash }) {
   );
 }
 
+function SmartLink({ href, className, children, onClick }) {
+  if (href?.startsWith('#')) {
+    return (
+      <a href={href} className={className} onClick={onClick}>
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} className={className} onClick={onClick}>
+      {children}
+    </Link>
+  );
+}
+
 function GuestCheckoutModal({
   open,
   onClose,
@@ -262,9 +278,9 @@ export default function Home({ categories = [], products = [], cart, activeCateg
 
           <div className="hidden items-center gap-8 lg:flex">
             {NAV_LINKS.map((link) => (
-              <a key={link.label} href={link.href} className="text-sm font-semibold text-[#4d3a35] transition hover:text-[#7a1f28]">
+              <SmartLink key={link.label} href={link.href} className="text-sm font-semibold text-[#4d3a35] transition hover:text-[#7a1f28]">
                 {link.label}
-              </a>
+              </SmartLink>
             ))}
             {auth?.user ? (
               <Link href="/checkout" className="rounded-full bg-[#7a1f28] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(122,31,40,0.18)] transition hover:bg-[#651820]">
@@ -295,14 +311,14 @@ export default function Home({ categories = [], products = [], cart, activeCateg
           <div className="border-t border-[#e8ddd2] bg-[#fffaf4] px-6 py-4 lg:hidden">
             <div className="space-y-3">
               {NAV_LINKS.map((link) => (
-                <a
+                <SmartLink
                   key={link.label}
                   href={link.href}
                   onClick={() => setMenuOpen(false)}
                   className="block rounded-2xl px-4 py-3 text-sm font-semibold text-[#4d3a35] transition hover:bg-[#f3e7dc] hover:text-[#7a1f28]"
                 >
                   {link.label}
-                </a>
+                </SmartLink>
               ))}
               {auth?.user ? (
                 <Link
@@ -760,9 +776,9 @@ export default function Home({ categories = [], products = [], cart, activeCateg
             <p className="text-sm font-black uppercase tracking-[0.18em] text-[#241816]">Quick Links</p>
             <div className="mt-5 space-y-3">
               {FOOTER_LINKS.map((link) => (
-                <a key={link.label} href={link.href} className="block text-sm font-medium text-[#6f5d57] transition hover:text-[#7a1f28]">
+                <SmartLink key={link.label} href={link.href} className="block text-sm font-medium text-[#6f5d57] transition hover:text-[#7a1f28]">
                   {link.label}
-                </a>
+                </SmartLink>
               ))}
             </div>
           </div>

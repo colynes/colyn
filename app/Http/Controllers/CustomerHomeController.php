@@ -14,7 +14,7 @@ class CustomerHomeController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user = $request->user()?->loadMissing('customer');
         $roleKeys = $user?->getRoleNames()->map(fn ($role) => strtolower($role)) ?? collect();
 
         if (!$user) {
@@ -25,7 +25,7 @@ class CustomerHomeController extends Controller
             return redirect()->route('dashboard');
         }
 
-        if (!$roleKeys->contains('customer')) {
+        if (!$roleKeys->contains('customer') && !$user?->customer) {
             return redirect()->route('home');
         }
 

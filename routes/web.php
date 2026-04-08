@@ -44,6 +44,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::patch('/dashboard/orders/{order}/dispatch', [OperationsController::class, 'dispatchOrder'])->name('dashboard.orders.dispatch');
     Route::get('/orders', [OperationsController::class, 'orders'])->name('orders');
+    Route::patch('/orders/{order}/complete-pickup', [OperationsController::class, 'completePickup'])->name('orders.complete-pickup');
     Route::put('/orders/{order}', [OperationsController::class, 'updateOrder'])->name('orders.update');
     Route::delete('/orders/{order}', [OperationsController::class, 'destroyOrder'])->name('orders.destroy');
     Route::get('/invoices/orders/{order}', [InvoiceController::class, 'showForOrder'])->name('invoices.orders.show');
