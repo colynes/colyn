@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
+import BackofficePagination from '@/components/backoffice/BackofficePagination';
 import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
 import ConfirmModal from '@/components/ui/ConfirmModal';
@@ -8,8 +10,10 @@ import { CalendarDays, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 const frequencyTone = {
   Daily: 'bg-[#efebe6] text-[#5f4328]',
   Weekly: 'bg-[#efebe6] text-[#5f4328]',
-  Monthly: 'bg-[#efebe6] text-[#5f4328]',
+  Custom: 'bg-[#efebe6] text-[#5f4328]',
   'Twice Weekly': 'bg-[#efebe6] text-[#5f4328]',
+  'Weekdays only': 'bg-[#efebe6] text-[#5f4328]',
+  'Weekends only': 'bg-[#efebe6] text-[#5f4328]',
 };
 
 const statusTone = {
@@ -28,7 +32,7 @@ const seedTemplates = [
     status: 'Active',
   },
   {
-    frequency: 'Monthly',
+    frequency: 'Custom',
     delivery_days: ['First Saturday'],
     products: ['Mixed Pack - 10kg', 'Sausages - 2kg'],
     value: 180000,
@@ -55,6 +59,43 @@ const seedTemplates = [
 
 const weekdayOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const dayAbbreviationMap = {
+  Monday: 'Mon',
+  Mon: 'Mon',
+  Tuesday: 'Tue',
+  Tue: 'Tue',
+  Wednesday: 'Wed',
+  Wed: 'Wed',
+  Thursday: 'Thu',
+  Thu: 'Thu',
+  Friday: 'Fri',
+  Fri: 'Fri',
+  Saturday: 'Sat',
+  Sat: 'Sat',
+  Sunday: 'Sun',
+  Sun: 'Sun',
+  Weekdays: 'Mon-Fri',
+  'Weekdays only': 'Mon-Fri',
+  Weekends: 'Sat-Sun',
+  'Weekends only': 'Sat-Sun',
+  'First Saturday': 'Sat',
+};
+
+function abbreviateDeliveryDay(value) {
+  const key = String(value || '').trim();
+  return dayAbbreviationMap[key] || key;
+}
+
+function normalizeDeliveryDays(days = []) {
+  return Array.from(
+    new Set(
+      (Array.isArray(days) ? days : [])
+        .map((day) => abbreviateDeliveryDay(day))
+        .filter(Boolean),
+    ),
+  );
+}
+
 function money(value) {
   return `Tsh ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 0 }).format(value || 0)}`;
 }
@@ -78,7 +119,7 @@ function buildInitialSubscriptions(customers = []) {
       phone: normalizePhone(customer.phone),
       email: customer.email || '',
       frequency: template.frequency,
-      delivery_days: template.delivery_days,
+      delivery_days: normalizeDeliveryDays(template.delivery_days),
       products: template.products.map((product, productIndex) => ({
         id: `seed-product-${index + 1}-${productIndex + 1}`,
         product_id: null,
@@ -108,7 +149,7 @@ function SubscriptionModal({ subscription, customers, products, onClose, onSave 
     phone: currentSubscription?.phone || '',
     email: currentSubscription?.email || '',
     frequency: currentSubscription?.frequency || 'Daily',
-    delivery_days: currentSubscription?.delivery_days || [],
+    delivery_days: normalizeDeliveryDays(currentSubscription?.delivery_days || []),
     products: currentSubscription?.products || [],
     selected_product_id: '',
     selected_quantity: '1',
@@ -183,6 +224,7 @@ function SubscriptionModal({ subscription, customers, products, onClose, onSave 
       ...subscription,
       ...form,
       phone: normalizePhone(form.phone),
+      delivery_days: normalizeDeliveryDays(form.delivery_days),
       value: Number(form.value || 0),
       next_delivery: form.start_date || subscription?.next_delivery || '',
     });
@@ -261,7 +303,7 @@ function SubscriptionModal({ subscription, customers, products, onClose, onSave 
                 onChange={(event) => setForm((current) => ({ ...current, frequency: event.target.value }))}
                 className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
               >
-                {['Daily', 'Weekly', 'Twice Weekly', 'Monthly'].map((option) => (
+                {['Daily', 'Weekly', 'Twice Weekly', 'Custom', 'Weekdays only', 'Weekends only'].map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
               </select>
@@ -385,9 +427,9 @@ function SubscriptionModal({ subscription, customers, products, onClose, onSave 
   );
 }
 
-export default function Subscriptions({ auth, customers = [], products = [], perPageOptions = [50, 100, 250, 500] }) {
+export default function Subscriptions({ auth, customers = [], products = [], subscriptions = [], perPageOptions = [50, 100, 250, 500] }) {
   const productChoices = products;
-  const [subscriptions, setSubscriptions] = useState(() => buildInitialSubscriptions(customers));
+  const subscriptionsRows = useMemo(() => subscriptions, [subscriptions]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [perPage, setPerPage] = useState(perPageOptions[0]);
@@ -396,7 +438,7 @@ export default function Subscriptions({ auth, customers = [], products = [], per
   const [deletingSubscription, setDeletingSubscription] = useState(null);
 
   const filteredRows = useMemo(() => {
-    return subscriptions.filter((subscription) => {
+    return subscriptionsRows.filter((subscription) => {
       const matchesSearch = !search.trim() || [
         subscription.customer_name,
         subscription.phone,
@@ -408,38 +450,43 @@ export default function Subscriptions({ auth, customers = [], products = [], per
 
       return matchesSearch && matchesStatus;
     });
-  }, [search, statusFilter, subscriptions]);
+  }, [search, statusFilter, subscriptionsRows]);
 
   const visibleRows = useMemo(() => {
-    return filteredRows.slice(0, currentPage * perPage);
+    const start = (currentPage - 1) * perPage;
+    return filteredRows.slice(start, start + perPage);
   }, [currentPage, filteredRows, perPage]);
+
+  const totalPages = useMemo(() => {
+    const pages = Math.ceil(filteredRows.length / perPage);
+    return Math.max(1, pages || 1);
+  }, [filteredRows.length, perPage]);
+  const from = filteredRows.length === 0 ? 0 : ((currentPage - 1) * perPage) + 1;
+  const to = filteredRows.length === 0 ? 0 : Math.min(currentPage * perPage, filteredRows.length);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [search, statusFilter, perPage]);
 
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const saveSubscription = (payload) => {
-    setSubscriptions((current) => {
-      if (payload.id && current.some((item) => item.id === payload.id)) {
-        return current.map((item) => item.id === payload.id ? {
-          ...item,
-          ...payload,
-          value: payload.value || item.value,
-        } : item);
-      }
+    const options = {
+      preserveScroll: true,
+      preserveState: false,
+      onSuccess: () => setActiveSubscription(null),
+    };
 
-      return [
-        {
-          ...payload,
-          id: `local-${Date.now()}`,
-          status: payload.status || 'Active',
-          value: Number(payload.value || 0),
-        },
-        ...current,
-      ];
-    });
+    if (payload.id) {
+      router.put(`/fat-clients/subscriptions/${payload.id}`, payload, options);
+      return;
+    }
 
-    setActiveSubscription(null);
+    router.post('/fat-clients/subscriptions', payload, options);
   };
 
   return (
@@ -457,7 +504,11 @@ export default function Subscriptions({ auth, customers = [], products = [], per
         onClose={() => setDeletingSubscription(null)}
         onConfirm={() => {
           if (deletingSubscription) {
-            setSubscriptions((current) => current.filter((item) => item.id !== deletingSubscription.id));
+            router.delete(`/fat-clients/subscriptions/${deletingSubscription.id}`, {
+              preserveScroll: true,
+              preserveState: false,
+              onSuccess: () => setDeletingSubscription(null),
+            });
           }
         }}
         title="Delete Subscription"
@@ -543,7 +594,7 @@ export default function Subscriptions({ auth, customers = [], products = [], per
                           {subscription.frequency}
                         </span>
                       </td>
-                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{subscription.delivery_days.join(', ')}</td>
+                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{normalizeDeliveryDays(subscription.delivery_days).join(', ')}</td>
                       <td className="px-8 py-6">
                         <div className="space-y-1">
                           {subscription.products.map((product) => (
@@ -593,17 +644,14 @@ export default function Subscriptions({ auth, customers = [], products = [], per
           </CardContent>
         </Card>
 
-        {filteredRows.length > visibleRows.length ? (
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((page) => page + 1)}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-[#ddc9b3] bg-white px-5 text-sm font-semibold text-[#4f3118] transition hover:bg-[#f7f1e8]"
-            >
-              Load more
-            </button>
-          </div>
-        ) : null}
+        <BackofficePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredRows.length}
+          from={from}
+          to={to}
+        />
       </div>
     </AppLayout>
   );

@@ -25,6 +25,8 @@ class Order extends Model
         'delivery_phone',
         'fulfillment_method',
         'pickup_time',
+        'scheduled_delivery_date',
+        'scheduled_pickup_date',
         'pickup_reminder_sent_at',
         'is_paid',
         'notes',
@@ -36,6 +38,8 @@ class Order extends Model
         'total'    => 'decimal:2',
         'delivery_latitude' => 'float',
         'delivery_longitude' => 'float',
+        'scheduled_delivery_date' => 'date',
+        'scheduled_pickup_date' => 'date',
         'pickup_reminder_sent_at' => 'datetime',
         'is_paid'  => 'boolean',
     ];

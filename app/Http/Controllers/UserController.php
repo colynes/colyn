@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -79,6 +80,18 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $this->ensureAdministrator();
+        $activeSessionUserIds = collect();
+
+        if (Schema::hasTable('sessions')) {
+            $cutoff = now()->subMinutes((int) config('session.lifetime', 120))->timestamp;
+            $activeSessionUserIds = DB::table('sessions')
+                ->whereNotNull('user_id')
+                ->where('last_activity', '>=', $cutoff)
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+        }
 
         $users = User::query()
             ->with('roles')
@@ -90,7 +103,7 @@ class UserController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15)
             ->withQueryString()
-            ->through(function (User $user) {
+            ->through(function (User $user) use ($activeSessionUserIds) {
                 $roleName = $this->normalizeBackofficeRole($user->roles->first()?->name);
                 $nameParts = preg_split('/\s+/', trim((string) $user->name)) ?: [];
                 $initials = collect($nameParts)
@@ -104,8 +117,8 @@ class UserController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'role' => $roleName,
-                    'status' => 'Active',
-                    'last_login' => optional($user->updated_at ?? $user->created_at)->format('Y-m-d H:i'),
+                    'status' => $activeSessionUserIds->contains((int) $user->id) ? 'Logged in' : 'Active',
+                    'last_login' => optional($user->last_login_at)->format('Y-m-d H:i'),
                     'created' => optional($user->created_at)->toDateString(),
                     'initials' => $initials ?: 'U',
                     'code' => 'USR-' . str_pad((string) $user->id, 3, '0', STR_PAD_LEFT),

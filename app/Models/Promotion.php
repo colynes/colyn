@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class Promotion extends Model
@@ -48,7 +49,7 @@ class Promotion extends Model
                 $builder->whereNull('starts_at')->orWhere('starts_at', '<=', now());
             })
             ->where(function ($builder) {
-                $builder->whereNull('ends_at')->orWhere('ends_at', '>=', now());
+                $builder->whereNull('ends_at')->orWhereDate('ends_at', '>=', today());
             });
     }
 
@@ -60,7 +61,32 @@ class Promotion extends Model
                 $builder->whereNull('starts_at')->orWhere('starts_at', '<=', now());
             })
             ->where(function ($builder) {
-                $builder->whereNull('ends_at')->orWhere('ends_at', '>=', now()->subDays(2));
+                $builder->whereNull('ends_at')->orWhereDate('ends_at', '>=', today()->subDays(2));
             });
+    }
+
+    public function effectiveEndsAt(): ?Carbon
+    {
+        if (!$this->ends_at) {
+            return null;
+        }
+
+        $endsAt = $this->ends_at->copy();
+
+        if ($endsAt->format('H:i:s') !== '00:00:00') {
+            return $endsAt;
+        }
+
+        return $endsAt->setTimeFromTimeString(self::storeClosingTime());
+    }
+
+    public function isClosedForStoreHours(): bool
+    {
+        return $this->effectiveEndsAt()?->isPast() ?? false;
+    }
+
+    public static function storeClosingTime(): string
+    {
+        return AppSetting::getValue('pickup_close_time', '20:00');
     }
 }

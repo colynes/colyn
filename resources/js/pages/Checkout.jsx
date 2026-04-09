@@ -11,7 +11,7 @@ function formatCurrency(value) {
   }).format(value || 0);
 }
 
-export default function Checkout({ cart, customer, pickupHours, formData }) {
+export default function Checkout({ cart, customer, pickupHours, formData, deliverySchedule, pickupSchedule }) {
   const { auth, flash } = usePage().props;
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -121,9 +121,7 @@ export default function Checkout({ cart, customer, pickupHours, formData }) {
   };
 
   const deliveryLocationValid = Boolean(
-    String(data.delivery_address || '').trim()
-    && String(data.delivery_latitude || '').trim()
-    && String(data.delivery_longitude || '').trim(),
+    String(data.delivery_address || '').trim(),
   );
 
   const canSubmit = data.fulfillment_method === 'delivery'
@@ -143,7 +141,7 @@ export default function Checkout({ cart, customer, pickupHours, formData }) {
   );
 
   const pickupWindowLabel = pickupAvailable
-    ? `Choose a pickup time from ${pickupHours?.min_time} until ${pickupHours?.close_time}.`
+    ? `Choose a pickup time for ${pickupSchedule?.scheduled_date_label || 'today'} from ${pickupHours?.min_time} until ${pickupHours?.close_time}.`
     : `Pickup is currently unavailable. Working hours are ${pickupHours?.open_time} to ${pickupHours?.close_time}.`;
 
   return (
@@ -282,17 +280,40 @@ export default function Checkout({ cart, customer, pickupHours, formData }) {
               </div>
 
               {data.fulfillment_method === 'delivery' ? (
-                <DeliveryLocationSelector
-                  visible
-                  data={data}
-                  setData={setData}
-                  errors={errors}
-                />
+                <>
+                  <div className="rounded-2xl border border-[#eadfce] bg-[#fbf7f1] p-5">
+                    <p className="text-sm font-semibold text-[#241816]">
+                      Delivery schedule: {deliverySchedule?.scheduled_date_label || 'Today'}
+                    </p>
+                    <p className="mt-2 text-xs text-[#6f5d57]">
+                      {deliverySchedule?.after_closing_hours
+                        ? `Orders placed after ${deliverySchedule?.close_time} are scheduled for next-day delivery.`
+                        : `Orders placed before ${deliverySchedule?.close_time} are scheduled for same-day delivery where possible.`}
+                    </p>
+                    <p className="mt-3 text-xs text-[#6f5d57]">
+                      Manual address entry is active right now while Google Maps is turned off.
+                    </p>
+                  </div>
+                  <DeliveryLocationSelector
+                    visible
+                    data={data}
+                    setData={setData}
+                    errors={errors}
+                  />
+                </>
               ) : null}
 
               {data.fulfillment_method === 'pickup' ? (
                 <div className="rounded-2xl border border-[#eadfce] bg-[#fbf7f1] p-5">
-                  <p className="text-xs text-[#6f5d57]">{pickupWindowLabel}</p>
+                  <p className="text-sm font-semibold text-[#241816]">
+                    Pickup schedule: {pickupSchedule?.scheduled_date_label || 'Today'}
+                  </p>
+                  <p className="mt-2 text-xs text-[#6f5d57]">
+                    {pickupSchedule?.after_closing_hours
+                      ? `Orders placed after ${pickupSchedule?.close_time} are scheduled for next-day pickup.`
+                      : `Orders placed before ${pickupSchedule?.close_time} can be picked up the same day during working hours.`}
+                  </p>
+                  <p className="mt-3 text-xs text-[#6f5d57]">{pickupWindowLabel}</p>
                   {!pickupAvailable ? (
                     <div className="mt-3 rounded-xl border border-[#e8ddd2] bg-white px-4 py-3 text-sm text-[#6f5d57]">
                       No pickup times are available right now.
@@ -363,7 +384,7 @@ export default function Checkout({ cart, customer, pickupHours, formData }) {
               </button>
               {data.fulfillment_method === 'delivery' && !deliveryLocationValid ? (
                 <p className="text-xs text-[#7d6a5f]">
-                  Select a suggested address or use your current location before confirming a delivery order.
+                  Enter your delivery address before confirming a delivery order.
                 </p>
               ) : null}
             </form>

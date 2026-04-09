@@ -11,6 +11,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\UserController;
@@ -27,15 +28,22 @@ Route::get('/promotions', [CommerceController::class, 'promotions'])->name('prom
 Route::get('/track-orders', [CommerceController::class, 'tracking'])->name('tracking');
 Route::get('/checkout', [CheckoutController::class, 'create'])->name('checkout');
 Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+Route::get('/push/config', [PushNotificationController::class, 'config'])->name('push.config');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
+Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
+Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // ── Admin/Dashboard Routes ─────────────────────────────
 Route::middleware(['auth'])->group(function () {
+    Route::post('/api/save-notification-token', [PushNotificationController::class, 'saveToken'])->name('push.token.save');
+    Route::delete('/api/remove-notification-token', [PushNotificationController::class, 'removeToken'])->name('push.token.remove');
     Route::get('/customer/home', [CustomerHomeController::class, 'index'])->name('customer.home');
     Route::get('/my-orders', [CommerceController::class, 'tracking'])->name('my-orders');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
@@ -78,9 +86,15 @@ Route::middleware(['auth'])->group(function () {
 
     // Fat Clients
     Route::get('/fat-clients/subscriptions', [OperationsController::class, 'subscriptions'])->name('fat-clients.subscriptions');
+    Route::post('/fat-clients/subscriptions', [OperationsController::class, 'storeSubscription'])->name('fat-clients.subscriptions.store');
+    Route::put('/fat-clients/subscriptions/{subscription}', [OperationsController::class, 'updateSubscription'])->name('fat-clients.subscriptions.update');
+    Route::delete('/fat-clients/subscriptions/{subscription}', [OperationsController::class, 'destroySubscription'])->name('fat-clients.subscriptions.destroy');
     Route::get('/fat-clients/billing', [OperationsController::class, 'billing'])->name('fat-clients.billing');
     Route::get('/fat-clients/billing/create', [OperationsController::class, 'createInvoice'])->name('fat-clients.billing.create');
     Route::post('/fat-clients/billing', [OperationsController::class, 'storeInvoice'])->name('fat-clients.billing.store');
+    Route::get('/fat-clients/billing/{invoice}/edit', [OperationsController::class, 'editInvoice'])->name('fat-clients.billing.edit');
+    Route::put('/fat-clients/billing/{invoice}', [OperationsController::class, 'updateInvoice'])->name('fat-clients.billing.update');
+    Route::delete('/fat-clients/billing/{invoice}', [OperationsController::class, 'destroyInvoice'])->name('fat-clients.billing.destroy');
 
     // Inventory
     Route::group(['prefix' => 'inventory', 'as' => 'inventory.'], function () {

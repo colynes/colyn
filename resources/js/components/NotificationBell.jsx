@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { Bell, Check, Package2, PackagePlus, PackageSearch, ShoppingBag, Tag, Truck, XCircle } from 'lucide-react';
+import PushNotificationToggle from '@/components/PushNotificationToggle';
 
 function formatAmount(amount) {
   if (amount == null) {
@@ -201,6 +202,10 @@ export default function NotificationBell({ className = '', compact = false }) {
               <Check size={14} />
               Mark all read
             </button>
+          </div>
+
+          <div className="border-b border-[var(--color-sys-border)] px-3 py-3">
+            <PushNotificationToggle compact />
           </div>
 
           {hasNotifications ? (

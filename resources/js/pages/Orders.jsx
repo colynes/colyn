@@ -181,6 +181,11 @@ function OrdersEditModal({ order, onClose }) {
     return null;
   }
 
+  const normalizedStatus = String(order?.status || '').toLowerCase();
+  const allowedStatuses = ['delivered', 'completed', 'cancelled'].includes(normalizedStatus)
+    ? [normalizedStatus]
+    : (normalizedStatus === 'dispatched' ? ['dispatched'] : ['pending', 'dispatched']);
+
   const submit = (event) => {
     event.preventDefault();
     form.put(`/orders/${order.id}`, {
@@ -214,9 +219,10 @@ function OrdersEditModal({ order, onClose }) {
               <select
                 value={form.data.status}
                 onChange={(e) => form.setData('status', e.target.value)}
+                disabled={allowedStatuses.length === 1}
                 className="h-12 w-full rounded-xl border border-[var(--color-sys-border)] bg-white px-4 text-sm outline-none"
               >
-                {['pending', 'dispatched'].map((status) => (
+                {allowedStatuses.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
@@ -412,6 +418,7 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
               search: filters.search || '',
               status: filters.status || '',
               per_page: event.target.value,
+              page: 1,
             }, { preserveScroll: true, preserveState: true })}
           />
         </form>
@@ -513,7 +520,15 @@ export default function Orders({ auth, orders, filters = {}, perPageOptions = [5
           </div>
         ) : null}
 
-        <BackofficePagination links={orders?.links} />
+        <BackofficePagination
+          paginator={orders}
+          path="/orders"
+          query={{
+            search: filters.search || '',
+            status: filters.status || '',
+            per_page: filters.per_page || perPageOptions[0],
+          }}
+        />
       </div>
     </AppLayout>
   );

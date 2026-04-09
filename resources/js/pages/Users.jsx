@@ -12,6 +12,11 @@ const roleTone = {
   staff: 'bg-emerald-100 text-emerald-700',
 };
 
+const statusTone = {
+  'Logged in': 'bg-emerald-100 text-emerald-700',
+  Active: 'bg-slate-100 text-slate-700',
+};
+
 function UserModal({ user, roles, onClose }) {
   const isEditing = Boolean(user?.id);
   const [showPassword, setShowPassword] = useState(false);
@@ -500,7 +505,7 @@ export default function Users({ auth, users, roles = [], filters = {}, pickupHou
                           </span>
                         </td>
                         <td className="px-8 py-6">
-                          <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-[1rem] font-medium text-emerald-700">
+                          <span className={`inline-flex rounded-full px-4 py-2 text-[1rem] font-medium ${statusTone[user.status] || 'bg-slate-100 text-slate-700'}`}>
                             {user.status}
                           </span>
                         </td>

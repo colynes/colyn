@@ -187,7 +187,10 @@ export default function Expenses({ auth, expenses = [], summary = {}, filters = 
           <BackofficePerPageControl
             options={perPageOptions}
             value={filters.per_page || perPageOptions[0]}
-            onChange={(event) => router.get('/expenses', { per_page: event.target.value }, { preserveScroll: true, preserveState: true })}
+            onChange={(event) => router.get('/expenses', {
+              per_page: event.target.value,
+              page: 1,
+            }, { preserveScroll: true, preserveState: true })}
           />
         </div>
 
@@ -261,7 +264,13 @@ export default function Expenses({ auth, expenses = [], summary = {}, filters = 
           </CardContent>
         </Card>
 
-        <BackofficePagination links={expenses?.links} />
+        <BackofficePagination
+          paginator={expenses}
+          path="/expenses"
+          query={{
+            per_page: filters.per_page || perPageOptions[0],
+          }}
+        />
       </div>
     </AppLayout>
   );

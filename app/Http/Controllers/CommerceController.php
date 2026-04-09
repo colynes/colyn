@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Notifications\SystemAlertNotification;
 use App\Support\BackofficeAccess;
 use App\Support\CartManager;
+use App\Support\PackAvailability;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -89,6 +90,20 @@ class CommerceController extends Controller
             $packsQuery->with(['items.product:id,name,unit']);
         }
 
+        $activeBranchId = (int) (optional(\App\Models\Branch::query()->where('is_active', true)->orderBy('id')->first())->id ?? 0);
+        $packCollection = $packsQuery
+            ->orderBy('name')
+            ->get();
+        $packAvailability = $activeBranchId > 0
+            ? PackAvailability::forCollection($packCollection, $activeBranchId)
+            : $packCollection->mapWithKeys(fn (Pack $pack) => [
+                $pack->id => [
+                    'is_available' => false,
+                    'availability_label' => 'Out of Stock',
+                    'availability_message' => 'This pack is not available for ordering right now.',
+                ],
+            ]);
+
         return Inertia::render('Products', [
             'categories' => $categories,
             'products' => $products,
@@ -108,16 +123,19 @@ class CommerceController extends Controller
                     'cta_text' => $promotion->cta_text ?: 'Order now',
                     'expires_at' => optional($promotion->ends_at)->toDateString(),
                 ]),
-            'packs' => $packsQuery
-                ->orderBy('name')
-                ->take(6)
-                ->get()
-                ->map(function (Pack $pack) use ($hasPackItemsTable, $hasComesWithColumn) {
+            'packs' => $packCollection
+                ->map(function (Pack $pack) use ($hasPackItemsTable, $hasComesWithColumn, $packAvailability) {
                     $comesWith = $hasComesWithColumn ? $pack->comes_with : null;
+                    $availability = $packAvailability->get($pack->id, [
+                        'is_available' => false,
+                        'availability_label' => 'Out of Stock',
+                        'availability_message' => 'This pack is not available for ordering right now.',
+                    ]);
 
                     return [
                         'id' => $pack->id,
                         'name' => $pack->name,
+                        'is_new' => $pack->created_at?->gte(now()->subDays(14)) ?? false,
                         'description' => $comesWith ?: $pack->description,
                         'comes_with' => $comesWith,
                         'items' => $hasPackItemsTable
@@ -128,6 +146,9 @@ class CommerceController extends Controller
                             ])->values()
                             : collect(),
                         'price' => (float) $pack->price,
+                        'is_available' => (bool) ($availability['is_available'] ?? false),
+                        'availability_label' => $availability['availability_label'] ?? 'Out of Stock',
+                        'availability_message' => $availability['availability_message'] ?? null,
                     ];
                 }),
         ]);
@@ -175,15 +196,33 @@ class CommerceController extends Controller
             $packsQuery->with(['items.product:id,name,unit']);
         }
 
-        $packs = $packsQuery
+        $activeBranchId = (int) (optional(\App\Models\Branch::query()->where('is_active', true)->orderBy('id')->first())->id ?? 0);
+        $packCollection = $packsQuery
             ->orderBy('name')
-            ->get()
-            ->map(function (Pack $pack) use ($hasPackItemsTable, $hasComesWithColumn) {
+            ->get();
+        $packAvailability = $activeBranchId > 0
+            ? PackAvailability::forCollection($packCollection, $activeBranchId)
+            : $packCollection->mapWithKeys(fn (Pack $pack) => [
+                $pack->id => [
+                    'is_available' => false,
+                    'availability_label' => 'Out of Stock',
+                    'availability_message' => 'This pack is not available for ordering right now.',
+                ],
+            ]);
+
+        $packs = $packCollection
+            ->map(function (Pack $pack) use ($hasPackItemsTable, $hasComesWithColumn, $packAvailability) {
                 $comesWith = $hasComesWithColumn ? $pack->comes_with : null;
+                $availability = $packAvailability->get($pack->id, [
+                    'is_available' => false,
+                    'availability_label' => 'Out of Stock',
+                    'availability_message' => 'This pack is not available for ordering right now.',
+                ]);
 
                 return [
                     'id' => $pack->id,
                     'name' => $pack->name,
+                    'is_new' => $pack->created_at?->gte(now()->subDays(14)) ?? false,
                     'description' => $comesWith ?: $pack->description,
                     'comes_with' => $comesWith,
                     'items' => $hasPackItemsTable
@@ -194,6 +233,9 @@ class CommerceController extends Controller
                         ])->values()
                         : collect(),
                     'price' => (float) $pack->price,
+                    'is_available' => (bool) ($availability['is_available'] ?? false),
+                    'availability_label' => $availability['availability_label'] ?? 'Out of Stock',
+                    'availability_message' => $availability['availability_message'] ?? null,
                 ];
             });
 
@@ -214,7 +256,6 @@ class CommerceController extends Controller
         return Inertia::render('Profile', [
             'profileMeta' => [
                 'status' => $customer->status,
-                'loyalty_points' => $customer->loyalty_points ?? 0,
                 'default_address' => $customer->defaultAddress ? [
                     'address_line1' => $customer->defaultAddress->address_line1,
                     'address_line2' => $customer->defaultAddress->address_line2,
@@ -343,6 +384,7 @@ class CommerceController extends Controller
     {
         $customer = $this->resolveCustomer($request->user());
         abort_unless($customer && $order->customer_id === $customer->id, 403);
+        abort_unless($order->fulfillment_method === 'delivery', 422, 'Only delivery orders can be marked as delivered.');
         abort_unless($this->normalizeOrderStatus($order->status) === 'dispatched', 422, 'Only dispatched orders can be marked as delivered.');
 
         DB::transaction(function () use ($order) {
@@ -374,7 +416,7 @@ class CommerceController extends Controller
             'is_paid' => (bool) $order->is_paid,
             'notes' => $order->notes,
             'can_cancel' => $status === 'pending',
-            'can_mark_delivered' => $status === 'dispatched',
+            'can_mark_delivered' => $status === 'dispatched' && $order->fulfillment_method === 'delivery',
             'location' => [
                 'region_city' => $order->delivery_region,
                 'district_area' => $order->delivery_area,
@@ -383,6 +425,10 @@ class CommerceController extends Controller
                 'delivery_phone' => $order->delivery_phone,
                 'fulfillment_method' => $order->fulfillment_method,
                 'pickup_time' => $order->pickup_time,
+                'scheduled_delivery_date' => optional($order->scheduled_delivery_date)->toDateString(),
+                'scheduled_delivery_date_label' => optional($order->scheduled_delivery_date)->toFormattedDateString(),
+                'scheduled_pickup_date' => optional($order->scheduled_pickup_date)->toDateString(),
+                'scheduled_pickup_date_label' => optional($order->scheduled_pickup_date)->toFormattedDateString(),
             ],
             'items' => $order->items->map(fn ($item) => [
                 'id' => $item->id,
@@ -527,7 +573,3 @@ class CommerceController extends Controller
         return $value;
     }
 }
-
-
-
-

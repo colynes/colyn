@@ -22,6 +22,12 @@ class SendPickupReminderNotifications extends Command
             return self::FAILURE;
         }
 
+        if (!Schema::hasColumn('orders', 'scheduled_pickup_date')) {
+            $this->warn('The scheduled pickup date column is missing.');
+
+            return self::FAILURE;
+        }
+
         $start = now()->addMinutes(9)->startOfMinute();
         $end = now()->addMinutes(10)->endOfMinute();
 
@@ -31,11 +37,14 @@ class SendPickupReminderNotifications extends Command
             ->whereNull('pickup_reminder_sent_at')
             ->whereIn('status', ['pending', 'confirmed', 'processing', 'preparing', 'dispatched'])
             ->whereNotNull('pickup_time')
+            ->whereNotNull('scheduled_pickup_date')
             ->get()
             ->filter(function (Order $order) use ($start, $end) {
-                $pickupMoment = today()->setTimeFromTimeString((string) $order->pickup_time);
+                $pickupMoment = $order->scheduled_pickup_date
+                    ? $order->scheduled_pickup_date->copy()->setTimeFromTimeString((string) $order->pickup_time)
+                    : null;
 
-                return $pickupMoment->betweenIncluded($start, $end);
+                return $pickupMoment?->betweenIncluded($start, $end) ?? false;
             });
 
         $sentCount = 0;

@@ -45,35 +45,7 @@ export default function Profile({ profileMeta, orders = [] }) {
 
         <ProfileCard user={user} onEdit={() => setDialogOpen(true)} />
 
-        <div className="grid gap-8 xl:grid-cols-[0.9fr,1.1fr]">
-          <Card className="rounded-2xl border border-gray-100 bg-white shadow-md">
-            <CardContent className="p-6">
-              <h2 className="text-xl font-bold text-gray-800">Account Status</h2>
-              <div className="mt-5 space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Customer state</span>
-                  <span className="font-semibold capitalize text-gray-800">{profileMeta?.status || 'active'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Saved orders</span>
-                  <span className="font-semibold text-gray-800">{orders.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Loyalty points</span>
-                  <span className="font-semibold text-gray-800">{profileMeta?.loyalty_points ?? 0}</span>
-                </div>
-              </div>
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Link href="/products" className="inline-flex flex-1 items-center justify-center rounded-xl bg-[var(--color-brand-dark)] px-4 py-3 text-sm font-semibold text-white">
-                  Shop now
-                </Link>
-                <Link href="/track-orders" className="inline-flex flex-1 items-center justify-center rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">
-                  Track orders
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-8">
           <Card className="rounded-2xl border border-gray-100 bg-white shadow-md">
             <CardContent className="p-6">
               <h2 className="text-xl font-bold text-gray-800">Recent Orders</h2>

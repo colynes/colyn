@@ -141,6 +141,7 @@ export default function Customers({ auth, customers, filters = {}, summary = {},
               search: filters.search || '',
               status: filters.status || '',
               per_page: event.target.value,
+              page: 1,
             }, { preserveScroll: true, preserveState: true })}
           />
         </form>
@@ -210,7 +211,15 @@ export default function Customers({ auth, customers, filters = {}, summary = {},
           </div>
         ) : null}
 
-        <BackofficePagination links={customers?.links} />
+        <BackofficePagination
+          paginator={customers}
+          path="/customers"
+          query={{
+            search: filters.search || '',
+            status: filters.status || '',
+            per_page: filters.per_page || perPageOptions[0],
+          }}
+        />
       </div>
     </AppLayout>
   );

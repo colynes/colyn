@@ -23,6 +23,8 @@ function PackDetailModal({ pack, onClose, onAddToCart }) {
     return null;
   }
 
+  const isAvailable = Boolean(pack.is_available);
+
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-[#1a1a1a]/60 p-4 backdrop-blur-sm">
       <div className="my-auto w-full max-w-3xl rounded-[2rem] bg-white shadow-[0_30px_80px_rgba(44,30,22,0.22)]">
@@ -72,11 +74,17 @@ function PackDetailModal({ pack, onClose, onAddToCart }) {
               <p className="mt-2 text-3xl font-black">{formatCurrency(pack.price)}</p>
             </div>
 
-            <div className="rounded-[1.5rem] border border-[var(--color-sys-border)] p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-sys-text-secondary)]">Comes With</p>
-              <p className="mt-3 text-sm leading-7 text-[var(--color-sys-text-secondary)]">
-                {pack.comes_with || 'No extra comes-with details added for this pack yet.'}
+            <div className={`rounded-[1.5rem] border p-5 ${
+              isAvailable ? 'border-emerald-100 bg-[#edf7ef] text-[#21643b]' : 'border-red-100 bg-red-50 text-red-600'
+            }`}>
+              <p className="text-xs font-bold uppercase tracking-[0.2em]">
+                {pack.availability_label || (isAvailable ? 'Available' : 'Out of Stock')}
               </p>
+              {!isAvailable && pack.availability_message ? (
+                <p className="mt-3 text-sm leading-7">
+                  {pack.availability_message}
+                </p>
+              ) : null}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -89,10 +97,11 @@ function PackDetailModal({ pack, onClose, onAddToCart }) {
               <button
                 type="button"
                 onClick={() => onAddToCart?.(pack.id)}
-                className="inline-flex items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] px-4 py-3 text-sm font-semibold text-white"
+                disabled={!isAvailable}
+                className="inline-flex items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#c8b1ab]"
               >
                 <ShoppingCart size={16} className="mr-2" />
-                Add To Cart
+                {isAvailable ? 'Add To Cart' : 'Out Of Stock'}
               </button>
             </div>
           </div>
@@ -105,8 +114,12 @@ function PackDetailModal({ pack, onClose, onAddToCart }) {
 export default function PacksSection({ packs = [] }) {
   const [activePack, setActivePack] = useState(null);
 
-  const addPackToCart = (packId) => {
+  const addPackToCart = (packId, options = {}) => {
     router.post('/cart/items', { item_type: 'pack', item_id: packId, quantity: 1 }, { preserveScroll: true });
+
+    if (options.closeOnComplete) {
+      setActivePack(null);
+    }
   };
 
   return (
@@ -114,7 +127,7 @@ export default function PacksSection({ packs = [] }) {
       <PackDetailModal
         pack={activePack}
         onClose={() => setActivePack(null)}
-        onAddToCart={(packId) => addPackToCart(packId)}
+        onAddToCart={(packId) => addPackToCart(packId, { closeOnComplete: true })}
       />
 
       <div>

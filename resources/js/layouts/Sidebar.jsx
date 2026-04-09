@@ -13,6 +13,7 @@ import {
   X,
   ChevronDown
 } from 'lucide-react';
+import { logoutCurrentBrowser } from '@/lib/logout';
 
 export default function Sidebar({ isOpen, setIsOpen, user }) {
   const { url } = usePage();
@@ -169,15 +170,14 @@ export default function Sidebar({ isOpen, setIsOpen, user }) {
                 </p>
               </div>
             </div>
-            <Link
-              href="/logout"
-              method="post"
-              as="button"
+            <button
+              type="button"
+              onClick={() => logoutCurrentBrowser()}
               className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#B33B3B] hover:bg-[#9E2F2F] text-white rounded-xl text-[1rem] font-bold transition-all duration-200 shadow-lg shadow-[#B33B3B]/10"
             >
               <LogOut size={18} />
               Logout
-            </Link>
+            </button>
           </div>
         </div>
       </div>

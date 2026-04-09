@@ -15,11 +15,14 @@ use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\SalesTarget;
 use App\Models\Stock;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Notifications\NewOrderPlacedNotification;
 use App\Notifications\OrderStatusUpdatedNotification;
 use App\Notifications\SystemAlertNotification;
 use App\Support\BackofficeAccess;
+use App\Support\SubscriptionScheduler;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +101,8 @@ class OperationsController extends Controller
                     'location' => collect([$order->delivery_region, $order->delivery_area])->filter()->implode(', '),
                     'delivery_region' => $order->delivery_region,
                     'delivery_area' => $order->delivery_area,
+                    'scheduled_delivery_date' => optional($order->scheduled_delivery_date)->toDateString(),
+                    'scheduled_pickup_date' => optional($order->scheduled_pickup_date)->toDateString(),
                     'notes' => $order->notes,
                     'line_items' => $order->items->map(fn ($item) => [
                         'id' => $item->id,
@@ -136,7 +141,7 @@ class OperationsController extends Controller
             [$startDate, $endDate] = [$endDate->copy()->startOfDay(), $startDate->copy()->endOfDay()];
         }
 
-        $comparisonDays = max($startDate->diffInDays($endDate) + 1, 1);
+        $comparisonDays = max($startDate->copy()->startOfDay()->diffInDays($endDate->copy()->startOfDay()) + 1, 1);
         $comparisonEnd = $startDate->copy()->subDay()->endOfDay();
         $comparisonStart = $comparisonEnd->copy()->subDays($comparisonDays - 1)->startOfDay();
 
@@ -193,24 +198,35 @@ class OperationsController extends Controller
 
         $selectedProduct = $productOptions->firstWhere('id', (int) $request->integer('product_id'));
 
-        $targets = SalesTarget::query()
+        $targetRecords = SalesTarget::query()
             ->with('product:id,name')
             ->whereDate('start_date', '<=', $endDate->toDateString())
             ->whereDate('end_date', '>=', $startDate->toDateString())
-            ->when($selectedProduct, fn ($query) => $query->where('product_id', $selectedProduct['id']))
+            ->when($selectedProduct, function ($query) use ($selectedProduct) {
+                $query->where(function ($nestedQuery) use ($selectedProduct) {
+                    $nestedQuery
+                        ->where('product_id', $selectedProduct['id'])
+                        ->orWhereNull('product_id');
+                });
+            })
+            ->orderBy('id')
             ->get()
-            ->keyBy('product_id');
+            ->values();
+        $allProductsTarget = $targetRecords->firstWhere('product_id', null);
+        $targets = $targetRecords->whereNotNull('product_id')->keyBy('product_id');
 
         $topProducts = Product::query()
             ->active()
             ->with('orderItems')
             ->when($selectedProduct, fn ($query) => $query->where('id', $selectedProduct['id']))
-            ->take($selectedProduct ? 1 : 5)
             ->get(['id', 'name'])
-            ->map(function (Product $product) use ($startDate, $endDate, $targets) {
+            ->map(function (Product $product) use ($startDate, $endDate, $targets, $selectedProduct, $allProductsTarget) {
                 $periodItems = $product->orderItems->whereBetween('created_at', [$startDate, $endDate]);
                 $revenue = (float) $periodItems->sum('subtotal');
                 $targetRecord = $targets->get($product->id);
+                if (!$targetRecord && $selectedProduct) {
+                    $targetRecord = $allProductsTarget;
+                }
                 $target = (float) ($targetRecord?->target_amount ?? ($revenue > 0 ? round($revenue * 1.07, 2) : 0));
                 $performance = $target > 0 ? round(($revenue / $target) * 100, 1) : 0;
 
@@ -224,9 +240,16 @@ class OperationsController extends Controller
                 ];
             })
             ->sortByDesc('revenue')
+            ->take($selectedProduct ? 1 : 5)
             ->values();
 
-        $totalTarget = (float) $topProducts->sum('target');
+        $configuredTargetTotal = $selectedProduct
+            ? (float) (($targets->get($selectedProduct['id'])?->target_amount ?? $allProductsTarget?->target_amount) ?? 0)
+            : (float) ($allProductsTarget?->target_amount ?? $targets->sum(fn (SalesTarget $target) => (float) $target->target_amount));
+
+        $totalTarget = $configuredTargetTotal > 0
+            ? $configuredTargetTotal
+            : (float) $topProducts->sum('target');
         $dailyTarget = $chartDays > 0 ? round($totalTarget / $chartDays, 2) : 0;
 
         $weeklySales = $weeklySales->map(fn ($row) => [
@@ -262,10 +285,10 @@ class OperationsController extends Controller
             'products' => $productOptions,
             'productPerformance' => $productPerformance,
             'topProducts' => $topProducts,
-            'targets' => $targets->values()->map(fn (SalesTarget $target) => [
+            'targets' => $targetRecords->map(fn (SalesTarget $target) => [
                 'id' => $target->id,
                 'product_id' => $target->product_id,
-                'product_name' => $target->product?->name,
+                'product_name' => $target->product?->name ?? 'All Products',
                 'target_amount' => (float) $target->target_amount,
                 'start_date' => optional($target->start_date)->toDateString(),
                 'end_date' => optional($target->end_date)->toDateString(),
@@ -281,14 +304,16 @@ class OperationsController extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'targets' => ['required', 'array', 'min:1'],
-            'targets.*.product_id' => ['required', 'exists:products,id'],
+            'targets.*.product_id' => ['nullable', 'exists:products,id'],
             'targets.*.target_amount' => ['required', 'numeric', 'min:0.01'],
         ]);
 
         foreach ($validated['targets'] as $target) {
+            $productId = blank($target['product_id'] ?? null) ? null : (int) $target['product_id'];
+
             SalesTarget::updateOrCreate(
                 [
-                    'product_id' => $target['product_id'],
+                    'product_id' => $productId,
                     'start_date' => $validated['start_date'],
                     'end_date' => $validated['end_date'],
                 ],
@@ -411,14 +436,6 @@ class OperationsController extends Controller
         $ordersQuery = Order::query()
             ->with(['customer', 'items', 'payments'])
             ->whereBetween('created_at', [$startDate, $endDate])
-            ->when($customerType === 'fat_clients', function ($query) {
-                $query->whereHas('customer', fn ($customerQuery) => $customerQuery->where('loyalty_points', '>=', 100));
-            })
-            ->when($customerType === 'regular_customers', function ($query) {
-                $query->whereHas('customer', fn ($customerQuery) => $customerQuery->where(function ($builder) {
-                    $builder->whereNull('loyalty_points')->orWhere('loyalty_points', '<', 100);
-                }));
-            })
             ->when($paymentStatus === 'paid', fn ($query) => $query->where('is_paid', true))
             ->when($paymentStatus === 'pending', fn ($query) => $query->where('is_paid', false))
             ->when($reportType === 'deliveries', fn ($query) => $query->where('fulfillment_method', 'delivery'))
@@ -471,12 +488,22 @@ class OperationsController extends Controller
                 'report_type' => $reportType,
             ],
             'results' => $orders->sortByDesc('created_at')->values()->map(function (Order $order) {
+                $isSubscriptionOrder = str_contains(
+                    strtolower((string) $order->notes),
+                    'auto-generated from subscription'
+                ) || $order->items->contains(function ($item) {
+                    $metadata = method_exists($item, 'metadata') ? $item->metadata() : [];
+
+                    return ($metadata['type'] ?? null) === 'subscription'
+                        || !empty($metadata['subscription_id']);
+                });
+
                 return [
                     'id' => $order->id,
                     'order_number' => $order->order_number,
                     'date' => optional($order->created_at)->toDateString(),
                     'customer' => $order->customer?->full_name ?? 'Walk-in customer',
-                    'type' => $order->customer && (int) ($order->customer->loyalty_points ?? 0) >= 100 ? 'Subscription' : 'Walk-in',
+                    'type' => $isSubscriptionOrder ? 'Subscription' : 'Walk-in',
                     'order_type' => $order->fulfillment_method ? ucfirst((string) $order->fulfillment_method) : 'Standard Order',
                     'items' => $order->items->count(),
                     'amount' => (float) $order->total,
@@ -560,7 +587,7 @@ class OperationsController extends Controller
 
         $customers = Customer::query()
             ->withCount('orders')
-            ->orderByDesc('loyalty_points')
+            ->orderByDesc('orders_count')
             ->take(20)
             ->get()
             ->map(fn (Customer $customer) => [
@@ -569,9 +596,7 @@ class OperationsController extends Controller
                 'email' => $customer->email,
                 'phone' => $customer->phone,
                 'status' => $customer->status,
-                'loyalty_points' => (int) ($customer->loyalty_points ?? 0),
                 'orders_count' => $customer->orders_count,
-                'tier' => $customer->loyalty_points >= 250 ? 'Gold' : ($customer->loyalty_points >= 100 ? 'Silver' : 'Starter'),
             ]);
 
         $products = Product::query()
@@ -586,11 +611,233 @@ class OperationsController extends Controller
                 'price' => (float) ($product->currentPrice?->promo_price ?? $product->currentPrice?->price ?? 0),
             ]);
 
+        $subscriptions = Subscription::query()
+            ->latest()
+            ->get()
+            ->map(function (Subscription $subscription) {
+                $storedProducts = collect($subscription->products ?? [])
+                    ->map(function ($item, int $index) {
+                        $quantity = (float) ($item['quantity'] ?? 1);
+                        $unit = (string) ($item['unit'] ?? 'pcs');
+                        $name = (string) ($item['name'] ?? 'Product');
+
+                        return [
+                            'id' => $item['id'] ?? ('line-' . $index),
+                            'product_id' => $item['product_id'] ?? null,
+                            'name' => $name,
+                            'quantity' => $quantity,
+                            'unit' => $unit,
+                            'label' => $item['label'] ?? ($name . ' - ' . rtrim(rtrim(number_format($quantity, 2, '.', ''), '0'), '.') . ' ' . $unit),
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                $normalizedDeliveryDays = $this->abbreviateDeliveryDays($subscription->delivery_days ?? []);
+                $nextBaseDate = optional($subscription->next_delivery)?->copy()?->startOfDay() ?? now()->startOfDay();
+
+                if ($nextBaseDate->lt(now()->startOfDay())) {
+                    $nextBaseDate = now()->startOfDay();
+                }
+
+                $nextDeliveryDate = SubscriptionScheduler::nextDeliveryDate(
+                    (string) $subscription->frequency,
+                    $normalizedDeliveryDays,
+                    $nextBaseDate
+                );
+
+                return [
+                    'id' => $subscription->id,
+                    'customer_id' => $subscription->customer_id,
+                    'customer_name' => $subscription->customer_name,
+                    'phone' => $subscription->phone,
+                    'email' => $subscription->email,
+                    'frequency' => $subscription->frequency,
+                    'delivery_days' => $normalizedDeliveryDays,
+                    'products' => $storedProducts,
+                    'value' => (float) $subscription->value,
+                    'next_delivery' => $nextDeliveryDate->toDateString(),
+                    'status' => $subscription->status,
+                ];
+            });
+
         return Inertia::render('Subscriptions', [
             'customers' => $customers,
             'products' => $products,
+            'subscriptions' => $subscriptions,
             'perPageOptions' => $this->allowedPerPageOptions,
         ]);
+    }
+
+    public function storeSubscription(Request $request)
+    {
+        $this->ensureBackoffice();
+
+        $validated = $this->validateSubscriptionPayload($request);
+
+        Subscription::create($validated);
+
+        return redirect()->route('fat-clients.subscriptions')->with('success', 'Subscription created successfully.');
+    }
+
+    public function updateSubscription(Request $request, Subscription $subscription)
+    {
+        $this->ensureBackoffice();
+
+        $validated = $this->validateSubscriptionPayload($request);
+
+        $subscription->update($validated);
+
+        return redirect()->route('fat-clients.subscriptions')->with('success', 'Subscription updated successfully.');
+    }
+
+    public function destroySubscription(Subscription $subscription)
+    {
+        $this->ensureBackoffice();
+
+        $subscription->delete();
+
+        return redirect()->route('fat-clients.subscriptions')->with('success', 'Subscription deleted successfully.');
+    }
+
+    protected function validateSubscriptionPayload(Request $request): array
+    {
+        $validated = $request->validate([
+            'customer_id' => ['nullable', 'exists:customers,id'],
+            'customer_name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'frequency' => ['required', 'in:Daily,Weekly,Twice Weekly,Custom,Weekdays only,Weekends only'],
+            'delivery_days' => ['required', 'array', 'min:1'],
+            'delivery_days.*' => ['required', 'string', 'max:30'],
+            'products' => ['nullable', 'array'],
+            'products.*.product_id' => ['nullable', 'exists:products,id'],
+            'products.*.name' => ['nullable', 'string', 'max:255'],
+            'products.*.quantity' => ['nullable', 'numeric', 'min:0.01'],
+            'products.*.unit' => ['nullable', 'string', 'max:30'],
+            'products.*.label' => ['nullable', 'string', 'max:255'],
+            'value' => ['required', 'numeric', 'min:0'],
+            'start_date' => ['nullable', 'date'],
+            'next_delivery' => ['nullable', 'date'],
+            'status' => ['required', 'in:Active,Paused,Inactive'],
+        ]);
+
+        $validated['delivery_days'] = SubscriptionScheduler::normalizeDeliveryDays($validated['delivery_days'] ?? []);
+        $validated['products'] = collect($validated['products'] ?? [])->map(function (array $item, int $index) {
+            $quantity = (float) ($item['quantity'] ?? 1);
+            $unit = (string) ($item['unit'] ?? 'pcs');
+            $name = (string) ($item['name'] ?? 'Product');
+
+            return [
+                'id' => $item['id'] ?? ('line-' . $index),
+                'product_id' => $item['product_id'] ?? null,
+                'name' => $name,
+                'quantity' => $quantity,
+                'unit' => $unit,
+                'label' => $item['label'] ?? ($name . ' - ' . rtrim(rtrim(number_format($quantity, 2, '.', ''), '0'), '.') . ' ' . $unit),
+            ];
+        })->values()->all();
+
+        $anchorDate = $validated['start_date'] ?? $validated['next_delivery'] ?? null;
+        $anchor = $anchorDate ? Carbon::parse((string) $anchorDate)->startOfDay() : now()->startOfDay();
+
+        $validated['next_delivery'] = SubscriptionScheduler::nextDeliveryDate(
+            (string) $validated['frequency'],
+            $validated['delivery_days'],
+            $anchor
+        )->toDateString();
+
+        unset($validated['start_date']);
+
+        return $validated;
+    }
+
+    protected function abbreviateDeliveryDays(array $days): array
+    {
+        return SubscriptionScheduler::normalizeDeliveryDays($days);
+    }
+
+    protected function paymentMethodEnumValues(): array
+    {
+        static $cached = null;
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        try {
+            $column = DB::selectOne("SHOW COLUMNS FROM `payments` LIKE 'method'");
+        } catch (\Throwable) {
+            return $cached = [];
+        }
+
+        if (!$column || !isset($column->Type)) {
+            return $cached = [];
+        }
+
+        $type = (string) $column->Type;
+        if (!preg_match("/^enum\\((.*)\\)$/i", $type, $matches)) {
+            return $cached = [];
+        }
+
+        $values = str_getcsv($matches[1], ',', "'", "\\");
+
+        return $cached = collect($values)
+            ->map(fn ($value) => strtolower(trim((string) $value)))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    protected function resolvePaymentMethod(?string $requested): string
+    {
+        $requested = strtolower(trim((string) $requested));
+        $requested = $requested !== '' ? $requested : 'bank';
+
+        $allowed = $this->paymentMethodEnumValues();
+        if ($allowed === []) {
+            return $requested;
+        }
+
+        if (in_array($requested, $allowed, true)) {
+            return $requested;
+        }
+
+        $aliases = match ($requested) {
+            'bank' => ['bank', 'bank_transfer', 'transfer', 'wire'],
+            'lipa_no' => ['lipa_no', 'mobile_money', 'momo', 'mpesa'],
+            'cash' => ['cash'],
+            default => [$requested],
+        };
+
+        foreach ($aliases as $candidate) {
+            if (in_array($candidate, $allowed, true)) {
+                return $candidate;
+            }
+        }
+
+        foreach (['cash', 'lipa_no', 'mobile_money', 'bank', 'bank_transfer'] as $fallback) {
+            if (in_array($fallback, $allowed, true)) {
+                return $fallback;
+            }
+        }
+
+        return $allowed[0];
+    }
+
+    protected function normalizePaymentMethodForUi(?string $stored): string
+    {
+        $stored = strtolower(trim((string) $stored));
+
+        if (in_array($stored, ['bank', 'bank_transfer', 'transfer', 'wire'], true)) {
+            return 'bank';
+        }
+
+        if (in_array($stored, ['lipa_no', 'mobile_money', 'momo', 'mpesa'], true)) {
+            return 'lipa_no';
+        }
+
+        return $stored === 'cash' ? 'cash' : 'bank';
     }
 
     public function billing(Request $request)
@@ -658,16 +905,7 @@ class OperationsController extends Controller
     {
         $this->ensureBackoffice();
 
-        $customers = Customer::query()
-            ->orderBy('full_name')
-            ->get(['id', 'full_name', 'phone', 'email', 'address'])
-            ->map(fn (Customer $customer) => [
-                'id' => $customer->id,
-                'full_name' => $customer->full_name,
-                'phone' => $customer->phone,
-                'email' => $customer->email,
-                'address' => $customer->address,
-            ]);
+        $customers = $this->invoiceCustomerOptions();
 
         $products = Product::query()
             ->active()
@@ -680,43 +918,11 @@ class OperationsController extends Controller
                 'price' => (float) ($product->currentPrice?->promo_price ?? $product->currentPrice?->price ?? 0),
             ]);
 
-        $orders = Order::query()
-            ->with(['customer', 'items.product'])
-            ->latest()
-            ->take(30)
-            ->get()
-            ->map(fn (Order $order) => [
-                'id' => $order->id,
-                'order_number' => $order->order_number,
-                'customer_name' => $order->customer?->full_name,
-                'customer_contact' => $order->delivery_phone ?: $order->customer?->phone,
-                'bill_to_address' => $order->customer?->address ?: $order->delivery_address,
-                'deliver_to_name' => $order->customer?->full_name,
-                'deliver_to_address' => $order->delivery_address ?: trim(collect([
-                    $order->delivery_area,
-                    $order->delivery_region,
-                    $order->delivery_landmark,
-                ])->filter()->implode(', ')),
-                'customer_city' => $order->delivery_region,
-                'subtotal' => (float) ($order->subtotal ?? $order->total),
-                'tax' => (float) ($order->tax ?? 0),
-                'discount' => 0,
-                'total' => (float) $order->total,
-                'status' => $order->is_paid ? 'paid' : 'pending',
-                'payment_method' => $order->payment_method,
-                'items' => $order->items->map(fn ($item) => [
-                    'product_id' => $item->product_id,
-                    'description' => $item->displayName(),
-                    'quantity' => (float) $item->quantity,
-                    'unit_price' => (float) $item->price,
-                    'subtotal' => (float) $item->subtotal,
-                ])->values(),
-            ]);
-
         return Inertia::render('CreateInvoice', [
             'customers' => $customers,
             'products' => $products,
-            'orders' => $orders,
+            'mode' => 'create',
+            'invoice' => null,
             'defaults' => [
                 'invoice_number' => $this->generateInvoiceNumber(),
                 'invoice_date' => now()->toDateString(),
@@ -729,12 +935,82 @@ class OperationsController extends Controller
         ]);
     }
 
+    public function editInvoice(Invoice $invoice)
+    {
+        $this->ensureBackoffice();
+
+        $customers = $this->invoiceCustomerOptions();
+
+        $products = Product::query()
+            ->active()
+            ->with('currentPrice')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Product $product) => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'price' => (float) ($product->currentPrice?->promo_price ?? $product->currentPrice?->price ?? 0),
+            ]);
+
+        $invoice->loadMissing(['items.product']);
+
+        return Inertia::render('CreateInvoice', [
+            'customers' => $customers,
+            'products' => $products,
+            'mode' => 'edit',
+            'invoice' => [
+                'id' => $invoice->id,
+                'order_id' => $invoice->order_id,
+                'customer_id' => null,
+                'invoice_number' => $invoice->invoice_number,
+                'invoice_date' => optional($invoice->invoice_date)->toDateString(),
+                'due_date' => optional($invoice->due_date)->toDateString(),
+                'tin_number' => $invoice->tin_number,
+                'customer_name' => $invoice->customer_name,
+                'customer_contact' => $invoice->customer_contact,
+                'bill_to_address' => $invoice->bill_to_address,
+                'deliver_to_name' => $invoice->deliver_to_name,
+                'deliver_to_address' => $invoice->deliver_to_address,
+                'customer_city' => $invoice->customer_city,
+                'subtotal' => (float) $invoice->subtotal,
+                'tax' => (float) $invoice->tax,
+                'discount' => (float) $invoice->discount,
+                'total' => (float) $invoice->total,
+                'currency' => $invoice->currency,
+                'bank_name' => $invoice->bank_name,
+                'account_name' => $invoice->account_name,
+                'account_number' => $invoice->account_number,
+                'status' => $invoice->status,
+                'payment_method' => $this->normalizePaymentMethodForUi(optional($invoice->payments()->latest('id')->first())->method ?: 'bank'),
+                'transaction_id' => optional($invoice->payments()->latest('id')->first())->transaction_id,
+                'notes' => $invoice->notes,
+                'items' => $invoice->items->map(fn (InvoiceItem $item) => [
+                    'product_id' => $item->product_id,
+                    'description' => $item->description ?: $item->product?->name ?: '',
+                    'quantity' => (float) $item->quantity,
+                    'unit_price' => (float) $item->unit_price,
+                    'subtotal' => (float) $item->subtotal,
+                ])->values()->all(),
+            ],
+            'defaults' => [
+                'invoice_number' => $invoice->invoice_number,
+                'invoice_date' => optional($invoice->invoice_date)->toDateString(),
+                'due_date' => optional($invoice->due_date)->toDateString(),
+                'currency' => $invoice->currency ?: 'Tanzanian Shillings',
+                'bank_name' => $invoice->bank_name ?: 'CRDB Bank Tanzania',
+                'account_name' => $invoice->account_name ?: 'AMANI BREW - Premium Butchery',
+                'account_number' => $invoice->account_number ?: '0651234567890',
+            ],
+        ]);
+    }
+
     public function storeInvoice(Request $request)
     {
         $this->ensureBackoffice();
 
         $validated = $request->validate([
             'order_id' => ['nullable', 'exists:orders,id'],
+            'customer_id' => ['nullable', 'exists:customers,id'],
             'invoice_number' => ['required', 'string', 'max:255', 'unique:invoices,invoice_number'],
             'invoice_date' => ['required', 'date'],
             'due_date' => ['required', 'date', 'after_or_equal:invoice_date'],
@@ -780,10 +1056,13 @@ class OperationsController extends Controller
                 ];
             });
 
-            $subtotal = round((float) $normalizedItems->sum('subtotal'), 2);
+            $lineSubtotal = round((float) $normalizedItems->sum('subtotal'), 2);
+            $subtotal = round((float) ($validated['subtotal'] ?? $lineSubtotal), 2);
             $tax = round((float) ($validated['tax'] ?? 0), 2);
             $discount = round((float) ($validated['discount'] ?? 0), 2);
-            $total = round(max($subtotal + $tax - $discount, 0), 2);
+            $calculatedTotal = round(max($subtotal + $tax - $discount, 0), 2);
+            $total = round((float) ($validated['total'] ?? $calculatedTotal), 2);
+            $total = max($total, 0);
 
             $invoice = Invoice::create([
                 'invoice_number' => $validated['invoice_number'],
@@ -820,11 +1099,12 @@ class OperationsController extends Controller
             }
 
             if ($validated['status'] === 'paid') {
+                $paymentMethod = $this->resolvePaymentMethod($validated['payment_method'] ?? null);
                 Payment::create([
                     'invoice_id' => $invoice->id,
                     'order_id' => $invoice->order_id,
                     'amount' => $total,
-                    'method' => $validated['payment_method'] ?? 'bank',
+                    'method' => $paymentMethod,
                     'transaction_id' => $validated['transaction_id'] ?? null,
                     'status' => 'paid',
                 ]);
@@ -834,6 +1114,134 @@ class OperationsController extends Controller
         });
 
         return redirect()->route('fat-clients.billing')->with('success', "Invoice {$invoice->invoice_number} created successfully.");
+    }
+
+    public function updateInvoice(Request $request, Invoice $invoice)
+    {
+        $this->ensureBackoffice();
+
+        $validated = $request->validate([
+            'order_id' => ['nullable', 'exists:orders,id'],
+            'customer_id' => ['nullable', 'exists:customers,id'],
+            'invoice_number' => ['required', 'string', 'max:255', 'unique:invoices,invoice_number,' . $invoice->id],
+            'invoice_date' => ['required', 'date'],
+            'due_date' => ['required', 'date', 'after_or_equal:invoice_date'],
+            'tin_number' => ['nullable', 'string', 'max:255'],
+            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_contact' => ['required', 'string', 'max:255'],
+            'bill_to_address' => ['required', 'string'],
+            'deliver_to_name' => ['nullable', 'string', 'max:255'],
+            'deliver_to_address' => ['required', 'string'],
+            'customer_city' => ['nullable', 'string', 'max:255'],
+            'subtotal' => ['required', 'numeric', 'min:0'],
+            'tax' => ['nullable', 'numeric', 'min:0'],
+            'discount' => ['nullable', 'numeric', 'min:0'],
+            'total' => ['required', 'numeric', 'min:0'],
+            'currency' => ['required', 'string', 'max:255'],
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'account_name' => ['nullable', 'string', 'max:255'],
+            'account_number' => ['nullable', 'string', 'max:255'],
+            'status' => ['required', 'in:draft,pending,paid,overdue,sent'],
+            'payment_method' => ['nullable', 'string', 'max:255'],
+            'transaction_id' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['nullable', 'exists:products,id'],
+            'items.*.description' => ['required', 'string'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.subtotal' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        DB::transaction(function () use ($validated, $invoice) {
+            $normalizedItems = collect($validated['items'])->map(function (array $item) {
+                $quantity = round((float) $item['quantity'], 2);
+                $unitPrice = round((float) $item['unit_price'], 2);
+                $subtotal = round($quantity * $unitPrice, 2);
+
+                return [
+                    'product_id' => $item['product_id'] ?? null,
+                    'description' => $item['description'],
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'subtotal' => $subtotal,
+                ];
+            });
+
+            $lineSubtotal = round((float) $normalizedItems->sum('subtotal'), 2);
+            $subtotal = round((float) ($validated['subtotal'] ?? $lineSubtotal), 2);
+            $tax = round((float) ($validated['tax'] ?? 0), 2);
+            $discount = round((float) ($validated['discount'] ?? 0), 2);
+            $calculatedTotal = round(max($subtotal + $tax - $discount, 0), 2);
+            $total = round((float) ($validated['total'] ?? $calculatedTotal), 2);
+            $total = max($total, 0);
+
+            $invoice->update([
+                'invoice_number' => $validated['invoice_number'],
+                'order_id' => $validated['order_id'] ?? null,
+                'invoice_date' => $validated['invoice_date'],
+                'due_date' => $validated['due_date'],
+                'tin_number' => $validated['tin_number'] ?? null,
+                'customer_name' => $validated['customer_name'],
+                'customer_contact' => $validated['customer_contact'],
+                'bill_to_address' => $validated['bill_to_address'],
+                'deliver_to_name' => $validated['deliver_to_name'] ?: $validated['customer_name'],
+                'deliver_to_address' => $validated['deliver_to_address'],
+                'customer_city' => $validated['customer_city'] ?? null,
+                'subtotal' => $subtotal,
+                'tax' => $tax,
+                'discount' => $discount,
+                'total' => $total,
+                'currency' => $validated['currency'],
+                'bank_name' => $validated['bank_name'] ?? null,
+                'account_name' => $validated['account_name'] ?? null,
+                'account_number' => $validated['account_number'] ?? null,
+                'status' => $validated['status'],
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            $invoice->items()->delete();
+            foreach ($normalizedItems as $item) {
+                $invoice->items()->create([
+                    'product_id' => $item['product_id'],
+                    'description' => $item['description'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'subtotal' => $item['subtotal'],
+                ]);
+            }
+
+            if ($validated['status'] === 'paid') {
+                $paymentMethod = $this->resolvePaymentMethod($validated['payment_method'] ?? null);
+                Payment::updateOrCreate(
+                    ['invoice_id' => $invoice->id],
+                    [
+                        'order_id' => $invoice->order_id,
+                        'amount' => $total,
+                        'method' => $paymentMethod,
+                        'transaction_id' => $validated['transaction_id'] ?? null,
+                        'status' => 'paid',
+                    ]
+                );
+            } else {
+                Payment::query()->where('invoice_id', $invoice->id)->delete();
+            }
+        });
+
+        return redirect()->route('fat-clients.billing')->with('success', "Invoice {$invoice->invoice_number} updated successfully.");
+    }
+
+    public function destroyInvoice(Invoice $invoice)
+    {
+        $this->ensureBackoffice();
+
+        DB::transaction(function () use ($invoice) {
+            $invoice->payments()->delete();
+            $invoice->items()->delete();
+            $invoice->delete();
+        });
+
+        return redirect()->route('fat-clients.billing')->with('success', 'Invoice deleted successfully.');
     }
 
     public function showInvoice(Invoice $invoice)
@@ -982,15 +1390,54 @@ class OperationsController extends Controller
         ];
     }
 
+    protected function invoiceCustomerOptions()
+    {
+        return Customer::query()
+            ->withCount('orders')
+            ->where(function ($query) {
+                $query
+                    ->whereNull('email')
+                    ->orWhere('email', 'not like', '%@example.%');
+            })
+            ->where(function ($query) {
+                $query
+                    ->whereNull('phone')
+                    ->orWhere('phone', 'not like', '+123456789%');
+            })
+            ->orderByDesc('orders_count')
+            ->orderByDesc('id')
+            ->get(['id', 'full_name', 'phone', 'email', 'address'])
+            ->reject(function (Customer $customer) {
+                $name = strtolower(trim((string) $customer->full_name));
+
+                return in_array($name, ['john doe', 'jane doe', 'test user'], true);
+            })
+            ->filter(fn (Customer $customer) => filled($customer->full_name))
+            ->unique(fn (Customer $customer) => strtolower(trim((string) $customer->full_name)))
+            ->sortBy('full_name')
+            ->values()
+            ->map(fn (Customer $customer) => [
+                'id' => $customer->id,
+                'full_name' => $customer->full_name,
+                'phone' => $customer->phone,
+                'email' => $customer->email,
+                'address' => $customer->address,
+            ])
+            ->values();
+    }
+
     protected function generateInvoiceNumber(): string
     {
-        $prefix = 'INV-' . now()->format('Y') . '-';
+        $prefix = now()->format('Y');
         $latest = Invoice::query()
             ->where('invoice_number', 'like', $prefix . '%')
             ->orderByDesc('invoice_number')
             ->value('invoice_number');
 
-        $lastSequence = $latest ? (int) substr($latest, -3) : 0;
+        $lastSequence = 0;
+        if ($latest && preg_match('/^' . preg_quote($prefix, '/') . '(\d{3})$/', (string) $latest, $matches)) {
+            $lastSequence = (int) $matches[1];
+        }
 
         return $prefix . str_pad((string) ($lastSequence + 1), 3, '0', STR_PAD_LEFT);
     }
@@ -1027,7 +1474,6 @@ class OperationsController extends Controller
                 'orders_count' => $customer->orders_count,
                 'address' => $customer->defaultAddress?->address_line1 ?: $customer->address,
                 'city' => $customer->defaultAddress?->city,
-                'loyalty_points' => (int) ($customer->loyalty_points ?? 0),
             ]);
 
         return Inertia::render('Customers', [
@@ -1484,12 +1930,17 @@ class OperationsController extends Controller
         $originalStatus = $this->normalizeOrderStatus($order->status);
         $dispatchingNow = $validated['status'] === 'dispatched' && $originalStatus !== 'dispatched';
 
+        if ($originalStatus === 'dispatched' && $validated['status'] !== 'dispatched') {
+            return back()->with('error', 'Dispatched orders cannot be changed back to a cancellable status.');
+        }
+
+        if (in_array($originalStatus, ['delivered', 'cancelled'], true) && $validated['status'] !== $originalStatus) {
+            return back()->with('error', 'Completed or cancelled orders cannot be changed.');
+        }
+
         if ($dispatchingNow) {
             $stockError = $this->validateRequestedStock(
-                $order->items()->get(['product_id', 'quantity'])->map(fn ($item) => [
-                    'product_id' => $item->product_id,
-                    'quantity' => (float) $item->quantity,
-                ])->all(),
+                $this->mapOrderItemsForStockValidation($order),
                 $order->branch_id,
             );
 
@@ -1538,10 +1989,7 @@ class OperationsController extends Controller
 
         abort_unless($this->normalizeOrderStatus($order->status) === 'pending', 422, 'Only pending orders can be dispatched.');
         $stockError = $this->validateRequestedStock(
-            $order->items()->get(['product_id', 'quantity'])->map(fn ($item) => [
-                'product_id' => $item->product_id,
-                'quantity' => (float) $item->quantity,
-            ])->all(),
+            $this->mapOrderItemsForStockValidation($order),
             $order->branch_id,
         );
 
@@ -1588,10 +2036,7 @@ class OperationsController extends Controller
         DB::transaction(function () use ($order, $currentStatus) {
             if ($currentStatus === 'pending') {
                 $stockError = $this->validateRequestedStock(
-                    $order->items()->get(['product_id', 'quantity'])->map(fn ($item) => [
-                        'product_id' => $item->product_id,
-                        'quantity' => (float) $item->quantity,
-                    ])->all(),
+                    $this->mapOrderItemsForStockValidation($order),
                     $order->branch_id,
                 );
 
@@ -1632,10 +2077,13 @@ class OperationsController extends Controller
 
     protected function validateRequestedStock(array $items, int $branchId): ?string
     {
-        $requestedQuantities = collect($items)
-            ->filter(fn ($item) => !empty($item['product_id']))
-            ->groupBy('product_id')
-            ->map(fn ($group) => (float) collect($group)->sum('quantity'));
+        $requestedQuantities = $this->expandRequestedStockRequirements($items);
+        $requestedProductNames = collect($items)
+            ->filter(fn ($item) => !empty($item['product_id']) || (($item['item_type'] ?? null) === 'product' && !empty($item['name'])))
+            ->mapWithKeys(fn ($item) => [
+                (int) ($item['product_id'] ?? 0) => $item['name'] ?? 'This product',
+            ])
+            ->filter(fn ($name, $productId) => $productId > 0);
 
         if ($requestedQuantities->isEmpty()) {
             return null;
@@ -1651,8 +2099,14 @@ class OperationsController extends Controller
             $product = $products->get((int) $productId);
             $availableQuantity = (float) ($product?->branch_stock_quantity ?? 0);
 
-            if (!$product || $requestedQuantity > $availableQuantity) {
-                $productName = $product?->name ?? 'This product';
+            if (!$product) {
+                $productName = $requestedProductNames->get((int) $productId, 'This product');
+
+                return "{$productName} is no longer available for ordering right now.";
+            }
+
+            if ($requestedQuantity > $availableQuantity) {
+                $productName = $product?->name ?? $requestedProductNames->get((int) $productId, 'This product');
                 $formattedAvailable = rtrim(rtrim(number_format($availableQuantity, 2, '.', ''), '0'), '.');
 
                 return "{$productName} only has {$formattedAvailable} item(s) available right now.";
@@ -1664,29 +2118,111 @@ class OperationsController extends Controller
 
     protected function deductOrderStock(Order $order): void
     {
-        $order->loadMissing('items.product');
+        $requestedQuantities = $this->expandRequestedStockRequirements(
+            $order->items()
+                ->get(['product_id', 'quantity', 'notes'])
+                ->map(function ($item) {
+                    $metadata = method_exists($item, 'metadata') ? $item->metadata() : [];
 
-        foreach ($order->items as $item) {
-            if (!$item->product_id) {
-                continue;
-            }
+                    return [
+                        'product_id' => $item->product_id,
+                        'quantity' => (float) $item->quantity,
+                        'item_type' => $metadata['type'] ?? null,
+                        'item_id' => $metadata['item_id'] ?? null,
+                    ];
+                })
+                ->all()
+        );
+
+        $products = Product::query()
+            ->whereIn('id', $requestedQuantities->keys())
+            ->get()
+            ->keyBy('id');
+
+        foreach ($requestedQuantities as $productId => $quantity) {
+            $product = $products->get((int) $productId);
 
             $stock = Stock::query()
-                ->where('product_id', $item->product_id)
+                ->where('product_id', $productId)
                 ->where('branch_id', $order->branch_id)
                 ->lockForUpdate()
                 ->first();
 
             if (!$stock) {
-                abort(422, $item->displayName() . ' has no stock record for this branch.');
+                abort(422, ($product?->name ?? 'This product') . ' has no stock record for this branch.');
             }
 
-            if ((float) $stock->quantity < (float) $item->quantity) {
-                abort(422, $item->displayName() . ' does not have enough stock to dispatch this order.');
+            if ((float) $stock->quantity < (float) $quantity) {
+                abort(422, ($product?->name ?? 'This product') . ' does not have enough stock to dispatch this order.');
             }
 
-            $stock->decrement('quantity', (float) $item->quantity);
+            $stock->decrement('quantity', (float) $quantity);
         }
+    }
+
+    protected function expandRequestedStockRequirements(array $items)
+    {
+        $requirements = collect($items)
+            ->filter(fn ($item) => !empty($item['product_id']))
+            ->map(fn ($item) => [
+                'product_id' => (int) $item['product_id'],
+                'quantity' => (float) $item['quantity'],
+            ]);
+
+        $packLines = collect($items)
+            ->filter(fn ($item) => ($item['item_type'] ?? null) === 'pack' && !empty($item['item_id']));
+
+        if ($packLines->isNotEmpty() && Schema::hasTable('pack_items')) {
+            $packs = Pack::query()
+                ->with('items')
+                ->whereIn('id', $packLines->pluck('item_id')->all())
+                ->get()
+                ->keyBy('id');
+
+            $packRequirements = $packLines->flatMap(function ($item) use ($packs) {
+                $pack = $packs->get((int) $item['item_id']);
+                $orderedPackQuantity = (float) ($item['quantity'] ?? 0);
+
+                if (!$pack) {
+                    return [];
+                }
+
+                return $pack->items
+                    ->filter(fn ($packItem) => !empty($packItem->product_id))
+                    ->map(fn ($packItem) => [
+                        'product_id' => (int) $packItem->product_id,
+                        'quantity' => (float) $packItem->quantity * $orderedPackQuantity,
+                    ])
+                    ->values()
+                    ->all();
+            });
+
+            $requirements = $requirements->concat($packRequirements);
+        }
+
+        return $requirements
+            ->groupBy('product_id')
+            ->mapWithKeys(fn ($group, $productId) => [
+                (int) $productId => (float) collect($group)->sum('quantity'),
+            ]);
+    }
+
+    protected function mapOrderItemsForStockValidation(Order $order): array
+    {
+        return $order->items()
+            ->get(['product_id', 'quantity', 'notes'])
+            ->map(function ($item) {
+                $metadata = method_exists($item, 'metadata') ? $item->metadata() : [];
+
+                return [
+                    'product_id' => $item->product_id,
+                    'quantity' => (float) $item->quantity,
+                    'item_type' => $metadata['type'] ?? null,
+                    'item_id' => $metadata['item_id'] ?? null,
+                    'name' => $item->displayName(),
+                ];
+            })
+            ->all();
     }
 
     protected function normalizeOrderStatus(?string $status): string
@@ -1750,7 +2286,7 @@ class OperationsController extends Controller
             ->withQueryString()
             ->through(function (Promotion $promotion) {
                 $hasStarted = blank($promotion->starts_at) || $promotion->starts_at->lte(now());
-                $isClosed = filled($promotion->ends_at) && $promotion->ends_at->isPast();
+                $isClosed = $promotion->isClosedForStoreHours();
                 $status = ! $promotion->is_active
                     ? 'Inactive'
                     : ($isClosed
@@ -1852,6 +2388,3 @@ class OperationsController extends Controller
             ->each(fn (User $user) => $user->notify(new SystemAlertNotification($payload)));
     }
 }
-
-
-

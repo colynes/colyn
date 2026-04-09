@@ -67,7 +67,7 @@ function TargetModal({ open, onClose, products, filters, existingTargets = [] })
     end_date: filters.end_date || '',
     targets: existingTargets.length > 0
       ? existingTargets.map((target) => ({
-          product_id: String(target.product_id),
+          product_id: target.product_id ? String(target.product_id) : '',
           target_amount: String(target.target_amount),
         }))
       : [{ product_id: '', target_amount: '' }],
@@ -83,7 +83,7 @@ function TargetModal({ open, onClose, products, filters, existingTargets = [] })
       end_date: filters.end_date || '',
       targets: existingTargets.length > 0
         ? existingTargets.map((target) => ({
-            product_id: String(target.product_id),
+            product_id: target.product_id ? String(target.product_id) : '',
             target_amount: String(target.target_amount),
           }))
         : [{ product_id: '', target_amount: '' }],
@@ -129,8 +129,8 @@ function TargetModal({ open, onClose, products, filters, existingTargets = [] })
       <div className="my-auto flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-[#eadcca] px-6 py-5">
           <div>
-            <h2 className="text-[1.9rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Set Product Targets</h2>
-            <p className="mt-1 text-base text-[#76593d]">Choose existing products and define target revenue for the selected period.</p>
+            <h2 className="text-[1.9rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Set Sales Targets</h2>
+            <p className="mt-1 text-base text-[#76593d]">Choose a product target or leave product empty to save one total target for all products.</p>
           </div>
           <button
             type="button"
@@ -174,7 +174,7 @@ function TargetModal({ open, onClose, products, filters, existingTargets = [] })
                     onChange={(e) => updateTargetRow(index, 'product_id', e.target.value)}
                     className="h-12 w-full rounded-xl border border-[#dcccba] bg-white px-4 text-sm outline-none"
                   >
-                    <option value="">Select product</option>
+                    <option value="">All Products (Total Target)</option>
                     {products.map((product) => (
                       <option key={product.id} value={product.id}>{product.name}</option>
                     ))}
@@ -253,7 +253,11 @@ export default function Sales({
   const [targetsOpen, setTargetsOpen] = useState(false);
 
   const visibleTargets = useMemo(
-    () => targets.filter((target) => !filters.product_id || String(target.product_id) === String(filters.product_id)),
+    () => targets.filter((target) => (
+      !filters.product_id
+      || String(target.product_id ?? '') === String(filters.product_id)
+      || target.product_id === null
+    )),
     [targets, filters.product_id],
   );
 
@@ -313,7 +317,7 @@ export default function Sales({
         </div>
 
         <Card className="rounded-[1.75rem] border border-[#eadcca] bg-white shadow-none">
-          <CardContent className="p-6">
+          <CardContent className="p-[0.3cm]">
             <form method="get" action="/sales" className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-3 text-[1.05rem] font-semibold text-[#4f3118]">
                 <Filter className="h-5 w-5" />
@@ -333,7 +337,7 @@ export default function Sales({
               </select>
               <button
                 type="submit"
-                className="rounded-[1.05rem] border border-[#dcccba] bg-white px-5 py-3 text-[1rem] font-semibold text-[#4f3118]"
+                className="inline-flex h-13 items-center justify-center rounded-[1.05rem] border border-[#dcccba] bg-white px-5 text-[1rem] font-semibold text-[#4f3118]"
               >
                 Filter
               </button>

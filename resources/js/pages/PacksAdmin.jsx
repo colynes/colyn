@@ -286,30 +286,30 @@ export default function PacksAdmin({ auth, packs, filters = {}, products = [], p
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {rows.length > 0 ? rows.map((pack) => (
             <Card key={pack.id} className="rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
-              <CardContent className="p-7">
-                <div className="flex items-start justify-between gap-4">
+              <CardContent className="relative p-7">
+                <div className="flex items-start gap-4">
                   <div className="icon-surface-sm bg-[#efebe6] text-[#4f3118]">
                     <Box className="h-7 w-7" />
                   </div>
+                </div>
 
-                  <div className="flex items-center gap-4 text-[#4f3118]">
-                    <button
-                      type="button"
-                      onClick={() => setActivePack(pack)}
-                      className="transition hover:text-[#2f1c0d]"
-                      aria-label={`Edit ${pack.name}`}
-                    >
-                      <Pencil className="h-5 w-5" strokeWidth={2} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeletingPack(pack)}
-                      className="transition hover:text-red-600"
-                      aria-label={`Delete ${pack.name}`}
-                    >
-                      <Trash2 className="h-5 w-5 text-red-500" strokeWidth={2} />
-                    </button>
-                  </div>
+                <div className="absolute right-[0.3cm] top-[0.3cm] flex items-center gap-4 text-[#4f3118]">
+                  <button
+                    type="button"
+                    onClick={() => setActivePack(pack)}
+                    className="transition hover:text-[#2f1c0d]"
+                    aria-label={`Edit ${pack.name}`}
+                  >
+                    <Pencil className="h-5 w-5" strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeletingPack(pack)}
+                    className="transition hover:text-red-600"
+                    aria-label={`Delete ${pack.name}`}
+                  >
+                    <Trash2 className="h-5 w-5 text-red-500" strokeWidth={2} />
+                  </button>
                 </div>
 
                 <div className="mt-7">

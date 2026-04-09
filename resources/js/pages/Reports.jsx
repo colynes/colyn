@@ -124,8 +124,6 @@ export default function Reports({ auth, overview = {}, filters = {}, results = [
                   className="h-14 w-full rounded-[1.05rem] border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
                 >
                   <option value="">All Types</option>
-                  <option value="regular_customers">Regular Customers</option>
-                  <option value="fat_clients">Fat Clients</option>
                 </select>
               </div>
 

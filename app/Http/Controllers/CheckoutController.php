@@ -7,11 +7,13 @@ use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
 use App\Models\Order;
+use App\Models\Pack;
 use App\Models\Product;
 use App\Models\User;
 use App\Notifications\NewOrderPlacedNotification;
 use App\Support\BackofficeAccess;
 use App\Support\CartManager;
+use App\Support\PackAvailability;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -74,7 +76,12 @@ class CheckoutController extends Controller
                 'close_time' => $pickupConfig['close_time'],
                 'min_time' => $pickupConfig['min_time'],
                 'available' => $pickupConfig['available'],
+                'scheduled_date' => $pickupConfig['scheduled_date']?->toDateString(),
+                'scheduled_date_label' => $pickupConfig['scheduled_date']?->toFormattedDateString(),
+                'after_closing_hours' => $pickupConfig['after_closing_hours'],
             ],
+            'deliverySchedule' => $this->deliveryScheduleSummary($pickupConfig['close_time']),
+            'pickupSchedule' => $this->pickupScheduleSummary($pickupConfig),
         ]);
     }
 
@@ -125,8 +132,8 @@ class CheckoutController extends Controller
             'region_city'        => ['nullable', 'string', 'max:255'],
             'district_area'      => ['nullable', 'string', 'max:255'],
             'delivery_address'   => ['nullable', 'string', 'max:1000', 'required_if:fulfillment_method,delivery'],
-            'delivery_latitude'  => ['nullable', 'numeric', 'between:-90,90', 'required_if:fulfillment_method,delivery'],
-            'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_if:fulfillment_method,delivery'],
+            'delivery_latitude'  => ['nullable', 'numeric', 'between:-90,90'],
+            'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'delivery_notes'     => ['nullable', 'string', 'max:1000'],
             'fulfillment_method' => ['required', 'in:delivery,pickup'],
             'pickup_time'        => ['nullable', 'string', 'max:255', 'required_if:fulfillment_method,pickup'],
@@ -136,9 +143,9 @@ class CheckoutController extends Controller
         $validated = $request->validate($rules);
         $pickupConfig = $this->pickupConfig();
 
-        if (($validated['fulfillment_method'] ?? null) === 'delivery' && !$this->hasValidDeliveryLocation($validated)) {
+        if (($validated['fulfillment_method'] ?? null) === 'delivery' && blank($validated['delivery_address'] ?? null)) {
             return back()->withErrors([
-                'delivery_address' => 'Please select a valid delivery location from the suggestions or use your current location.',
+                'delivery_address' => 'Please enter your delivery address before confirming the order.',
             ])->withInput();
         }
 
@@ -154,14 +161,22 @@ class CheckoutController extends Controller
             }
         }
 
-        $branch = Branch::query()->where('is_active', true)->orderBy('id')->firstOrFail();
-        $insufficientStockMessage = $this->validateAvailableStock($cart['items'], $branch->id);
+        [$branch, $insufficientStockMessage] = $this->resolveFulfillmentBranch($cart['items']);
 
-        if ($insufficientStockMessage) {
+        if (!$branch || $insufficientStockMessage) {
             return back()->with('error', $insufficientStockMessage)->withInput();
         }
 
-        $order = DB::transaction(function () use ($validated, $cart, $user, $branch) {
+        $deliveryScheduleDate = $this->resolveScheduledDeliveryDate(
+            $validated['fulfillment_method'] ?? null,
+            $pickupConfig['close_time']
+        );
+        $pickupScheduleDate = $this->resolveScheduledPickupDate(
+            $validated['fulfillment_method'] ?? null,
+            $pickupConfig
+        );
+
+        $order = DB::transaction(function () use ($validated, $cart, $user, $branch, $deliveryScheduleDate, $pickupScheduleDate) {
             if (!$user) {
                 $user = User::create([
                     'name'     => $validated['full_name'],
@@ -220,6 +235,8 @@ class CheckoutController extends Controller
                 'delivery_phone' => $validated['phone'],
                 'fulfillment_method' => $validated['fulfillment_method'],
                 'pickup_time' => $validated['pickup_time'] ?? null,
+                'scheduled_delivery_date' => $deliveryScheduleDate,
+                'scheduled_pickup_date' => $pickupScheduleDate,
                 'is_paid'        => false,
                 'notes'          => $this->buildOrderNotes($validated),
             ]);
@@ -266,9 +283,15 @@ class CheckoutController extends Controller
         $notes = ['Fulfillment: ' . ucfirst($validated['fulfillment_method'])];
 
         if (($validated['fulfillment_method'] ?? null) === 'delivery') {
+            $scheduledDeliveryDate = $this->resolveScheduledDeliveryDate(
+                $validated['fulfillment_method'] ?? null,
+                $this->pickupConfig()['close_time']
+            );
+
             $notes[] = 'Region/City: ' . ($validated['region_city'] ?? 'N/A');
             $notes[] = 'District/Area: ' . ($validated['district_area'] ?? 'N/A');
             $notes[] = 'Address: ' . ($validated['delivery_address'] ?? 'N/A');
+            $notes[] = 'Scheduled Delivery Date: ' . optional($scheduledDeliveryDate)->toFormattedDateString();
 
             if (!empty($validated['delivery_notes'])) {
                 $notes[] = 'Delivery Notes: ' . $validated['delivery_notes'];
@@ -280,17 +303,16 @@ class CheckoutController extends Controller
         }
 
         if (($validated['fulfillment_method'] ?? null) === 'pickup' && !empty($validated['pickup_time'])) {
+            $scheduledPickupDate = $this->resolveScheduledPickupDate(
+                $validated['fulfillment_method'] ?? null,
+                $this->pickupConfig()
+            );
+
             $notes[] = 'Pickup Time: ' . $validated['pickup_time'];
+            $notes[] = 'Scheduled Pickup Date: ' . optional($scheduledPickupDate)->toFormattedDateString();
         }
 
         return implode(PHP_EOL, $notes);
-    }
-
-    protected function hasValidDeliveryLocation(array $validated): bool
-    {
-        return filled($validated['delivery_address'] ?? null)
-            && filled($validated['delivery_latitude'] ?? null)
-            && filled($validated['delivery_longitude'] ?? null);
     }
 
     protected function generateDailyOrderNumber(): string
@@ -327,11 +349,16 @@ class CheckoutController extends Controller
             $closeTime = AppSetting::getValue('pickup_close_time', $closeTime);
         }
 
+        $scheduledDate = $this->resolvePickupScheduleDate($openTime, $closeTime);
+        $minimumTime = $this->pickupMinimumTime($openTime, $closeTime);
+
         return [
             'open_time' => $openTime,
             'close_time' => $closeTime,
-            'min_time' => $this->pickupMinimumTime($openTime, $closeTime),
-            'available' => $this->pickupMinimumTime($openTime, $closeTime) !== null,
+            'min_time' => $minimumTime,
+            'available' => $minimumTime !== null,
+            'scheduled_date' => $scheduledDate,
+            'after_closing_hours' => $scheduledDate?->isSameDay(today()->addDay()) ?? false,
         ];
     }
 
@@ -343,6 +370,10 @@ class CheckoutController extends Controller
 
         if ($closing->lte($opening)) {
             return null;
+        }
+
+        if ($today->greaterThan($closing)) {
+            return $openTime;
         }
 
         $start = $today->copy()->greaterThan($opening)
@@ -380,12 +411,113 @@ class CheckoutController extends Controller
         return $selected->greaterThanOrEqualTo($minimum) && $selected->lessThanOrEqualTo($closing);
     }
 
+    protected function resolveScheduledDeliveryDate(?string $fulfillmentMethod, string $closeTime)
+    {
+        if ($fulfillmentMethod !== 'delivery') {
+            return null;
+        }
+
+        $now = now();
+        $closing = today()->setTimeFromTimeString($closeTime);
+
+        return $now->greaterThan($closing)
+            ? today()->addDay()
+            : today();
+    }
+
+    protected function resolveScheduledPickupDate(?string $fulfillmentMethod, array $pickupConfig)
+    {
+        if ($fulfillmentMethod !== 'pickup') {
+            return null;
+        }
+
+        return $pickupConfig['scheduled_date'] ?? null;
+    }
+
+    protected function resolvePickupScheduleDate(string $openTime, string $closeTime)
+    {
+        $today = now();
+        $opening = today()->setTimeFromTimeString($openTime);
+        $closing = today()->setTimeFromTimeString($closeTime);
+
+        if ($closing->lte($opening)) {
+            return null;
+        }
+
+        return $today->greaterThan($closing)
+            ? today()->addDay()
+            : today();
+    }
+
+    protected function deliveryScheduleSummary(string $closeTime): array
+    {
+        $scheduledDate = $this->resolveScheduledDeliveryDate('delivery', $closeTime);
+        $isNextDay = $scheduledDate?->isSameDay(today()->addDay()) ?? false;
+
+        return [
+            'scheduled_date' => optional($scheduledDate)->toDateString(),
+            'scheduled_date_label' => optional($scheduledDate)->toFormattedDateString(),
+            'after_closing_hours' => $isNextDay,
+            'close_time' => $closeTime,
+        ];
+    }
+
+    protected function pickupScheduleSummary(array $pickupConfig): array
+    {
+        $scheduledDate = $pickupConfig['scheduled_date'] ?? null;
+
+        return [
+            'scheduled_date' => $scheduledDate?->toDateString(),
+            'scheduled_date_label' => $scheduledDate?->toFormattedDateString(),
+            'after_closing_hours' => (bool) ($pickupConfig['after_closing_hours'] ?? false),
+            'open_time' => $pickupConfig['open_time'] ?? null,
+            'close_time' => $pickupConfig['close_time'] ?? null,
+        ];
+    }
+
     protected function validateAvailableStock(array $cartItems, int $branchId): ?string
     {
-        $requestedQuantities = collect($cartItems)
+        $requestedProductNames = collect($cartItems)
             ->filter(fn (array $item) => ($item['item_type'] ?? null) === 'product' && !empty($item['product_id']))
-            ->groupBy('product_id')
-            ->map(fn ($items) => (float) $items->sum('quantity'));
+            ->mapWithKeys(fn (array $item) => [
+                (int) $item['product_id'] => $item['name'] ?? 'This product',
+            ]);
+
+        $packLines = collect($cartItems)
+            ->filter(fn (array $item) => ($item['item_type'] ?? null) === 'pack' && !empty($item['item_id']));
+
+        if ($packLines->isNotEmpty() && Schema::hasTable('pack_items')) {
+            $packs = Pack::query()
+                ->with('items.product')
+                ->whereIn('id', $packLines->pluck('item_id')->all())
+                ->get()
+                ->keyBy('id');
+
+            foreach ($packLines as $item) {
+                $pack = $packs->get((int) $item['item_id']);
+
+                if (!$pack) {
+                    continue;
+                }
+
+                $stockMessage = PackAvailability::insufficientStockMessage($pack, $branchId, (float) ($item['quantity'] ?? 0));
+
+                if ($stockMessage) {
+                    return $stockMessage;
+                }
+
+                $pack->items
+                    ->filter(fn ($packItem) => !empty($packItem->product_id))
+                    ->each(function ($packItem) use (&$requestedProductNames) {
+                        $requestedProductNames->put(
+                            (int) $packItem->product_id,
+                            $packItem->product?->name ?? 'This product'
+                        );
+                    });
+            }
+        }
+
+        $requestedQuantities = $this->expandCartItemStockRequirements($cartItems);
 
         if ($requestedQuantities->isEmpty()) {
             return null;
@@ -401,8 +533,14 @@ class CheckoutController extends Controller
             $product = $products->get((int) $productId);
             $availableQuantity = (float) ($product?->branch_stock_quantity ?? 0);
 
-            if (!$product || $requestedQuantity > $availableQuantity) {
-                $productName = $product?->name ?? 'This product';
+            if (!$product) {
+                $productName = $requestedProductNames->get((int) $productId, 'This product');
+
+                return "{$productName} is no longer available for ordering right now.";
+            }
+
+            if ($requestedQuantity > $availableQuantity) {
+                $productName = $product?->name ?? $requestedProductNames->get((int) $productId, 'This product');
                 $formattedAvailable = rtrim(rtrim(number_format($availableQuantity, 2, '.', ''), '0'), '.');
 
                 return "{$productName} only has {$formattedAvailable} item(s) available right now.";
@@ -410,6 +548,79 @@ class CheckoutController extends Controller
         }
 
         return null;
+    }
+
+    protected function expandCartItemStockRequirements(array $cartItems)
+    {
+        $requirements = collect($cartItems)
+            ->filter(fn (array $item) => ($item['item_type'] ?? null) === 'product' && !empty($item['product_id']))
+            ->map(fn (array $item) => [
+                'product_id' => (int) $item['product_id'],
+                'quantity' => (float) $item['quantity'],
+            ]);
+
+        $packLines = collect($cartItems)
+            ->filter(fn (array $item) => ($item['item_type'] ?? null) === 'pack' && !empty($item['item_id']));
+
+        if ($packLines->isNotEmpty() && Schema::hasTable('pack_items')) {
+            $packs = Pack::query()
+                ->with('items')
+                ->whereIn('id', $packLines->pluck('item_id')->all())
+                ->get()
+                ->keyBy('id');
+
+            $packRequirements = $packLines->flatMap(function (array $item) use ($packs) {
+                $pack = $packs->get((int) $item['item_id']);
+                $orderedPackQuantity = (float) ($item['quantity'] ?? 0);
+
+                if (!$pack) {
+                    return [];
+                }
+
+                return $pack->items
+                    ->filter(fn ($packItem) => !empty($packItem->product_id))
+                    ->map(fn ($packItem) => [
+                        'product_id' => (int) $packItem->product_id,
+                        'quantity' => (float) $packItem->quantity * $orderedPackQuantity,
+                    ])
+                    ->values()
+                    ->all();
+            });
+
+            $requirements = $requirements->concat($packRequirements);
+        }
+
+        return $requirements
+            ->groupBy('product_id')
+            ->mapWithKeys(fn ($group, $productId) => [
+                (int) $productId => (float) collect($group)->sum('quantity'),
+            ]);
+    }
+
+    protected function resolveFulfillmentBranch(array $cartItems): array
+    {
+        $branches = Branch::query()
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->get();
+
+        if ($branches->isEmpty()) {
+            return [null, 'No active branch is available to fulfill this order right now.'];
+        }
+
+        $lastError = null;
+
+        foreach ($branches as $branch) {
+            $stockMessage = $this->validateAvailableStock($cartItems, $branch->id);
+
+            if (!$stockMessage) {
+                return [$branch, null];
+            }
+
+            $lastError = $stockMessage;
+        }
+
+        return [$branches->first(), $lastError ?: 'The selected items are out of stock right now.'];
     }
 
     protected function notifyBackofficeUsers(Order $order): void

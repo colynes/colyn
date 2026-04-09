@@ -3,6 +3,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import StoreLayout from '@/components/StoreLayout';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Minus, Plus, Trash2, X } from 'lucide-react';
+import { logoutCurrentBrowser } from '@/lib/logout';
 
 const money = (value) => new Intl.NumberFormat('en-TZ', {
   style: 'currency',
@@ -17,8 +18,7 @@ function SignInCheckoutModal({ open, onClose, hasActiveSession }) {
 
   const handleSignInClick = () => {
     if (hasActiveSession) {
-      router.post('/logout', {}, {
-        preserveScroll: true,
+      logoutCurrentBrowser({
         onFinish: () => {
           window.location.href = '/login';
         },

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import MobileHeader from './MobileHeader';
 import NotificationBell from '@/components/NotificationBell';
+import PushNotificationBridge from '@/components/PushNotificationBridge';
 import NotificationRealtimeBridge from '@/components/NotificationRealtimeBridge';
 
 export default function AppLayout({ children, user }) {
@@ -10,6 +11,7 @@ export default function AppLayout({ children, user }) {
   return (
     <div className="min-h-screen bg-[var(--color-sys-bg)]">
       <NotificationRealtimeBridge />
+      <PushNotificationBridge />
 
       {sidebarOpen && (
         <div 

@@ -56,6 +56,14 @@ const orderStatusTone = {
   dispatched: 'bg-amber-100 text-amber-700',
 };
 
+const clearBrowserSelection = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.getSelection?.()?.removeAllRanges();
+};
+
 function ChartTooltip({ active, payload, label, formatter = money }) {
   if (!active || !payload?.length) {
     return null;
@@ -125,8 +133,11 @@ function PendingOrdersModal({ open, onClose, dateLabel, orders, onViewOrder }) {
               {orders.length > 0 ? orders.map((order) => (
                 <div
                   key={order.id}
-                  onDoubleClick={() => onViewOrder(order)}
-                  className="cursor-pointer rounded-[1.35rem] border border-[#e3d2bc] bg-[#f9f5ef] px-5 py-5 transition hover:border-[#ceb08d] hover:bg-[#f6efe6]"
+                  onDoubleClick={() => {
+                    clearBrowserSelection();
+                    onViewOrder(order);
+                  }}
+                  className="cursor-pointer select-none rounded-[1.35rem] border border-[#e3d2bc] bg-[#f9f5ef] px-5 py-5 transition hover:border-[#ceb08d] hover:bg-[#f6efe6]"
                   title="Double-click to view order"
                 >
                   <div className="min-w-0">
@@ -136,15 +147,15 @@ function PendingOrdersModal({ open, onClose, dateLabel, orders, onViewOrder }) {
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-[#7c5d40]">
                       <span className="rounded-full bg-[#efe4d3] px-3 py-1.5 font-medium capitalize">{order.fulfillment_method}</span>
-                      <span>Placed at {order.created_at || 'Today'}</span>
-                    </div>
-                    <p className="mt-4 text-base text-[#6d5036]">Items:</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {order.items.map((item) => (
-                        <span key={item} className="rounded-xl bg-[#efe4d3] px-3 py-2 text-sm font-medium text-[#5d3f23]">
-                          {item}
+                      <span className={`rounded-full px-3 py-1.5 font-medium capitalize ${orderStatusTone[String(order.status || '').toLowerCase()] || 'bg-slate-100 text-slate-700'}`}>
+                        {order.status}
+                      </span>
+                      {order.is_subscriber_client ? (
+                        <span className="rounded-full bg-[#e7f3e9] px-3 py-1.5 font-medium text-[#23613a]">
+                          Subscriber Client
                         </span>
-                      ))}
+                      ) : null}
+                      <span>Placed at {order.created_at || 'Today'}</span>
                     </div>
                   </div>
                 </div>
@@ -162,6 +173,12 @@ function PendingOrdersModal({ open, onClose, dateLabel, orders, onViewOrder }) {
 }
 
 function PendingOrderViewModal({ order, onClose }) {
+  useEffect(() => {
+    if (order) {
+      clearBrowserSelection();
+    }
+  }, [order]);
+
   if (!order) {
     return null;
   }
@@ -233,15 +250,24 @@ function PendingOrderViewModal({ order, onClose }) {
                   <button
                     type="button"
                     onClick={() => {
-                      router.patch(`/dashboard/orders/${order.id}/dispatch`, {}, { preserveScroll: true });
-                    onClose();
-                  }}
-                  className="inline-flex items-center rounded-2xl bg-[#4f3118] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#402612]"
-                >
-                  Dispatch
-                </button>
+                      router.patch(`/dashboard/orders/${order.id}/dispatch`, {}, {
+                        preserveScroll: true,
+                        onSuccess: () => {
+                          router.reload({
+                            only: ['deliverySummary', 'recentOrders', 'todaysPendingOrders', 'stats'],
+                            preserveScroll: true,
+                            preserveState: true,
+                          });
+                          onClose();
+                        },
+                      });
+                    }}
+                    className="inline-flex items-center rounded-2xl bg-[#4f3118] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#402612]"
+                  >
+                    Dispatch
+                  </button>
+                </div>
               </div>
-            </div>
           ) : null}
         </div>
       </div>

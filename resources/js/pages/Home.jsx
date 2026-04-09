@@ -640,6 +640,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                       <Link
                         href="/cart/items"
                         method="post"
+                        preserveScroll
                         data={{ product_id: product.id, quantity: 1 }}
                         as="button"
                         disabled={product.status === 'Out of Stock'}

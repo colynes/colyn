@@ -34,12 +34,14 @@ class DashboardController extends Controller
         $salesStart = now()->startOfWeek()->startOfDay();
         $salesEnd = now()->endOfWeek()->endOfDay();
 
-        $targets = SalesTarget::query()
+        $targetRecords = SalesTarget::query()
             ->with('product:id,name')
             ->whereDate('start_date', '<=', $salesEnd->toDateString())
             ->whereDate('end_date', '>=', $salesStart->toDateString())
-            ->get()
-            ->keyBy('product_id');
+            ->orderBy('id')
+            ->get();
+        $allProductsTarget = $targetRecords->firstWhere('product_id', null);
+        $targets = $targetRecords->whereNotNull('product_id')->keyBy('product_id');
 
         $topProducts = Product::query()
             ->active()
@@ -63,7 +65,8 @@ class DashboardController extends Controller
             ->take(4)
             ->values();
 
-        $totalTarget = (float) $topProducts->sum('target');
+        $configuredTargetTotal = (float) ($allProductsTarget?->target_amount ?? $targets->sum(fn (SalesTarget $target) => (float) $target->target_amount));
+        $totalTarget = $configuredTargetTotal > 0 ? $configuredTargetTotal : (float) $topProducts->sum('target');
         $dailyTarget = round($totalTarget / 7, 2);
 
         $salesTrend = collect(range(6, 0))
@@ -122,12 +125,29 @@ class DashboardController extends Controller
         $previousInventoryUnits = (float) DB::table('stocks')->sum('reorder_level');
         $monthlyRevenue = (float) Order::whereBetween('created_at', [$monthStart, now()])->sum('total');
         $previousMonthlyRevenue = (float) Order::whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])->sum('total');
+        $pendingStatuses = ['pending', 'confirmed', 'processing', 'preparing', 'ready'];
         $todaysPendingOrders = Order::query()
             ->with(['customer', 'items.product'])
-            ->whereIn('status', ['pending', 'confirmed', 'processing', 'preparing'])
+            ->whereIn('status', $pendingStatuses)
+            ->where(function ($query) use ($today) {
+                $query
+                    ->whereDate('created_at', $today)
+                    ->orWhereDate('scheduled_delivery_date', $today)
+                    ->orWhereDate('scheduled_pickup_date', $today);
+            })
             ->latest()
             ->get()
             ->map(function (Order $order) {
+                $isSubscriptionOrder = str_contains(
+                    strtolower((string) $order->notes),
+                    'auto-generated from subscription'
+                ) || $order->items->contains(function ($item) {
+                    $metadata = method_exists($item, 'metadata') ? $item->metadata() : [];
+
+                    return ($metadata['type'] ?? null) === 'subscription'
+                        || !empty($metadata['subscription_id']);
+                });
+
                 return [
                     'id' => $order->id,
                     'order_number' => $order->order_number,
@@ -135,6 +155,8 @@ class DashboardController extends Controller
                     'status' => $this->normalizeOrderStatus($order->status),
                     'created_at' => optional($order->created_at)->format('h:i A'),
                     'fulfillment_method' => $order->fulfillment_method ?: 'delivery',
+                    'is_subscriber_client' => $isSubscriptionOrder,
+                    'customer_segment' => $isSubscriptionOrder ? 'Subscriber Client' : 'Regular Client',
                     'total' => (float) $order->total,
                     'location' => collect([$order->delivery_region, $order->delivery_area])->filter()->implode(', '),
                     'items' => $order->items->take(4)->map(function ($item) {
@@ -153,7 +175,9 @@ class DashboardController extends Controller
                         ];
                     })->values(),
                 ];
-            });
+            })
+            ->sortByDesc(fn (array $order) => $order['is_subscriber_client'] && $order['fulfillment_method'] === 'delivery')
+            ->values();
 
         return Inertia::render('Dashboard', [
             'stats' => [

@@ -212,13 +212,16 @@ class InvoiceController extends Controller
 
     protected function generateInvoiceNumber(): string
     {
-        $prefix = 'INV-' . now()->format('Y') . '-';
+        $prefix = now()->format('Y');
         $latest = Invoice::query()
             ->where('invoice_number', 'like', $prefix . '%')
             ->orderByDesc('invoice_number')
             ->value('invoice_number');
 
-        $lastSequence = $latest ? (int) substr((string) $latest, -3) : 0;
+        $lastSequence = 0;
+        if ($latest && preg_match('/^' . preg_quote($prefix, '/') . '(\d{3})$/', (string) $latest, $matches)) {
+            $lastSequence = (int) $matches[1];
+        }
 
         return $prefix . str_pad((string) ($lastSequence + 1), 3, '0', STR_PAD_LEFT);
     }

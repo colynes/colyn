@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, router } from '@inertiajs/react';
 import StoreLayout from '@/components/StoreLayout';
 import PromotionCard from '@/components/customer/PromotionCard';
+import PacksSection from '@/components/customer/PacksSection';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -20,7 +21,6 @@ export default function Products({ categories = [], products, filters = {}, acti
   const showPacks = !visibleSection || visibleSection === 'packs';
   const showProducts = !visibleSection || visibleSection === 'products';
   const productCartButtonClass = 'bg-[#922330] text-white transition hover:bg-[#7d1e29]';
-  const packCartButtonClass = 'bg-[#7a1f28] text-white transition hover:bg-[#651820]';
 
   const submitSearch = (event) => {
     event.preventDefault();
@@ -107,34 +107,7 @@ export default function Products({ categories = [], products, filters = {}, acti
                   </Link>
                 )}
               </div>
-              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {packs.map((pack) => (
-                  <article
-                    key={pack.id}
-                    className="overflow-hidden rounded-[1.8rem] border border-[#e9ddd1] bg-[#f4efea] text-[#241816] shadow-sm transition hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(59,36,29,0.1)]"
-                  >
-                    <div className="p-6">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9b867f]">Pack</p>
-                      <h3 className="mt-3 text-2xl font-black">{pack.name}</h3>
-                      <p className="mt-3 text-sm leading-7 text-[#7a6660]">{pack.description}</p>
-                      <div className="mt-5 flex items-center justify-between gap-3">
-                        <span className="rounded-full bg-[#edf7ef] px-3 py-1 text-xs font-bold text-[#21643b]">
-                          Available
-                        </span>
-                        <p className="text-lg font-black text-[#7a1f28]">{money(pack.price)}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => addToCart('pack', pack.id)}
-                        className={`mt-6 inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-sm font-bold ${packCartButtonClass}`}
-                      >
-                        <ShoppingCart size={16} className="mr-2" />
-                        Add To Cart
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
+              <PacksSection packs={packs} />
             </section>
           )}
 

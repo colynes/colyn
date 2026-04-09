@@ -4,7 +4,7 @@ import AppLayout from '@/layouts/AppLayout';
 import BackofficePagination from '@/components/backoffice/BackofficePagination';
 import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
-import { Bell, CalendarDays, Download, Eye, Plus, Printer, Search } from 'lucide-react';
+import { Bell, CalendarDays, Eye, Pencil, Plus, Printer, Search, Trash2 } from 'lucide-react';
 
 const money = (value) => `Tsh ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 0 }).format(value || 0)}`;
 
@@ -43,6 +43,18 @@ function SummaryCard({ label, value, tone = 'default' }) {
 
 export default function Billing({ auth, invoices = [], summary = {}, filters = {}, perPageOptions = [50, 100, 250, 500] }) {
   const rows = invoices?.data || [];
+
+  const deleteInvoice = (invoice) => {
+    const proceed = window.confirm(`Delete invoice ${invoice.invoice_number}? This action cannot be undone.`);
+    if (!proceed) {
+      return;
+    }
+
+    router.delete(`/fat-clients/billing/${invoice.id}`, {
+      preserveScroll: true,
+      preserveState: false,
+    });
+  };
 
   return (
     <AppLayout user={auth?.user}>
@@ -104,6 +116,7 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
               search: filters.search || '',
               status: filters.status || 'all',
               per_page: event.target.value,
+              page: 1,
             }, { preserveScroll: true, preserveState: true })}
           />
         </form>
@@ -151,13 +164,13 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
                           >
                             <Eye className="h-5 w-5" strokeWidth={2} />
                           </Link>
-                          <a
-                            href={`/invoices/${invoice.id}/download`}
+                          <Link
+                            href={`/fat-clients/billing/${invoice.id}/edit`}
                             className="transition hover:text-[#2f1c0d]"
-                            aria-label={`Download ${invoice.invoice_number}`}
+                            aria-label={`Edit ${invoice.invoice_number}`}
                           >
-                            <Download className="h-5 w-5" strokeWidth={2} />
-                          </a>
+                            <Pencil className="h-5 w-5" strokeWidth={2} />
+                          </Link>
                           <a
                             href={`/invoices/${invoice.id}/print`}
                             target="_blank"
@@ -167,6 +180,14 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
                           >
                             <Printer className="h-5 w-5" strokeWidth={2} />
                           </a>
+                          <button
+                            type="button"
+                            onClick={() => deleteInvoice(invoice)}
+                            className="transition hover:text-red-600"
+                            aria-label={`Delete ${invoice.invoice_number}`}
+                          >
+                            <Trash2 className="h-5 w-5 text-red-500" strokeWidth={2} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -184,7 +205,15 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
           </CardContent>
         </Card>
 
-        <BackofficePagination links={invoices?.links} />
+        <BackofficePagination
+          paginator={invoices}
+          path="/fat-clients/billing"
+          query={{
+            search: filters.search || '',
+            status: filters.status || 'all',
+            per_page: filters.per_page || perPageOptions[0],
+          }}
+        />
       </div>
     </AppLayout>
   );

@@ -6,6 +6,7 @@ use App\Models\Pack;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Support\CartManager;
+use App\Support\PackAvailability;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -34,7 +35,7 @@ class CustomerHomeController extends Controller
             ->latest('starts_at')
             ->get()
             ->map(function (Promotion $promotion) {
-                $isClosed = $promotion->ends_at && $promotion->ends_at->isPast();
+                $isClosed = $promotion->isClosedForStoreHours();
 
                 return [
                 'id' => $promotion->id,
@@ -86,16 +87,34 @@ class CustomerHomeController extends Controller
             $packsQuery->with(['items.product:id,name,unit']);
         }
 
-        $packs = $packsQuery
+        $activeBranchId = (int) (optional(\App\Models\Branch::query()->where('is_active', true)->orderBy('id')->first())->id ?? 0);
+        $packCollection = $packsQuery
             ->orderBy('name')
-            ->get()
-            ->map(function (Pack $pack) use ($hasPackItemsTable, $hasComesWithColumn) {
+            ->get();
+        $packAvailability = $activeBranchId > 0
+            ? PackAvailability::forCollection($packCollection, $activeBranchId)
+            : $packCollection->mapWithKeys(fn (Pack $pack) => [
+                $pack->id => [
+                    'is_available' => false,
+                    'availability_label' => 'Out of Stock',
+                    'availability_message' => 'This pack is not available for ordering right now.',
+                ],
+            ]);
+
+        $packs = $packCollection
+            ->map(function (Pack $pack) use ($hasPackItemsTable, $hasComesWithColumn, $packAvailability) {
                 $comesWith = $hasComesWithColumn ? $pack->comes_with : null;
+                $availability = $packAvailability->get($pack->id, [
+                    'is_available' => false,
+                    'availability_label' => 'Out of Stock',
+                    'availability_message' => 'This pack is not available for ordering right now.',
+                ]);
 
                 return [
                     'id' => $pack->id,
                     'name' => $pack->name,
                     'slug' => $pack->slug,
+                    'is_new' => $pack->created_at?->gte(now()->subDays(14)) ?? false,
                     'description' => $comesWith ?: $pack->description,
                     'comes_with' => $comesWith,
                     'items' => $hasPackItemsTable
@@ -106,34 +125,11 @@ class CustomerHomeController extends Controller
                         ])->values()
                         : collect(),
                     'price' => (float) $pack->price,
+                    'is_available' => (bool) ($availability['is_available'] ?? false),
+                    'availability_label' => $availability['availability_label'] ?? 'Out of Stock',
+                    'availability_message' => $availability['availability_message'] ?? null,
                 ];
             });
-
-        if ($packs->isEmpty()) {
-            $packs = collect([
-                [
-                    'id' => 'fallback-starter-pack',
-                    'name' => 'Starter Pack',
-                    'slug' => 'starter-pack',
-                    'description' => 'A simple starter bundle for first-time customers.',
-                    'price' => 25000,
-                ],
-                [
-                    'id' => 'fallback-family-pack',
-                    'name' => 'Family Pack',
-                    'slug' => 'family-pack',
-                    'description' => 'A larger pack suitable for families or group use.',
-                    'price' => 60000,
-                ],
-                [
-                    'id' => 'fallback-premium-pack',
-                    'name' => 'Premium Pack',
-                    'slug' => 'premium-pack',
-                    'description' => 'A premium selection bundle with higher quantity and value.',
-                    'price' => 95000,
-                ],
-            ]);
-        }
 
         $products = Product::query()
             ->active()

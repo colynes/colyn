@@ -3,7 +3,9 @@ import { Link, usePage } from '@inertiajs/react';
 import { MapPin, Menu, ShoppingCart, Tag, UserRound, X } from 'lucide-react';
 import CustomerCartPanel from '@/components/CustomerCartPanel';
 import NotificationBell from '@/components/NotificationBell';
+import PushNotificationBridge from '@/components/PushNotificationBridge';
 import NotificationRealtimeBridge from '@/components/NotificationRealtimeBridge';
+import { logoutCurrentBrowser } from '@/lib/logout';
 
 function navClass(active) {
   return active
@@ -35,6 +37,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
   const isCustomer = auth?.user?.role_key === 'customer';
   const isBackoffice = isAuthenticated && !isCustomer;
   const brandHref = isCustomer ? '/customer/home' : '/';
+  const handleLogout = () => logoutCurrentBrowser();
   const navItems = isCustomer
     ? [
         { label: 'Home', href: '/customer/home', active: currentUrl === '/customer/home' },
@@ -63,6 +66,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
   return (
     <div className="min-h-screen bg-[#f6f1e8] text-[var(--color-sys-text-primary)]">
       <NotificationRealtimeBridge />
+      <PushNotificationBridge />
 
       <header className="sticky top-0 z-[80] border-b border-[var(--color-sys-border)] bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-[92rem] items-center justify-between gap-4 px-6 py-5 lg:grid lg:grid-cols-[auto_1fr_auto] lg:gap-6 lg:py-6">
@@ -111,14 +115,13 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                     Dashboard
                   </Link>
                 )}
-                <Link
-                  href="/logout"
-                  method="post"
-                  as="button"
+                <button
+                  type="button"
+                  onClick={handleLogout}
                   className="hidden rounded-2xl border border-[#efb1b1] bg-[#fff5f5] px-5 py-3 text-sm font-semibold text-[#b42318] transition hover:bg-[#ffe9e9] lg:inline-flex"
                 >
                   Logout
-                </Link>
+                </button>
               </>
             ) : (
               <Link href="/login" className="hidden rounded-2xl bg-[var(--color-brand-dark)] px-5 py-3 text-sm font-semibold text-white shadow-sm sm:inline-flex">
@@ -195,15 +198,16 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                       <UserRound size={16} className="mr-2" />
                       {isCustomer ? 'Profile' : 'Dashboard'}
                     </Link>
-                    <Link
-                      href="/logout"
-                      method="post"
-                      as="button"
-                      onClick={() => setSidebarOpen(false)}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSidebarOpen(false);
+                        handleLogout();
+                      }}
                       className="inline-flex w-full items-center justify-center rounded-2xl border border-[#efb1b1] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]"
                     >
                       Logout
-                    </Link>
+                    </button>
                   </>
                 ) : (
                   <Link
