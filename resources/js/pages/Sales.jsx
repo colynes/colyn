@@ -130,7 +130,7 @@ function TargetModal({ open, onClose, products, filters, existingTargets = [] })
         <div className="flex items-start justify-between border-b border-[#eadcca] px-6 py-5">
           <div>
             <h2 className="text-[1.9rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Set Sales Targets</h2>
-            <p className="mt-1 text-base text-[#76593d]">Choose a product target or leave product empty to save one total target for all products.</p>
+            <p className="mt-1 text-base text-[#76593d]">Choose a product target or leave product empty to save one daily total target for all products.</p>
           </div>
           <button
             type="button"
@@ -181,14 +181,14 @@ function TargetModal({ open, onClose, products, filters, existingTargets = [] })
                   </select>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-[#4f3118]">Target Amount</label>
+                  <label className="mb-2 block text-sm font-medium text-[#4f3118]">Daily Target Amount</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={target.target_amount}
                     onChange={(e) => updateTargetRow(index, 'target_amount', e.target.value)}
-                    placeholder="Enter TZS target"
+                    placeholder="Enter daily TZS target"
                     className="h-12 w-full rounded-xl border border-[#dcccba] bg-white px-4 text-sm outline-none"
                   />
                 </div>

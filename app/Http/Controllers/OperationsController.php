@@ -209,11 +209,18 @@ class OperationsController extends Controller
                         ->orWhereNull('product_id');
                 });
             })
-            ->orderBy('id')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
             ->get()
             ->values();
         $allProductsTarget = $targetRecords->firstWhere('product_id', null);
-        $targets = $targetRecords->whereNotNull('product_id')->keyBy('product_id');
+        $targets = $targetRecords
+            ->whereNotNull('product_id')
+            ->unique('product_id')
+            ->keyBy('product_id');
+        $displayTargets = $targetRecords
+            ->unique(fn (SalesTarget $target) => 'product:' . ($target->product_id ?? 'all'))
+            ->values();
 
         $topProducts = Product::query()
             ->active()
@@ -243,14 +250,14 @@ class OperationsController extends Controller
             ->take($selectedProduct ? 1 : 5)
             ->values();
 
-        $configuredTargetTotal = $selectedProduct
+        $configuredDailyTarget = $selectedProduct
             ? (float) (($targets->get($selectedProduct['id'])?->target_amount ?? $allProductsTarget?->target_amount) ?? 0)
             : (float) ($allProductsTarget?->target_amount ?? $targets->sum(fn (SalesTarget $target) => (float) $target->target_amount));
 
-        $totalTarget = $configuredTargetTotal > 0
-            ? $configuredTargetTotal
-            : (float) $topProducts->sum('target');
-        $dailyTarget = $chartDays > 0 ? round($totalTarget / $chartDays, 2) : 0;
+        $fallbackTotalTarget = (float) $topProducts->sum('target');
+        $dailyTarget = $configuredDailyTarget > 0
+            ? $configuredDailyTarget
+            : ($chartDays > 0 ? round($fallbackTotalTarget / $chartDays, 2) : 0);
 
         $weeklySales = $weeklySales->map(fn ($row) => [
             ...$row,
@@ -285,7 +292,7 @@ class OperationsController extends Controller
             'products' => $productOptions,
             'productPerformance' => $productPerformance,
             'topProducts' => $topProducts,
-            'targets' => $targetRecords->map(fn (SalesTarget $target) => [
+            'targets' => $displayTargets->map(fn (SalesTarget $target) => [
                 'id' => $target->id,
                 'product_id' => $target->product_id,
                 'product_name' => $target->product?->name ?? 'All Products',

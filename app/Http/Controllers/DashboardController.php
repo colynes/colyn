@@ -38,10 +38,14 @@ class DashboardController extends Controller
             ->with('product:id,name')
             ->whereDate('start_date', '<=', $salesEnd->toDateString())
             ->whereDate('end_date', '>=', $salesStart->toDateString())
-            ->orderBy('id')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
             ->get();
         $allProductsTarget = $targetRecords->firstWhere('product_id', null);
-        $targets = $targetRecords->whereNotNull('product_id')->keyBy('product_id');
+        $targets = $targetRecords
+            ->whereNotNull('product_id')
+            ->unique('product_id')
+            ->keyBy('product_id');
 
         $topProducts = Product::query()
             ->active()
@@ -65,9 +69,9 @@ class DashboardController extends Controller
             ->take(4)
             ->values();
 
-        $configuredTargetTotal = (float) ($allProductsTarget?->target_amount ?? $targets->sum(fn (SalesTarget $target) => (float) $target->target_amount));
-        $totalTarget = $configuredTargetTotal > 0 ? $configuredTargetTotal : (float) $topProducts->sum('target');
-        $dailyTarget = round($totalTarget / 7, 2);
+        $configuredDailyTarget = (float) ($allProductsTarget?->target_amount ?? $targets->sum(fn (SalesTarget $target) => (float) $target->target_amount));
+        $fallbackTotalTarget = (float) $topProducts->sum('target');
+        $dailyTarget = $configuredDailyTarget > 0 ? $configuredDailyTarget : round($fallbackTotalTarget / 7, 2);
 
         $salesTrend = collect(range(6, 0))
             ->map(function (int $daysAgo) use ($salesEnd, $dailyTarget) {
