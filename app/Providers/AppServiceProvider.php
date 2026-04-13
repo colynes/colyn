@@ -5,9 +5,10 @@ namespace App\Providers;
 use App\Models\User;
 use App\Services\FirebaseMessagingService;
 use Illuminate\Notifications\Events\NotificationSent;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password as PasswordRule;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,8 +25,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Force HTTPS in production to fix Inertia "Blank Page" issues
-        if (config('app.env') === 'production') {
+        PasswordRule::defaults(fn () => PasswordRule::min(10)->letters()->mixedCase()->numbers());
+
+        if (app()->isProduction()) {
             URL::forceScheme('https');
         }
 

@@ -29,10 +29,8 @@ export default function Products({ auth, products, categories, filters = {} }) {
     supplier_name: '',
     supplier_contact: '',
     unit: 'kg',
-    weight: '',
     stock_quantity: '',
     price: '',
-    promo_price: '',
     low_stock_alert: '',
     is_active: true,
   });
@@ -48,10 +46,8 @@ export default function Products({ auth, products, categories, filters = {} }) {
       supplier_name: '',
       supplier_contact: '',
       unit: 'kg',
-      weight: '',
       stock_quantity: '',
       price: '',
-      promo_price: '',
       low_stock_alert: '',
       is_active: true,
     });
@@ -66,10 +62,8 @@ export default function Products({ auth, products, categories, filters = {} }) {
       supplier_name: product.supplier_name || '',
       supplier_contact: product.supplier_contact || '',
       unit: product.unit || 'kg',
-      weight: product.weight || '',
       stock_quantity: product.stock_quantity ?? '',
       price: product.current_price?.price ?? '',
-      promo_price: product.current_price?.promo_price ?? '',
       low_stock_alert: product.low_stock_alert ?? '',
       is_active: Boolean(product.is_active),
     });
@@ -325,7 +319,7 @@ export default function Products({ auth, products, categories, filters = {} }) {
                 className="bg-[#F9F9F9] h-11"
               />
 
-              <div className="grid gap-6 md:grid-cols-2">
+              <div>
                 <div>
                   <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--color-sys-text-primary)]">
                     Unit
@@ -343,16 +337,6 @@ export default function Products({ auth, products, categories, filters = {} }) {
                   </select>
                   {productForm.errors.unit && <p className="mt-1 text-xs text-red-500">{productForm.errors.unit}</p>}
                 </div>
-
-                <Input
-                  type="number"
-                  label="Weight"
-                  value={productForm.data.weight}
-                  onChange={(e) => productForm.setData('weight', e.target.value)}
-                  placeholder="Optional"
-                  error={productForm.errors.weight}
-                  className="bg-[#F9F9F9] h-11"
-                />
               </div>
 
               <Input
@@ -365,27 +349,15 @@ export default function Products({ auth, products, categories, filters = {} }) {
                 className="bg-[#F9F9F9] h-11"
               />
 
-              <div className="grid gap-6 md:grid-cols-2">
-                <Input
-                  type="number"
-                  label="Price (TZS)"
-                  value={productForm.data.price}
-                  onChange={(e) => productForm.setData('price', e.target.value)}
-                  placeholder="18000"
-                  error={productForm.errors.price}
-                  className="bg-[#F9F9F9] h-11"
-                />
-
-                <Input
-                  type="number"
-                  label="Promo Price (TZS)"
-                  value={productForm.data.promo_price}
-                  onChange={(e) => productForm.setData('promo_price', e.target.value)}
-                  placeholder="Optional"
-                  error={productForm.errors.promo_price}
-                  className="bg-[#F9F9F9] h-11"
-                />
-              </div>
+              <Input
+                type="number"
+                label="Price (TZS)"
+                value={productForm.data.price}
+                onChange={(e) => productForm.setData('price', e.target.value)}
+                placeholder="18000"
+                error={productForm.errors.price}
+                className="bg-[#F9F9F9] h-11"
+              />
 
               <label className="flex items-center gap-3 rounded-xl border border-[var(--color-sys-border)] bg-[#F9F9F9] px-4 py-3">
                 <input

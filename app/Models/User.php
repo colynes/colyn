@@ -33,11 +33,6 @@ class User extends Authenticatable
         return $this->hasMany(NotificationToken::class);
     }
 
-    public function activityLogs()
-    {
-        return $this->hasMany(ActivityLog::class);
-    }
-
     public function createdExpenses()
     {
         return $this->hasMany(Expense::class, 'created_by');

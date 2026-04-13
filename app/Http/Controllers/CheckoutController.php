@@ -19,7 +19,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password as PasswordRule;
 use Inertia\Inertia;
 
 class CheckoutController extends Controller
@@ -93,6 +95,15 @@ class CheckoutController extends Controller
             return redirect()->route('home')->with('error', 'Your cart is empty.');
         }
 
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email'))),
+            'phone' => preg_replace('/\s+/', '', trim((string) $request->input('phone'))),
+            'full_name' => preg_replace('/\s+/', ' ', trim((string) $request->input('full_name'))),
+            'delivery_address' => filled($request->input('delivery_address'))
+                ? preg_replace('/\s+/', ' ', trim((string) $request->input('delivery_address')))
+                : null,
+        ]);
+
         $user = $request->user();
 
         if (!$user) {
@@ -137,7 +148,7 @@ class CheckoutController extends Controller
             'delivery_notes'     => ['nullable', 'string', 'max:1000'],
             'fulfillment_method' => ['required', 'in:delivery,pickup'],
             'pickup_time'        => ['nullable', 'string', 'max:255', 'required_if:fulfillment_method,pickup'],
-            'password'           => $user ? ['nullable'] : ['required', 'string', 'min:8', 'confirmed'],
+            'password'           => $user ? ['nullable'] : ['required', 'confirmed', PasswordRule::defaults()],
         ];
 
         $validated = $request->validate($rules);

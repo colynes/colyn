@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpdateProfileRequest;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
@@ -17,9 +18,9 @@ use App\Support\CartManager;
 use App\Support\PackAvailability;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class CommerceController extends Controller
@@ -61,7 +62,7 @@ class CommerceController extends Controller
             ->withQueryString()
             ->through(function (Product $product) {
                 $stockQuantity = (float) ($product->stock_quantity ?? 0);
-                $lowStockAlert = (float) ($product->stocks()->max('reorder_level') ?? 0);
+                $lowStockAlert = (float) ($product->stocks->max('reorder_level') ?? 0);
                 $status = $stockQuantity <= 0
                     ? 'Out of Stock'
                     : ($lowStockAlert > 0 && $stockQuantity <= $lowStockAlert ? 'Low Stock' : 'In Stock');
@@ -251,7 +252,7 @@ class CommerceController extends Controller
         $customer = $this->resolveCustomer($user);
         abort_unless($customer, 403);
 
-        $customer->load(['defaultAddress', 'orders.items.product', 'orders.deliveries', 'orders.payments']);
+        $customer->load('defaultAddress');
 
         return Inertia::render('Profile', [
             'profileMeta' => [
@@ -273,22 +274,13 @@ class CommerceController extends Controller
         ]);
     }
 
-    public function updateProfile(Request $request)
+    public function updateProfile(UpdateProfileRequest $request)
     {
         $user = $request->user();
         $customer = $this->resolveCustomer($user);
         abort_unless($customer, 403);
 
-        $validated = $request->validate([
-            'full_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'phone' => ['required', 'string', 'max:30'],
-            'city' => ['required', 'string', 'max:255'],
-            'country' => ['required', 'string', 'max:255'],
-            'address' => ['required', 'string', 'max:1000'],
-            'postal_code' => ['nullable', 'string', 'max:40'],
-            'avatar' => ['nullable', 'image', 'max:4096'],
-        ]);
+        $validated = $request->validated();
 
         if ($request->hasFile('avatar')) {
             if ($user->avatar) {
@@ -324,6 +316,12 @@ class CommerceController extends Controller
             ]
         );
 
+        Log::info('Customer profile updated.', [
+            'user_id' => $user->id,
+            'customer_id' => $customer->id,
+            'ip' => $request->ip(),
+        ]);
+
         return back()->with('success', 'Profile updated successfully.');
     }
 
@@ -347,15 +345,30 @@ class CommerceController extends Controller
         }
 
         if ($request->filled('order')) {
-            $orderFilter = $request->string('order');
+            $orderFilter = trim($request->string('order')->toString());
             $ordersQuery->where(function ($query) use ($orderFilter) {
+                if ($orderFilter === '') {
+                    return;
+                }
+
+                if (auth()->check() && auth()->user()?->customer) {
+                    $query
+                        ->where('order_number', 'like', "%{$orderFilter}%")
+                        ->orWhereHas('deliveries', fn ($deliveryQuery) => $deliveryQuery->where('tracking_number', 'like', "%{$orderFilter}%"));
+
+                    return;
+                }
+
                 $query
-                    ->where('order_number', 'like', "%{$orderFilter}%")
-                    ->orWhereHas('deliveries', fn ($deliveryQuery) => $deliveryQuery->where('tracking_number', 'like', "%{$orderFilter}%"));
+                    ->where('order_number', $orderFilter)
+                    ->orWhereHas('deliveries', fn ($deliveryQuery) => $deliveryQuery->where('tracking_number', $orderFilter));
             });
         }
 
-        $orders = $ordersQuery->take(10)->get()->map(fn (Order $order) => $this->mapOrder($order));
+        $orders = $ordersQuery
+            ->take($customer ? 10 : 1)
+            ->get()
+            ->map(fn (Order $order) => $this->mapOrder($order, $customer !== null));
 
         return Inertia::render('OrderTracking', [
             'orders' => $orders,
@@ -376,6 +389,11 @@ class CommerceController extends Controller
 
         $order->refresh();
         $this->notifyBackofficeAboutCustomerOrderEvent($order, 'Order cancelled by customer', 'Order ' . $this->displayOrderNumber($order->order_number) . ' was cancelled by the customer.', 'order_cancelled');
+        Log::info('Customer order cancelled.', [
+            'order_id' => $order->id,
+            'customer_id' => $customer->id,
+            'user_id' => $request->user()?->id,
+        ]);
 
         return back()->with('success', 'Order cancelled successfully.');
     }
@@ -394,11 +412,16 @@ class CommerceController extends Controller
 
         $order->refresh();
         $this->notifyBackofficeAboutCustomerOrderEvent($order, 'Order delivered', 'Order ' . $this->displayOrderNumber($order->order_number) . ' was marked as delivered.', 'order_delivered');
+        Log::info('Customer order marked as delivered.', [
+            'order_id' => $order->id,
+            'customer_id' => $customer->id,
+            'user_id' => $request->user()?->id,
+        ]);
 
         return back()->with('success', 'Order marked as delivered.');
     }
 
-    protected function mapOrder(Order $order): array
+    protected function mapOrder(Order $order, bool $includeSensitive = true): array
     {
         $delivery = $order->deliveries->sortByDesc('created_at')->first();
         $payment = $order->payments->sortByDesc('created_at')->first();
@@ -408,21 +431,21 @@ class CommerceController extends Controller
             'id' => $order->id,
             'order_number' => $order->order_number,
             'display_order_number' => $this->displayOrderNumber($order->order_number),
-            'customer' => $order->customer?->full_name,
+            'customer' => $includeSensitive ? $order->customer?->full_name : null,
             'status' => $status,
             'created_at' => optional($order->created_at)->toDayDateTimeString(),
             'total' => (float) $order->total,
-            'payment_method' => $order->payment_method,
-            'is_paid' => (bool) $order->is_paid,
-            'notes' => $order->notes,
-            'can_cancel' => $status === 'pending',
-            'can_mark_delivered' => $status === 'dispatched' && $order->fulfillment_method === 'delivery',
+            'payment_method' => $includeSensitive ? $order->payment_method : null,
+            'is_paid' => $includeSensitive ? (bool) $order->is_paid : null,
+            'notes' => $includeSensitive ? $order->notes : null,
+            'can_cancel' => $includeSensitive && $status === 'pending',
+            'can_mark_delivered' => $includeSensitive && $status === 'dispatched' && $order->fulfillment_method === 'delivery',
             'location' => [
-                'region_city' => $order->delivery_region,
-                'district_area' => $order->delivery_area,
-                'delivery_address' => $order->delivery_address,
-                'landmark' => $order->delivery_landmark,
-                'delivery_phone' => $order->delivery_phone,
+                'region_city' => $includeSensitive ? $order->delivery_region : null,
+                'district_area' => $includeSensitive ? $order->delivery_area : null,
+                'delivery_address' => $includeSensitive ? $order->delivery_address : null,
+                'landmark' => $includeSensitive ? $order->delivery_landmark : null,
+                'delivery_phone' => $includeSensitive ? $order->delivery_phone : null,
                 'fulfillment_method' => $order->fulfillment_method,
                 'pickup_time' => $order->pickup_time,
                 'scheduled_delivery_date' => optional($order->scheduled_delivery_date)->toDateString(),
@@ -439,16 +462,16 @@ class CommerceController extends Controller
             'delivery' => $delivery ? [
                 'number' => $delivery->delivery_number,
                 'status' => $this->normalizeDeliveryStatus($delivery->status),
-                'tracking_number' => $delivery->tracking_number,
-                'delivery_fee' => (float) $delivery->delivery_fee,
-            ] : null,
-            'payment' => $payment ? [
+                    'tracking_number' => $delivery->tracking_number,
+                    'delivery_fee' => $includeSensitive ? (float) $delivery->delivery_fee : null,
+                ] : null,
+            'payment' => $includeSensitive && $payment ? [
                 'status' => $payment->status,
                 'method' => $payment->method,
                 'transaction_id' => $payment->transaction_id,
                 'amount' => (float) $payment->amount,
             ] : null,
-            'timeline' => $this->buildTimeline($order, $delivery, $payment),
+            'timeline' => $this->buildTimeline($order, $delivery, $includeSensitive ? $payment : null),
         ];
     }
 

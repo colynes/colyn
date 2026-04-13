@@ -43,6 +43,10 @@ function iconForNotification(item) {
     return Package2;
   }
 
+  if (kind === 'subscription_quote_rejected') {
+    return XCircle;
+  }
+
   if (kind === 'pickup_reminder') {
     return Bell;
   }

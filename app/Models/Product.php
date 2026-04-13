@@ -31,14 +31,80 @@ class Product extends Model
 
     protected static function booted(): void
     {
-        static::creating(function (Product $p) {
-            if (empty($p->slug)) {
-                $p->slug = Str::slug($p->name);
+        static::saving(function (Product $product) {
+            if (blank($product->slug)) {
+                $product->slug = static::generateUniqueSlug($product->name, $product->exists ? $product->getKey() : null);
             }
-            if (empty($p->sku)) {
-                $p->sku = 'SKU-' . strtoupper(Str::random(6));
+
+            if (blank($product->sku)) {
+                $product->sku = static::generateUniqueSku(ignoreId: $product->exists ? $product->getKey() : null);
             }
         });
+    }
+
+    public static function generateUniqueSlug(?string $value, ?int $ignoreId = null): string
+    {
+        $base = Str::slug((string) $value);
+
+        if ($base === '') {
+            $base = 'product';
+        }
+
+        $slug = $base;
+        $suffix = 2;
+
+        while (static::query()
+            ->where('slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()) {
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
+    }
+
+    public static function generateUniqueSku(?string $value = null, ?int $ignoreId = null): string
+    {
+        $base = static::normalizeSku($value);
+
+        if ($base !== null) {
+            $sku = $base;
+            $suffix = 2;
+
+            while (static::query()
+                ->where('sku', $sku)
+                ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+                ->exists()) {
+                $sku = $base . '-' . $suffix;
+                $suffix++;
+            }
+
+            return $sku;
+        }
+
+        do {
+            $sku = 'SKU-' . strtoupper(Str::random(6));
+        } while (static::query()
+            ->where('sku', $sku)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists());
+
+        return $sku;
+    }
+
+    protected static function normalizeSku(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = preg_replace('/[^A-Z0-9]+/', '-', strtoupper($value));
+        $normalized = trim((string) $normalized, '-');
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     // Relationships

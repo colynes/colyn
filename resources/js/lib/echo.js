@@ -1,7 +1,4 @@
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
-
-export function startEcho() {
+export async function startEcho() {
   if (typeof window === 'undefined') {
     return null;
   }
@@ -13,11 +10,16 @@ export function startEcho() {
   const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
   const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
 
-  window.Pusher = Pusher;
-
   if (!pusherKey || !pusherCluster) {
     return null;
   }
+
+  const [{ default: Echo }, { default: Pusher }] = await Promise.all([
+    import('laravel-echo'),
+    import('pusher-js'),
+  ]);
+
+  window.Pusher = Pusher;
 
   window.Echo = new Echo({
     broadcaster: 'pusher',

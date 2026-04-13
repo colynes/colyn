@@ -17,4 +17,33 @@ export default defineConfig({
             '@': '/resources/js',
         },
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (!id.includes('node_modules')) {
+                        return;
+                    }
+
+                    if (id.includes('firebase')) {
+                        return 'firebase';
+                    }
+
+                    if (id.includes('laravel-echo') || id.includes('pusher-js')) {
+                        return 'realtime';
+                    }
+
+                    if (id.includes('recharts')) {
+                        return 'charts';
+                    }
+
+                    if (id.includes('lucide-react') || id.includes('sonner')) {
+                        return 'ui';
+                    }
+
+                    return 'vendor';
+                },
+            },
+        },
+    },
 });

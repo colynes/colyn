@@ -1,6 +1,3 @@
-import { initializeApp } from 'firebase/app';
-import { getMessaging, isSupported as isMessagingSupported, onMessage } from 'firebase/messaging';
-
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -9,18 +6,39 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const firebaseApp = initializeApp(firebaseConfig);
+const hasFirebaseMessagingConfig = Boolean(
+  firebaseConfig.apiKey
+    && firebaseConfig.projectId
+    && firebaseConfig.messagingSenderId
+    && firebaseConfig.appId,
+);
+
+let firebaseAppPromise = null;
 let messagingInstancePromise = null;
 
+async function getFirebaseApp() {
+  if (!firebaseAppPromise) {
+    firebaseAppPromise = import('firebase/app').then(({ initializeApp }) => initializeApp(firebaseConfig));
+  }
+
+  return firebaseAppPromise;
+}
+
 export async function getFirebaseMessaging() {
-  const supported = await isMessagingSupported();
+  if (!hasFirebaseMessagingConfig) {
+    return null;
+  }
+
+  const { getMessaging, isSupported } = await import('firebase/messaging');
+
+  const supported = await isSupported();
 
   if (!supported) {
     return null;
   }
 
   if (!messagingInstancePromise) {
-    messagingInstancePromise = Promise.resolve(getMessaging(firebaseApp));
+    messagingInstancePromise = getFirebaseApp().then((firebaseApp) => getMessaging(firebaseApp));
   }
 
   return messagingInstancePromise;
@@ -33,7 +51,9 @@ export async function subscribeToForegroundMessages(handler) {
     return () => {};
   }
 
+  const { onMessage } = await import('firebase/messaging');
+
   return onMessage(messaging, handler);
 }
 
-export { firebaseApp, firebaseConfig };
+export { firebaseConfig };

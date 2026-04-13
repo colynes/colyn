@@ -538,7 +538,7 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
   const flashToastKeyRef = useRef('');
 
   const counts = useMemo(() => ({ requests: subscriptionRequests.length, active: activeSubscriptions.length, upcoming: upcomingDeliveries.length }), [subscriptionRequests.length, activeSubscriptions.length, upcomingDeliveries.length]);
-  const reloadSubscriptionData = () => new Promise((resolve) => router.reload({ only: ['subscriptionRequests', 'activeSubscriptions', 'upcomingDeliveries', 'summary'], preserveScroll: true, onFinish: () => resolve() }));
+  const reloadSubscriptionData = () => new Promise((resolve) => router.reload({ only: ['subscriptionRequests', 'activeSubscriptions', 'upcomingDeliveries', 'summary', 'notifications'], preserveScroll: true, onFinish: () => resolve() }));
   const closeRequestModal = () => { setRequestModalOpen(false); setRequestForm(buildInitialForm(customerMeta)); setFormErrors({}); };
 
   useEffect(() => {

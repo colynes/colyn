@@ -59,6 +59,10 @@ function resolveToast(notification) {
     return { method: 'success', icon: <Package2 size={18} /> };
   }
 
+  if (kind === 'subscription_quote_rejected') {
+    return { method: 'error', icon: <XCircle size={18} /> };
+  }
+
   return { method: 'info', icon: <BellRing size={18} /> };
 }
 

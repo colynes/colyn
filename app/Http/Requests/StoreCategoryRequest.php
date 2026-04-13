@@ -2,12 +2,27 @@
 
 namespace App\Http\Requests;
 
+use App\Support\BackofficeAccess;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class StoreCategoryRequest extends FormRequest
 {
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return BackofficeAccess::hasBackofficeAccess($this->user());
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'name' => preg_replace('/\s+/', ' ', trim((string) $this->input('name'))),
+            'slug' => filled($this->input('slug')) ? Str::slug((string) $this->input('slug')) : null,
+            'description' => filled($this->input('description')) ? trim((string) $this->input('description')) : null,
+            'image' => filled($this->input('image')) ? trim((string) $this->input('image')) : null,
+        ]);
+    }
 
     public function rules(): array
     {

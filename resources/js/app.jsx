@@ -9,7 +9,7 @@ import { startEcho } from './lib/echo';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Amani Brew';
 
-startEcho();
+void startEcho();
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import BackofficePagination from '@/components/backoffice/BackofficePagination';
 import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import { Bell, CalendarDays, Eye, Pencil, Plus, Printer, Search, Trash2 } from 'lucide-react';
 
 const money = (value) => `Tsh ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 0 }).format(value || 0)}`;
@@ -43,13 +44,9 @@ function SummaryCard({ label, value, tone = 'default' }) {
 
 export default function Billing({ auth, invoices = [], summary = {}, filters = {}, perPageOptions = [50, 100, 250, 500] }) {
   const rows = invoices?.data || [];
+  const [deletingInvoice, setDeletingInvoice] = useState(null);
 
   const deleteInvoice = (invoice) => {
-    const proceed = window.confirm(`Delete invoice ${invoice.invoice_number}? This action cannot be undone.`);
-    if (!proceed) {
-      return;
-    }
-
     router.delete(`/fat-clients/billing/${invoice.id}`, {
       preserveScroll: true,
       preserveState: false,
@@ -58,6 +55,20 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
 
   return (
     <AppLayout user={auth?.user}>
+      <ConfirmModal
+        isOpen={Boolean(deletingInvoice)}
+        onClose={() => setDeletingInvoice(null)}
+        onConfirm={() => {
+          if (deletingInvoice) {
+            deleteInvoice(deletingInvoice);
+          }
+        }}
+        title="Delete Invoice"
+        message={deletingInvoice ? `Delete invoice ${deletingInvoice.invoice_number}? This action cannot be undone.` : ''}
+        confirmText="Delete"
+        type="danger"
+      />
+
       <div className="space-y-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -182,7 +193,7 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
                           </a>
                           <button
                             type="button"
-                            onClick={() => deleteInvoice(invoice)}
+                            onClick={() => setDeletingInvoice(invoice)}
                             className="transition hover:text-red-600"
                             aria-label={`Delete ${invoice.invoice_number}`}
                           >

@@ -2,28 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreNotificationTokenRequest;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class PushNotificationController extends Controller
 {
-    public function config(): JsonResponse
+    public function saveToken(StoreNotificationTokenRequest $request): JsonResponse
     {
-        return response()->json([
-            'apiKey' => env('VITE_FIREBASE_API_KEY'),
-            'authDomain' => env('VITE_FIREBASE_AUTH_DOMAIN'),
-            'projectId' => env('VITE_FIREBASE_PROJECT_ID'),
-            'messagingSenderId' => env('VITE_FIREBASE_SENDER_ID', env('VITE_FIREBASE_MESSAGING_SENDER_ID')),
-            'appId' => env('VITE_FIREBASE_APP_ID'),
-            'vapidKey' => env('VITE_FIREBASE_VAPID_KEY'),
-        ]);
-    }
+        $validated = $request->validated();
 
-    public function saveToken(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'token' => ['required', 'string', 'max:4096'],
-        ]);
+        $request->user()
+            ->notificationTokens()
+            ->where('token', $validated['token'])
+            ->delete();
+
+        \App\Models\NotificationToken::query()
+            ->where('token', $validated['token'])
+            ->where('user_id', '!=', $request->user()->id)
+            ->delete();
 
         $request->user()->notificationTokens()->updateOrCreate(
             ['token' => $validated['token']],
@@ -33,11 +29,9 @@ class PushNotificationController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function removeToken(Request $request): JsonResponse
+    public function removeToken(StoreNotificationTokenRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'token' => ['required', 'string', 'max:4096'],
-        ]);
+        $validated = $request->validated();
 
         $request->user()->notificationTokens()
             ->where('token', $validated['token'])

@@ -7,7 +7,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
 
@@ -140,7 +142,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|email|unique:users',
-            'password' => 'required|min:8|confirmed',
+            'password' => ['required', 'confirmed', Password::defaults()],
             'role'     => 'required|in:Administrator,Manager,Staff',
         ]);
 
@@ -154,6 +156,12 @@ class UserController extends Controller
         ]);
 
         $user->assignRole($roleName);
+
+        Log::info('Backoffice user created.', [
+            'actor_user_id' => auth()->id(),
+            'target_user_id' => $user->id,
+            'role' => $validated['role'],
+        ]);
 
         return back()->with('success', 'User created successfully.');
     }
@@ -178,6 +186,12 @@ class UserController extends Controller
 
         $user->syncRoles([$roleName]);
 
+        Log::info('Backoffice user updated.', [
+            'actor_user_id' => auth()->id(),
+            'target_user_id' => $user->id,
+            'role' => $validated['role'],
+        ]);
+
         return back()->with('success', 'User updated successfully.');
     }
 
@@ -188,7 +202,14 @@ class UserController extends Controller
         if ($user->id === auth()->id()) {
             return back()->with('error', 'Cannot delete yourself.');
         }
+
         $user->delete();
+
+        Log::info('Backoffice user deleted.', [
+            'actor_user_id' => auth()->id(),
+            'target_user_id' => $user->id,
+        ]);
+
         return back()->with('success', 'User deleted.');
     }
 
@@ -196,8 +217,14 @@ class UserController extends Controller
     {
         $this->ensureAdministrator();
 
-        $request->validate(['password' => 'required|min:8|confirmed']);
+        $request->validate(['password' => ['required', 'confirmed', Password::defaults()]]);
         $user->update(['password' => Hash::make($request->password)]);
+
+        Log::info('Backoffice user password reset.', [
+            'actor_user_id' => auth()->id(),
+            'target_user_id' => $user->id,
+        ]);
+
         return back()->with('success', 'Password reset successfully.');
     }
 

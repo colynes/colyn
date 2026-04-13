@@ -547,7 +547,7 @@ export default function Subscriptions({ auth, customers = [], products = [], sub
   const productChoices = products;
   const subscriptionsRows = useMemo(() => subscriptions, [subscriptions]);
   const subscriptionRequestRows = useMemo(() => subscriptionRequests, [subscriptionRequests]);
-  const hasOpenSubscriptionRequests = subscriptionRequestRows.length > 0;
+  const hasSubscriptionRequests = subscriptionRequestRows.length > 0;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [perPage, setPerPage] = useState(perPageOptions[0]);
@@ -756,11 +756,11 @@ export default function Subscriptions({ auth, customers = [], products = [], sub
           />
         </div>
 
-        {hasOpenSubscriptionRequests ? (
+        {hasSubscriptionRequests ? (
           <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
             <CardContent className="p-0">
               <div className="border-b border-[#eadcca] bg-[#f7efe4] px-8 py-5">
-                <h2 className="text-[1.2rem] font-semibold text-[#3a2513]">New Subscription Requests</h2>
+                <h2 className="text-[1.2rem] font-semibold text-[#3a2513]">Subscription Requests</h2>
                 <p className="mt-1 text-sm text-[#6f5238]">
                   {filteredRequestRows.length} request{filteredRequestRows.length === 1 ? '' : 's'} currently visible
                 </p>
@@ -814,7 +814,16 @@ export default function Subscriptions({ auth, customers = [], products = [], sub
                             >
                               {requestItem.status === 'quoted' ? 'Update Quote' : 'Send Quote'}
                             </button>
-                          ) : null}
+                          ) : requestItem.status === 'rejected' ? (
+                            <div className="max-w-[16rem] text-sm text-rose-700">
+                              <p className="font-semibold">Rejected by customer</p>
+                              <p className="mt-1 text-[#8f4b4b]">
+                                {requestItem.rejection_reason || requestItem.response_message || 'This request was rejected.'}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-[#7a5c3e]">No action available</span>
+                          )}
                         </td>
                       </tr>
                     )) : (

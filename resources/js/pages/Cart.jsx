@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import StoreLayout from '@/components/StoreLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -75,7 +75,12 @@ export default function Cart({ cart }) {
   const { auth } = usePage().props;
   const items = cart?.items || [];
   const [signInPromptOpen, setSignInPromptOpen] = useState(false);
+  const [draftQuantities, setDraftQuantities] = useState({});
   const isSignedInCustomer = auth?.user?.role_key === 'customer';
+
+  useEffect(() => {
+    setDraftQuantities(Object.fromEntries(items.map((item) => [item.line_id, String(item.quantity ?? 0)])));
+  }, [items]);
 
   const updateQuantity = (lineId, quantity) => {
     if (quantity <= 0) {
@@ -84,6 +89,41 @@ export default function Cart({ cart }) {
     }
 
     router.patch(`/cart/items/${lineId}`, { quantity }, { preserveScroll: true });
+  };
+
+  const setDraftQuantity = (lineId, value) => {
+    if (value === '' || /^\d+$/.test(value)) {
+      setDraftQuantities((current) => ({
+        ...current,
+        [lineId]: value,
+      }));
+    }
+  };
+
+  const commitDraftQuantity = (lineId, fallbackQuantity) => {
+    const nextValue = draftQuantities[lineId];
+
+    if (nextValue === undefined) {
+      return;
+    }
+
+    if (nextValue === '') {
+      updateQuantity(lineId, 0);
+      return;
+    }
+
+    const parsedQuantity = Number.parseInt(nextValue, 10);
+
+    if (Number.isNaN(parsedQuantity)) {
+      setDraftQuantities((current) => ({
+        ...current,
+        [lineId]: String(fallbackQuantity),
+      }));
+
+      return;
+    }
+
+    updateQuantity(lineId, parsedQuantity);
   };
 
   return (
@@ -111,11 +151,43 @@ export default function Cart({ cart }) {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center rounded-2xl border border-[var(--color-sys-border)] bg-[#f7f1e8] p-1">
-                    <button onClick={() => updateQuantity(item.line_id, item.quantity - 1)} className="rounded-xl p-3 text-[var(--color-brand-dark)]">
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(item.line_id, item.quantity - 1)}
+                      className="rounded-xl p-3 text-[var(--color-brand-dark)]"
+                    >
                       <Minus size={16} />
                     </button>
-                    <span className="min-w-12 text-center text-sm font-bold">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.line_id, item.quantity + 1)} className="rounded-xl p-3 text-[var(--color-brand-dark)]">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={draftQuantities[item.line_id] ?? String(item.quantity)}
+                      onChange={(event) => setDraftQuantity(item.line_id, event.target.value)}
+                      onBlur={() => commitDraftQuantity(item.line_id, item.quantity)}
+                      onFocus={(event) => event.target.select()}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          commitDraftQuantity(item.line_id, item.quantity);
+                        }
+
+                        if (event.key === 'Escape') {
+                          setDraftQuantities((current) => ({
+                            ...current,
+                            [item.line_id]: String(item.quantity),
+                          }));
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      aria-label={`Quantity for ${item.name}`}
+                      className="w-14 border-0 bg-transparent px-1 text-center text-sm font-bold text-[var(--color-brand-dark)] outline-none focus:ring-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(item.line_id, item.quantity + 1)}
+                      className="rounded-xl p-3 text-[var(--color-brand-dark)]"
+                    >
                       <Plus size={16} />
                     </button>
                   </div>
@@ -123,7 +195,11 @@ export default function Cart({ cart }) {
                     <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-sys-text-secondary)]">Line total</p>
                     <p className="mt-1 text-xl font-black">{money(item.subtotal)}</p>
                   </div>
-                  <button onClick={() => router.delete(`/cart/items/${item.line_id}`, { preserveScroll: true })} className="rounded-2xl border border-red-200 p-3 text-red-500">
+                  <button
+                    type="button"
+                    onClick={() => router.delete(`/cart/items/${item.line_id}`, { preserveScroll: true })}
+                    className="rounded-2xl border border-red-200 p-3 text-red-500"
+                  >
                     <Trash2 size={16} />
                   </button>
                 </div>

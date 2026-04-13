@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ForgotPasswordRequest;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterCustomerRequest;
+use App\Http\Requests\ResetPasswordRequest;
 use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
@@ -9,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -43,25 +48,22 @@ class AuthController extends Controller
         ]);
     }
 
-    public function sendResetLink(Request $request)
+    public function sendResetLink(ForgotPasswordRequest $request)
     {
-        $validated = $request->validate([
-            'email' => ['required', 'email'],
-        ]);
+        $validated = $request->validated();
 
         $status = Password::sendResetLink([
             'email' => $validated['email'],
         ]);
 
-        if ($status === Password::RESET_LINK_SENT) {
-            return back()->with('success', __($status));
-        }
+        Log::info('Password reset link requested.', [
+            'email' => $validated['email'],
+            'ip' => $request->ip(),
+            'status' => $status,
+            'user_exists' => User::query()->where('email', $validated['email'])->exists(),
+        ]);
 
-        return back()->withErrors([
-            'email' => $status === Password::INVALID_USER
-                ? 'We could not find a user account with that email address.'
-                : __($status),
-        ])->onlyInput('email');
+        return back()->with('success', 'If the account exists, a password reset link has been sent to that email address.');
     }
 
     public function showResetPassword(Request $request, string $token)
@@ -78,13 +80,9 @@ class AuthController extends Controller
         ]);
     }
 
-    public function resetPassword(Request $request)
+    public function resetPassword(ResetPasswordRequest $request)
     {
-        $validated = $request->validate([
-            'token' => ['required', 'string'],
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
+        $validated = $request->validated();
 
         $status = Password::reset(
             $validated,
@@ -99,6 +97,11 @@ class AuthController extends Controller
         );
 
         if ($status === Password::PASSWORD_RESET) {
+            Log::info('Password reset completed.', [
+                'email' => $validated['email'],
+                'ip' => $request->ip(),
+            ]);
+
             if (Auth::check()) {
                 Auth::logout();
                 $request->session()->invalidate();
@@ -109,6 +112,12 @@ class AuthController extends Controller
                 ->route('login')
                 ->with('success', 'Your password has been reset successfully. You can sign in now.');
         }
+
+        Log::warning('Password reset failed.', [
+            'email' => $validated['email'],
+            'ip' => $request->ip(),
+            'status' => $status,
+        ]);
 
         return back()->withErrors([
             'email' => in_array($status, [Password::INVALID_TOKEN, Password::INVALID_USER], true)
@@ -126,15 +135,11 @@ class AuthController extends Controller
         return Inertia::render('Register');
     }
 
-    public function login(Request $request)
+    public function login(LoginRequest $request)
     {
-        $credentials = $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required',
-            'remember' => 'nullable|boolean',
-        ]);
+        $credentials = $request->validated();
 
-        if (Auth::attempt($request->only('email', 'password'), (bool) $request->boolean('remember'))) {
+        if (Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']], (bool) $request->boolean('remember'))) {
             $user = $request->user()?->loadMissing('customer');
 
             if ($user && $user->customer && !$user->hasAnyRole(['Customer', 'Administrator', 'Admin', 'Manager', 'Staff'])) {
@@ -148,15 +153,26 @@ class AuthController extends Controller
                 ])->save();
             }
 
+            Log::info('User login successful.', [
+                'user_id' => $user?->id,
+                'email' => $credentials['email'],
+                'ip' => $request->ip(),
+            ]);
+
             return redirect()->intended(route($this->redirectRouteFor($user)));
         }
+
+        Log::warning('User login failed.', [
+            'email' => $credentials['email'],
+            'ip' => $request->ip(),
+        ]);
 
         return back()->withErrors([
             'email' => 'The provided credentials do not match our records.',
         ])->onlyInput('email', 'remember');
     }
 
-    public function register(Request $request)
+    public function register(RegisterCustomerRequest $request)
     {
         $existingUser = User::query()
             ->where('email', $request->input('email'))
@@ -173,13 +189,7 @@ class AuthController extends Controller
                 ->with('error', 'This customer account already exists. Please log in instead.');
         }
 
-        $validated = $request->validate([
-            'full_name'              => 'required|string|max:255',
-            'phone'                  => 'required|string|max:30|unique:customers,phone',
-            'email'                  => 'required|email|max:255|unique:users,email|unique:customers,email',
-            'address'                => 'required|string|max:1000',
-            'password'               => 'required|string|min:8|confirmed',
-        ]);
+        $validated = $request->validated();
 
         $user = DB::transaction(function () use ($validated) {
             $user = User::create([
@@ -205,11 +215,22 @@ class AuthController extends Controller
         Auth::login($user, true);
         $request->session()->regenerate();
 
+        Log::info('Customer registration completed.', [
+            'user_id' => $user->id,
+            'email' => $validated['email'],
+            'ip' => $request->ip(),
+        ]);
+
         return redirect()->route('customer.home')->with('success', 'Customer account created successfully.');
     }
 
     public function logout(Request $request)
     {
+        Log::info('User logout.', [
+            'user_id' => $request->user()?->id,
+            'ip' => $request->ip(),
+        ]);
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

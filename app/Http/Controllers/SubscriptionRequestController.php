@@ -82,7 +82,8 @@ class SubscriptionRequestController extends Controller
         ]);
 
         $message = $validated['response_message'] ?? 'Quote rejected by customer.';
-        $this->workflow->rejectQuote($subscriptionRequest, $message);
+        $rejectedRequest = $this->workflow->rejectQuote($subscriptionRequest, $message);
+        $this->notifyQuoteRejected($rejectedRequest);
 
         return $this->response($request, 'Quote rejected. You can submit a new subscription request any time.', [], 'requests');
     }
@@ -242,6 +243,39 @@ class SubscriptionRequestController extends Controller
             'status' => SubscriptionRequest::STATUS_ACCEPTED,
             'action_url' => route('fat-clients.subscriptions'),
             'amount' => $agreedPrice,
+        ]);
+    }
+
+    protected function notifyQuoteRejected(SubscriptionRequest $subscriptionRequest): void
+    {
+        if (!Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $subscriptionRequest->loadMissing('customer.user');
+
+        $customer = $subscriptionRequest->customer;
+        $customerName = $customer?->full_name ?: 'Customer';
+        $requestNumber = $subscriptionRequest->request_number;
+        $quotedPrice = (float) ($subscriptionRequest->quoted_price ?? $subscriptionRequest->offered_price ?? 0);
+        $reason = $subscriptionRequest->rejection_reason ?: $subscriptionRequest->response_message;
+
+        $this->notifyUser($customer?->user, [
+            'title' => 'Quote rejected',
+            'message' => "You rejected {$requestNumber}. It will remain in your requests list as rejected.",
+            'kind' => 'subscription_quote_rejected',
+            'status' => SubscriptionRequest::STATUS_REJECTED,
+            'action_url' => route('customer.subscriptions.index', ['tab' => 'requests']),
+            'amount' => $quotedPrice,
+        ]);
+
+        $this->notifyBackofficeUsers([
+            'title' => 'Quote rejected by customer',
+            'message' => trim("{$customerName} rejected {$requestNumber}." . ($reason ? " {$reason}" : '')),
+            'kind' => 'subscription_quote_rejected',
+            'status' => SubscriptionRequest::STATUS_REJECTED,
+            'action_url' => route('fat-clients.subscriptions'),
+            'amount' => $quotedPrice,
         ]);
     }
 

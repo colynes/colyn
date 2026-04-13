@@ -1,4 +1,3 @@
-import { getToken, deleteToken } from 'firebase/messaging';
 import { getFirebaseMessaging } from './firebase';
 
 const STORAGE_KEY = 'amanibrew:fcm-token';
@@ -106,6 +105,7 @@ export async function syncNotificationToken() {
     }
 
     const registration = await registerPushServiceWorker();
+    const { getToken } = await import('firebase/messaging');
     const token = await getToken(messaging, {
       vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: registration,
@@ -120,8 +120,6 @@ export async function syncNotificationToken() {
 
     return { ok: true, token };
   } catch (error) {
-    console.error('FCM token registration failed:', error);
-
     return {
       ok: false,
       reason: 'exception',
@@ -149,6 +147,7 @@ export async function removeNotificationToken(tokenOverride = null) {
     const messaging = await getFirebaseMessaging();
 
     if (messaging) {
+      const { deleteToken } = await import('firebase/messaging');
       await deleteToken(messaging);
     }
   } catch (error) {

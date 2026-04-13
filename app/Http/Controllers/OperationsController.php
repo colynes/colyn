@@ -30,6 +30,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
@@ -751,6 +752,7 @@ class OperationsController extends Controller
             ->whereIn('status', [
                 SubscriptionRequest::STATUS_PENDING_REVIEW,
                 SubscriptionRequest::STATUS_QUOTED,
+                SubscriptionRequest::STATUS_REJECTED,
             ])
             ->latest()
             ->get()
@@ -907,6 +909,8 @@ class OperationsController extends Controller
             'quote_valid_until_label' => optional($subscriptionRequest->quote_valid_until)->format('d M Y'),
             'status' => $status,
             'status_label' => $this->requestStatusLabelForBackoffice($status),
+            'response_message' => $subscriptionRequest->response_message,
+            'rejection_reason' => $subscriptionRequest->rejection_reason,
             'items' => $subscriptionRequest->items->map(fn (SubscriptionRequestItem $item) => $this->mapSubscriptionRequestItemForBackoffice($item))->values(),
             'can_quote' => in_array($status, [SubscriptionRequest::STATUS_PENDING_REVIEW, SubscriptionRequest::STATUS_QUOTED], true),
             'subscription_id' => $subscriptionRequest->subscription_id,
@@ -2184,6 +2188,14 @@ class OperationsController extends Controller
             $this->notifyCustomerAboutOrderStatus($order, $updatedStatus);
         }
 
+        Log::info('Order updated from back office.', [
+            'actor_user_id' => auth()->id(),
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'original_status' => $originalStatus,
+            'updated_status' => $updatedStatus,
+        ]);
+
         return back()->with('success', "Order {$order->order_number} updated successfully.");
     }
 
@@ -2223,6 +2235,12 @@ class OperationsController extends Controller
         $order->refresh();
         $this->notifyCustomerAboutOrderStatus($order, 'dispatched');
 
+        Log::info('Order dispatched from back office.', [
+            'actor_user_id' => auth()->id(),
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+        ]);
+
         return back()->with('success', "Order {$order->order_number} dispatched successfully.");
     }
 
@@ -2257,6 +2275,12 @@ class OperationsController extends Controller
         $order->refresh();
         $this->notifyCustomerAboutOrderStatus($order, 'completed');
 
+        Log::info('Pickup order completed from back office.', [
+            'actor_user_id' => auth()->id(),
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+        ]);
+
         return back()->with('success', "Pickup order {$order->order_number} marked as completed.");
     }
 
@@ -2275,6 +2299,12 @@ class OperationsController extends Controller
             $order->items()->delete();
             $order->delete();
         });
+
+        Log::info('Order deleted from back office.', [
+            'actor_user_id' => auth()->id(),
+            'order_number' => $orderNumber,
+            'order_id' => $order->id,
+        ]);
 
         return back()->with('success', "Order {$orderNumber} deleted successfully.");
     }

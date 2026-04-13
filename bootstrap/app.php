@@ -14,9 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'backoffice' => \App\Http\Middleware\EnsureBackofficeAccess::class,
+            'customer' => \App\Http\Middleware\EnsureCustomerAccess::class,
         ]);
 
         $middleware->web(append: [
+            \App\Http\Middleware\AddSecurityHeaders::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
     })
