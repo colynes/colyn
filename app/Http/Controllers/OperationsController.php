@@ -16,10 +16,14 @@ use App\Models\Promotion;
 use App\Models\SalesTarget;
 use App\Models\Stock;
 use App\Models\Subscription;
+use App\Models\SubscriptionRequest;
+use App\Models\SubscriptionRequestItem;
 use App\Models\User;
 use App\Notifications\NewOrderPlacedNotification;
 use App\Notifications\OrderStatusUpdatedNotification;
 use App\Notifications\SystemAlertNotification;
+use App\Services\SalesTargetService;
+use App\Services\SubscriptionWorkflowService;
 use App\Support\BackofficeAccess;
 use App\Support\SubscriptionScheduler;
 use Carbon\Carbon;
@@ -133,145 +137,102 @@ class OperationsController extends Controller
     {
         $this->ensureBackoffice();
 
-        $today = today();
-        $startDate = $request->date('start_date')?->startOfDay() ?? now()->startOfWeek()->startOfDay();
-        $endDate = $request->date('end_date')?->endOfDay() ?? now()->endOfWeek()->endOfDay();
+        ['period' => $period, 'start' => $startDate, 'end' => $endDate, 'filters' => $periodFilters] = $this->resolveAnalyticsRange($request, 'weekly');
+        $targetService = app(SalesTargetService::class);
 
-        if ($startDate->gt($endDate)) {
-            [$startDate, $endDate] = [$endDate->copy()->startOfDay(), $startDate->copy()->endOfDay()];
-        }
+        $analytics = $targetService->buildPerformance($startDate, $endDate);
+        $summary = collect($analytics['daily_summary']);
 
         $comparisonDays = max($startDate->copy()->startOfDay()->diffInDays($endDate->copy()->startOfDay()) + 1, 1);
         $comparisonEnd = $startDate->copy()->subDay()->endOfDay();
         $comparisonStart = $comparisonEnd->copy()->subDays($comparisonDays - 1)->startOfDay();
+        $comparisonSummary = collect($targetService->buildPerformance($comparisonStart, $comparisonEnd)['daily_summary']);
 
-        $periodRevenue = (float) Order::whereBetween('created_at', [$startDate, $endDate])->sum('total');
-        $comparisonRevenue = (float) Order::whereBetween('created_at', [$comparisonStart, $comparisonEnd])->sum('total');
-        $periodOrders = Order::whereBetween('created_at', [$startDate, $endDate])->count();
-        $comparisonOrders = Order::whereBetween('created_at', [$comparisonStart, $comparisonEnd])->count();
-        $averageOrder = (float) Order::whereBetween('created_at', [$startDate, $endDate])->avg('total');
-        $comparisonAverageOrder = (float) Order::whereBetween('created_at', [$comparisonStart, $comparisonEnd])->avg('total');
+        $periodRevenue = (float) $summary->get('total_actual', 0);
+        $comparisonRevenue = (float) $comparisonSummary->get('total_actual', 0);
+        $periodOrders = (int) $summary->get('total_orders', 0);
+        $comparisonOrders = (int) $comparisonSummary->get('total_orders', 0);
+        $averageOrder = $periodOrders > 0 ? round($periodRevenue / $periodOrders, 2) : 0.0;
+        $comparisonAverageOrder = $comparisonOrders > 0 ? round($comparisonRevenue / $comparisonOrders, 2) : 0.0;
 
-        $chartDays = min($comparisonDays, 14);
-        $weeklySales = collect(range($chartDays - 1, 0))
-            ->map(function (int $daysAgo) use ($endDate) {
-                $date = $endDate->copy()->subDays($daysAgo);
-                $actual = (float) Order::whereDate('created_at', $date)->sum('total');
-                $target = $actual > 0 ? round($actual * 0.94, 2) : 0;
+        $statusPlaceholders = implode(',', array_fill(0, count(SalesTargetService::REPORTABLE_ORDER_STATUSES), '?'));
 
-                return [
-                    'day' => $date->format('M j'),
-                    'actual' => $actual,
-                    'target' => $target,
-                ];
-            });
-
-        $categorySales = Category::query()
-            ->withCount('products')
-            ->with(['products.orderItems'])
-            ->get()
-            ->map(function (Category $category) use ($startDate, $endDate) {
-                $revenue = (float) $category->products->sum(function ($product) use ($startDate, $endDate) {
-                    return $product->orderItems
-                        ->whereBetween('created_at', [$startDate, $endDate])
-                        ->sum('subtotal');
-                });
-
-                return [
-                    'name' => $category->name,
-                    'products_count' => $category->products_count,
-                    'revenue' => $revenue,
-                ];
-            })
-            ->filter(fn ($category) => $category['revenue'] > 0)
-            ->sortByDesc('revenue')
+        $categorySales = collect(DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->join('products', 'products.id', '=', 'order_items.product_id')
+            ->join('categories', 'categories.id', '=', 'products.category_id')
+            ->whereBetween('orders.created_at', [$startDate, $endDate])
+            ->whereRaw("LOWER(COALESCE(orders.status, '')) IN ({$statusPlaceholders})", SalesTargetService::REPORTABLE_ORDER_STATUSES)
+            ->groupBy('categories.id', 'categories.name')
+            ->selectRaw('categories.name as name, COUNT(DISTINCT products.id) as products_count, SUM(order_items.subtotal) as revenue')
+            ->orderByDesc('revenue')
+            ->get())
+            ->map(fn ($row) => [
+                'name' => $row->name,
+                'products_count' => (int) $row->products_count,
+                'revenue' => round((float) $row->revenue, 2),
+            ])
             ->values();
 
-        $productOptions = Product::query()
-            ->active()
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Product $product) => [
-                'id' => $product->id,
-                'name' => $product->name,
-            ]);
-
-        $selectedProduct = $productOptions->firstWhere('id', (int) $request->integer('product_id'));
-
-        $targetRecords = SalesTarget::query()
-            ->with('product:id,name')
-            ->whereDate('start_date', '<=', $endDate->toDateString())
-            ->whereDate('end_date', '>=', $startDate->toDateString())
-            ->when($selectedProduct, function ($query) use ($selectedProduct) {
-                $query->where(function ($nestedQuery) use ($selectedProduct) {
-                    $nestedQuery
-                        ->where('product_id', $selectedProduct['id'])
-                        ->orWhereNull('product_id');
-                });
-            })
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->get()
-            ->values();
-        $allProductsTarget = $targetRecords->firstWhere('product_id', null);
-        $targets = $targetRecords
-            ->whereNotNull('product_id')
-            ->unique('product_id')
-            ->keyBy('product_id');
-        $displayTargets = $targetRecords
-            ->unique(fn (SalesTarget $target) => 'product:' . ($target->product_id ?? 'all'))
+        $topProducts = collect(DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->join('products', 'products.id', '=', 'order_items.product_id')
+            ->whereBetween('orders.created_at', [$startDate, $endDate])
+            ->whereRaw("LOWER(COALESCE(orders.status, '')) IN ({$statusPlaceholders})", SalesTargetService::REPORTABLE_ORDER_STATUSES)
+            ->groupBy('products.id', 'products.name')
+            ->selectRaw('products.id as id, products.name as name, SUM(order_items.quantity) as units_sold, SUM(order_items.subtotal) as revenue')
+            ->orderByDesc('revenue')
+            ->limit(8)
+            ->get())
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'name' => $row->name,
+                'units_sold' => (float) $row->units_sold,
+                'revenue' => round((float) $row->revenue, 2),
+            ])
             ->values();
 
-        $topProducts = Product::query()
-            ->active()
-            ->with('orderItems')
-            ->when($selectedProduct, fn ($query) => $query->where('id', $selectedProduct['id']))
-            ->get(['id', 'name'])
-            ->map(function (Product $product) use ($startDate, $endDate, $targets, $selectedProduct, $allProductsTarget) {
-                $periodItems = $product->orderItems->whereBetween('created_at', [$startDate, $endDate]);
-                $revenue = (float) $periodItems->sum('subtotal');
-                $targetRecord = $targets->get($product->id);
-                if (!$targetRecord && $selectedProduct) {
-                    $targetRecord = $allProductsTarget;
-                }
-                $target = (float) ($targetRecord?->target_amount ?? ($revenue > 0 ? round($revenue * 1.07, 2) : 0));
-                $performance = $target > 0 ? round(($revenue / $target) * 100, 1) : 0;
+        $totalTopProductRevenue = max((float) $topProducts->sum('revenue'), 0.0);
+        $totalTargetForPeriod = (float) $summary->get('total_target', 0);
 
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'units_sold' => (float) $periodItems->sum('quantity'),
-                    'revenue' => $revenue,
-                    'target' => $target,
-                    'performance' => $performance,
-                ];
-            })
-            ->sortByDesc('revenue')
-            ->take($selectedProduct ? 1 : 5)
+        $topProducts = $topProducts->map(function (array $product) use ($totalTargetForPeriod, $totalTopProductRevenue) {
+            $targetShare = $totalTopProductRevenue > 0
+                ? round(($product['revenue'] / $totalTopProductRevenue) * $totalTargetForPeriod, 2)
+                : 0.0;
+
+            $performance = $targetShare > 0 ? round(($product['revenue'] / $targetShare) * 100, 1) : 0.0;
+
+            return [
+                ...$product,
+                'target' => $targetShare,
+                'performance' => $performance,
+            ];
+        })->values();
+
+        $productPerformance = $topProducts
+            ->take(5)
+            ->map(fn ($product) => [
+                'name' => $product['name'],
+                'target' => $product['target'],
+                'actual' => $product['revenue'],
+            ])
             ->values();
 
-        $configuredDailyTarget = $selectedProduct
-            ? (float) (($targets->get($selectedProduct['id'])?->target_amount ?? $allProductsTarget?->target_amount) ?? 0)
-            : (float) ($allProductsTarget?->target_amount ?? $targets->sum(fn (SalesTarget $target) => (float) $target->target_amount));
-
-        $fallbackTotalTarget = (float) $topProducts->sum('target');
-        $dailyTarget = $configuredDailyTarget > 0
-            ? $configuredDailyTarget
-            : ($chartDays > 0 ? round($fallbackTotalTarget / $chartDays, 2) : 0);
-
-        $weeklySales = $weeklySales->map(fn ($row) => [
-            ...$row,
-            'target' => $dailyTarget > 0 ? $dailyTarget : $row['target'],
-        ]);
-
-        $productPerformance = $topProducts->map(fn ($product) => [
-            'name' => $product['name'],
-            'target' => $product['target'],
-            'actual' => $product['revenue'],
-        ]);
+        $targetActualTrend = collect($analytics['daily_trend'])
+            ->map(fn ($row) => [
+                'date' => $row['date'],
+                'day' => $row['label'],
+                'target' => (float) $row['target'],
+                'actual' => (float) $row['actual'],
+                'variance' => (float) $row['variance'],
+                'achievement_percentage' => (float) $row['achievement_percentage'],
+                'source_type' => $row['source_type'],
+                'orders_count' => (int) $row['orders_count'],
+            ])
+            ->values();
 
         return Inertia::render('Sales', [
-            'weeklySales' => $weeklySales,
+            'targetActualTrend' => $targetActualTrend,
             'categorySales' => $categorySales,
             'metrics' => [
                 'gross_revenue' => $periodRevenue,
@@ -283,23 +244,21 @@ class OperationsController extends Controller
                 'orders_change' => $comparisonOrders > 0 ? round((($periodOrders - $comparisonOrders) / $comparisonOrders) * 100, 1) : 0,
                 'average_order_change' => $comparisonAverageOrder > 0 ? round((($averageOrder - $comparisonAverageOrder) / $comparisonAverageOrder) * 100, 1) : 0,
                 'sales_growth_change' => $comparisonRevenue > 0 ? round((($periodRevenue - $comparisonRevenue) / $comparisonRevenue) * 100, 1) : 0,
+                'total_target' => (float) $summary->get('total_target', 0),
+                'variance' => (float) $summary->get('variance', 0),
+                'achievement_percentage' => (float) $summary->get('achievement_percentage', 0),
             ],
-            'filters' => [
-                'product_id' => $selectedProduct['id'] ?? '',
+            'filters' => $periodFilters + [
+                'period' => $period,
                 'start_date' => $startDate->toDateString(),
                 'end_date' => $endDate->toDateString(),
             ],
-            'products' => $productOptions,
             'productPerformance' => $productPerformance,
             'topProducts' => $topProducts,
-            'targets' => $displayTargets->map(fn (SalesTarget $target) => [
-                'id' => $target->id,
-                'product_id' => $target->product_id,
-                'product_name' => $target->product?->name ?? 'All Products',
-                'target_amount' => (float) $target->target_amount,
-                'start_date' => optional($target->start_date)->toDateString(),
-                'end_date' => optional($target->end_date)->toDateString(),
-            ]),
+            'targets' => collect($analytics['targets_in_range'])->map(fn (SalesTarget $target) => $this->formatSalesTargetForResponse($target))->values(),
+            'weeklySummary' => collect($analytics['weekly_summary'])->values(),
+            'monthlySummary' => collect($analytics['monthly_summary'])->values(),
+            'performanceSummary' => $summary->all(),
         ]);
     }
 
@@ -307,31 +266,63 @@ class OperationsController extends Controller
     {
         $this->ensureBackoffice();
 
-        $validated = $request->validate([
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-            'targets' => ['required', 'array', 'min:1'],
-            'targets.*.product_id' => ['nullable', 'exists:products,id'],
-            'targets.*.target_amount' => ['required', 'numeric', 'min:0.01'],
-        ]);
+        $targetPayload = $request->input('target');
 
-        foreach ($validated['targets'] as $target) {
-            $productId = blank($target['product_id'] ?? null) ? null : (int) $target['product_id'];
-
-            SalesTarget::updateOrCreate(
-                [
-                    'product_id' => $productId,
-                    'start_date' => $validated['start_date'],
-                    'end_date' => $validated['end_date'],
-                ],
-                [
-                    'target_amount' => $target['target_amount'],
-                    'created_by' => $request->user()?->id,
-                ]
-            );
+        if (!$targetPayload && is_array($request->input('targets'))) {
+            $targetPayload = collect($request->input('targets'))->first();
         }
 
-        return back()->with('success', 'Sales targets saved successfully.');
+        $request->merge(['target' => $targetPayload]);
+
+        $validated = $request->validate([
+            'target' => ['required', 'array'],
+            'target.id' => ['nullable', 'integer', 'exists:sales_targets,id'],
+            'target.target_type' => ['required', 'in:daily,weekly,monthly'],
+            'target.target_amount' => ['required', 'numeric', 'min:0.01'],
+            'target.target_date' => ['nullable', 'date'],
+            'target.week_start' => ['nullable', 'date'],
+            'target.week_end' => ['nullable', 'date'],
+            'target.month_key' => ['nullable', 'regex:/^\d{4}-\d{2}$/'],
+            'target.notes' => ['nullable', 'string', 'max:500'],
+            'overwrite' => ['nullable', 'boolean'],
+        ]);
+
+        $result = app(SalesTargetService::class)->saveTarget(
+            $validated['target'],
+            $request->user()?->id,
+            (bool) ($validated['overwrite'] ?? false)
+        );
+
+        if (($result['status'] ?? null) === 'conflict') {
+            $message = 'A target already exists for this date or period. Creating this target will overwrite the existing one.';
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                    'conflict' => $this->formatSalesTargetForResponse($result['target']),
+                ], 409);
+            }
+
+            return back()->with('error', $message);
+        }
+
+        $savedTarget = $result['target'];
+        $isEditing = !empty($validated['target']['id']);
+        $wasOverwritten = (bool) ($result['overwritten'] ?? false);
+
+        $message = $wasOverwritten
+            ? 'Sales target overwritten successfully.'
+            : ($isEditing ? 'Sales target updated successfully.' : 'Sales target saved successfully.');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'target' => $this->formatSalesTargetForResponse($savedTarget),
+                'overwritten' => $wasOverwritten,
+            ]);
+        }
+
+        return back()->with('success', $message);
     }
 
     public function reports(Request $request)
@@ -429,20 +420,21 @@ class OperationsController extends Controller
 
     protected function buildReportPayload(Request $request): array
     {
-        $startDate = $request->date('date_from')?->startOfDay() ?? now()->startOfMonth()->startOfDay();
-        $endDate = $request->date('date_to')?->endOfDay() ?? now()->endOfDay();
-
-        if ($startDate->gt($endDate)) {
-            [$startDate, $endDate] = [$endDate->copy()->startOfDay(), $startDate->copy()->endOfDay()];
-        }
+        ['period' => $period, 'start' => $startDate, 'end' => $endDate, 'filters' => $periodFilters] = $this->resolveAnalyticsRange($request, 'monthly');
+        $targetService = app(SalesTargetService::class);
+        $analytics = $targetService->buildPerformance($startDate, $endDate);
+        $analyticsSummary = collect($analytics['daily_summary']);
 
         $customerType = $request->string('customer_type')->toString();
         $paymentStatus = $request->string('payment_status')->toString();
         $reportType = $request->string('report_type')->toString();
 
+        $statusPlaceholders = implode(',', array_fill(0, count(SalesTargetService::REPORTABLE_ORDER_STATUSES), '?'));
+
         $ordersQuery = Order::query()
             ->with(['customer', 'items', 'payments'])
             ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereRaw("LOWER(COALESCE(status, '')) IN ({$statusPlaceholders})", SalesTargetService::REPORTABLE_ORDER_STATUSES)
             ->when($paymentStatus === 'paid', fn ($query) => $query->where('is_paid', true))
             ->when($paymentStatus === 'pending', fn ($query) => $query->where('is_paid', false))
             ->when($reportType === 'deliveries', fn ($query) => $query->where('fulfillment_method', 'delivery'))
@@ -452,27 +444,41 @@ class OperationsController extends Controller
 
         $paidOrders = $orders->filter(fn (Order $order) => (bool) $order->is_paid);
         $pendingOrders = $orders->reject(fn (Order $order) => (bool) $order->is_paid);
-        $totalRevenue = (float) $orders->sum('total');
-        $averageOrderValue = $orders->count() > 0 ? round($totalRevenue / $orders->count(), 2) : 0.0;
+        $totalRevenue = (float) $analyticsSummary->get('total_actual', 0);
+        $averageOrderValue = (float) ($analyticsSummary->get('total_orders', 0) > 0
+            ? round($totalRevenue / $analyticsSummary->get('total_orders', 0), 2)
+            : 0.0);
         $uniqueCustomers = $orders->pluck('customer_id')->filter()->unique()->count();
 
-        $topProducts = Product::query()
-            ->with(['orderItems' => fn ($query) => $query->whereBetween('created_at', [$startDate, $endDate])])
-            ->get(['id', 'name', 'sku'])
-            ->map(function (Product $product) {
-                $units = (float) $product->orderItems->sum('quantity');
-                $revenue = (float) $product->orderItems->sum('subtotal');
+        $topProducts = collect(DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->join('products', 'products.id', '=', 'order_items.product_id')
+            ->whereBetween('orders.created_at', [$startDate, $endDate])
+            ->whereRaw("LOWER(COALESCE(orders.status, '')) IN ({$statusPlaceholders})", SalesTargetService::REPORTABLE_ORDER_STATUSES)
+            ->groupBy('products.id', 'products.name', 'products.sku')
+            ->selectRaw('products.name as name, products.sku as sku, SUM(order_items.quantity) as units, SUM(order_items.subtotal) as revenue')
+            ->orderByDesc('revenue')
+            ->limit(8)
+            ->get())
+            ->map(fn ($row) => [
+                'name' => $row->name,
+                'sku' => $row->sku,
+                'units' => (float) $row->units,
+                'revenue' => round((float) $row->revenue, 2),
+            ])
+            ->values();
 
-                return [
-                    'name' => $product->name,
-                    'sku' => $product->sku,
-                    'units' => $units,
-                    'revenue' => $revenue,
-                ];
-            })
-            ->filter(fn ($product) => $product['units'] > 0 || $product['revenue'] > 0)
-            ->sortByDesc('revenue')
-            ->take(8)
+        $targetActualTrend = collect($analytics['daily_trend'])
+            ->map(fn ($row) => [
+                'date' => $row['date'],
+                'label' => $row['label'],
+                'target' => (float) $row['target'],
+                'actual' => (float) $row['actual'],
+                'variance' => (float) $row['variance'],
+                'achievement_percentage' => (float) $row['achievement_percentage'],
+                'orders_count' => (int) $row['orders_count'],
+                'source_type' => $row['source_type'],
+            ])
             ->values();
 
         return [
@@ -480,20 +486,30 @@ class OperationsController extends Controller
                 'total_revenue' => $totalRevenue,
                 'paid_revenue' => (float) $paidOrders->sum('total'),
                 'pending_revenue' => (float) $pendingOrders->sum('total'),
-                'total_orders' => $orders->count(),
+                'total_orders' => (int) $analyticsSummary->get('total_orders', 0),
                 'paid_orders' => $paidOrders->count(),
                 'pending_orders' => $pendingOrders->count(),
                 'unique_customers' => $uniqueCustomers,
                 'average_order_value' => $averageOrderValue,
+                'total_target' => (float) $analyticsSummary->get('total_target', 0),
+                'variance' => (float) $analyticsSummary->get('variance', 0),
+                'achievement_percentage' => (float) $analyticsSummary->get('achievement_percentage', 0),
             ],
             'topProducts' => $topProducts,
             'filters' => [
                 'date_from' => $startDate->toDateString(),
                 'date_to' => $endDate->toDateString(),
+                'period' => $period,
+                ...$periodFilters,
                 'customer_type' => $customerType,
                 'payment_status' => $paymentStatus,
                 'report_type' => $reportType,
             ],
+            'targetActualTrend' => $targetActualTrend,
+            'weeklyPerformance' => collect($analytics['weekly_summary'])->values(),
+            'monthlyPerformance' => collect($analytics['monthly_summary'])->values(),
+            'performanceSummary' => $analyticsSummary->all(),
+            'targets' => collect($analytics['targets_in_range'])->map(fn (SalesTarget $target) => $this->formatSalesTargetForResponse($target))->values(),
             'results' => $orders->sortByDesc('created_at')->values()->map(function (Order $order) {
                 $isSubscriptionOrder = str_contains(
                     strtolower((string) $order->notes),
@@ -519,6 +535,66 @@ class OperationsController extends Controller
                 ];
             }),
         ];
+    }
+
+    protected function resolveAnalyticsRange(Request $request, string $defaultPeriod = 'weekly'): array
+    {
+        $allowedPeriods = ['daily', 'weekly', 'monthly', 'custom'];
+        $period = strtolower($request->string('period')->toString() ?: $defaultPeriod);
+
+        if (!in_array($period, $allowedPeriods, true)) {
+            $period = $defaultPeriod;
+        }
+
+        $focusDate = $request->date('focus_date')?->startOfDay() ?? now()->startOfDay();
+        $monthInput = trim($request->string('month')->toString());
+        $monthAnchor = preg_match('/^\d{4}-\d{2}$/', $monthInput) === 1
+            ? Carbon::createFromFormat('Y-m', $monthInput)->startOfMonth()
+            : $focusDate->copy()->startOfMonth();
+
+        if ($period === 'daily') {
+            $start = $focusDate->copy()->startOfDay();
+            $end = $focusDate->copy()->endOfDay();
+        } elseif ($period === 'weekly') {
+            $start = $focusDate->copy()->startOfWeek()->startOfDay();
+            $end = $focusDate->copy()->endOfWeek()->endOfDay();
+        } elseif ($period === 'monthly') {
+            $start = $monthAnchor->copy()->startOfMonth()->startOfDay();
+            $end = $monthAnchor->copy()->endOfMonth()->endOfDay();
+        } else {
+            $customStart = $request->date('start_date')?->startOfDay()
+                ?? $request->date('date_from')?->startOfDay()
+                ?? now()->startOfMonth()->startOfDay();
+            $customEnd = $request->date('end_date')?->endOfDay()
+                ?? $request->date('date_to')?->endOfDay()
+                ?? now()->endOfDay();
+
+            $start = $customStart;
+            $end = $customEnd;
+        }
+
+        if ($start->gt($end)) {
+            [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+        }
+
+        return [
+            'period' => $period,
+            'start' => $start,
+            'end' => $end,
+            'filters' => [
+                'focus_date' => $focusDate->toDateString(),
+                'month' => $monthAnchor->format('Y-m'),
+                'start_date' => $start->toDateString(),
+                'end_date' => $end->toDateString(),
+                'date_from' => $start->toDateString(),
+                'date_to' => $end->toDateString(),
+            ],
+        ];
+    }
+
+    protected function formatSalesTargetForResponse(SalesTarget $target): array
+    {
+        return app(SalesTargetService::class)->describeTarget($target);
     }
 
     protected function buildSimplePdf(array $lines): string
@@ -591,6 +667,8 @@ class OperationsController extends Controller
     public function subscriptions()
     {
         $this->ensureBackoffice();
+
+        app(SubscriptionWorkflowService::class)->expireStaleQuotes();
 
         $customers = Customer::query()
             ->withCount('orders')
@@ -668,10 +746,22 @@ class OperationsController extends Controller
                 ];
             });
 
+        $subscriptionRequests = SubscriptionRequest::query()
+            ->with(['customer', 'user', 'items.product', 'items.pack'])
+            ->whereIn('status', [
+                SubscriptionRequest::STATUS_PENDING_REVIEW,
+                SubscriptionRequest::STATUS_QUOTED,
+            ])
+            ->latest()
+            ->get()
+            ->map(fn (SubscriptionRequest $subscriptionRequest) => $this->mapSubscriptionRequestForBackoffice($subscriptionRequest))
+            ->values();
+
         return Inertia::render('Subscriptions', [
             'customers' => $customers,
             'products' => $products,
             'subscriptions' => $subscriptions,
+            'subscriptionRequests' => $subscriptionRequests,
             'perPageOptions' => $this->allowedPerPageOptions,
         ]);
     }
@@ -682,7 +772,30 @@ class OperationsController extends Controller
 
         $validated = $this->validateSubscriptionPayload($request);
 
-        Subscription::create($validated);
+        $subscription = Subscription::create($validated);
+        $subscription->loadMissing('customer.user');
+
+        $this->notifyBackofficeAudience([
+            'title' => 'New subscription created',
+            'message' => "{$subscription->customer_name} now has a new active subscription.",
+            'kind' => 'subscription_created',
+            'status' => strtolower((string) $subscription->status),
+            'action_url' => route('fat-clients.subscriptions'),
+            'amount' => (float) ($subscription->agreed_price ?: $subscription->value ?: 0),
+        ]);
+
+        $customerUser = $subscription->customer?->user;
+
+        if ($customerUser) {
+            $customerUser->notify(new SystemAlertNotification([
+                'title' => 'Subscription created',
+                'message' => 'A new subscription has been created for your account.',
+                'kind' => 'subscription_created',
+                'status' => strtolower((string) $subscription->status),
+                'action_url' => route('customer.subscriptions.index', ['tab' => 'active']),
+                'amount' => (float) ($subscription->agreed_price ?: $subscription->value ?: 0),
+            ]));
+        }
 
         return redirect()->route('fat-clients.subscriptions')->with('success', 'Subscription created successfully.');
     }
@@ -762,6 +875,90 @@ class OperationsController extends Controller
     protected function abbreviateDeliveryDays(array $days): array
     {
         return SubscriptionScheduler::normalizeDeliveryDays($days);
+    }
+
+    protected function mapSubscriptionRequestForBackoffice(SubscriptionRequest $subscriptionRequest): array
+    {
+        $subscriptionRequest->loadMissing(['customer', 'user', 'items.product', 'items.pack']);
+        $customer = $subscriptionRequest->customer;
+        $user = $subscriptionRequest->user;
+        $status = (string) $subscriptionRequest->status;
+
+        return [
+            'id' => $subscriptionRequest->id,
+            'request_number' => $subscriptionRequest->request_number,
+            'customer_id' => $subscriptionRequest->customer_id,
+            'customer_name' => $customer?->full_name ?: ($user?->name ?: 'Customer'),
+            'phone' => $customer?->phone ?: '',
+            'email' => $customer?->email ?: ($user?->email ?: ''),
+            'submitted_date' => optional($subscriptionRequest->created_at)->toDateString(),
+            'submitted_date_label' => optional($subscriptionRequest->created_at)->format('d M Y'),
+            'frequency' => $subscriptionRequest->frequency,
+            'delivery_days' => $subscriptionRequest->delivery_days ?? [],
+            'delivery_days_label' => $this->deliveryDaysLabelForBackoffice($subscriptionRequest->frequency, $subscriptionRequest->delivery_days ?? []),
+            'start_date' => optional($subscriptionRequest->start_date)->toDateString(),
+            'start_date_label' => optional($subscriptionRequest->start_date)->format('d M Y'),
+            'delivery_address' => $subscriptionRequest->delivery_address,
+            'notes' => $subscriptionRequest->notes,
+            'offered_price' => (float) $subscriptionRequest->offered_price,
+            'quoted_price' => $subscriptionRequest->quoted_price !== null ? (float) $subscriptionRequest->quoted_price : null,
+            'quoted_message' => $subscriptionRequest->quoted_message,
+            'quote_valid_until' => optional($subscriptionRequest->quote_valid_until)->toDateString(),
+            'quote_valid_until_label' => optional($subscriptionRequest->quote_valid_until)->format('d M Y'),
+            'status' => $status,
+            'status_label' => $this->requestStatusLabelForBackoffice($status),
+            'items' => $subscriptionRequest->items->map(fn (SubscriptionRequestItem $item) => $this->mapSubscriptionRequestItemForBackoffice($item))->values(),
+            'can_quote' => in_array($status, [SubscriptionRequest::STATUS_PENDING_REVIEW, SubscriptionRequest::STATUS_QUOTED], true),
+            'subscription_id' => $subscriptionRequest->subscription_id,
+        ];
+    }
+
+    protected function mapSubscriptionRequestItemForBackoffice(SubscriptionRequestItem $item): array
+    {
+        return [
+            'id' => $item->id,
+            'item_type' => $item->item_type,
+            'name' => $item->item_name ?: ($item->item_type === 'pack' ? $item->pack?->name : $item->product?->name),
+            'quantity' => (float) $item->quantity,
+            'unit' => $item->unit ?: ($item->item_type === 'pack' ? 'pack' : $item->product?->unit),
+            'unit_price' => (float) $item->unit_price,
+            'line_total' => (float) $item->line_total,
+        ];
+    }
+
+    protected function deliveryDaysLabelForBackoffice(?string $frequency, array $days): string
+    {
+        $frequency = strtolower((string) $frequency);
+
+        if ($frequency === 'daily') {
+            return 'Every day';
+        }
+
+        if ($frequency === 'weekdays only') {
+            return 'Mon-Fri';
+        }
+
+        if ($frequency === 'weekends only') {
+            return 'Sat-Sun';
+        }
+
+        if ($days === []) {
+            return 'Flexible schedule';
+        }
+
+        return implode(', ', $days);
+    }
+
+    protected function requestStatusLabelForBackoffice(string $status): string
+    {
+        return match ($status) {
+            SubscriptionRequest::STATUS_PENDING_REVIEW => 'Pending Review',
+            SubscriptionRequest::STATUS_QUOTED => 'Quoted',
+            SubscriptionRequest::STATUS_ACCEPTED => 'Accepted',
+            SubscriptionRequest::STATUS_REJECTED => 'Rejected',
+            SubscriptionRequest::STATUS_EXPIRED => 'Expired',
+            default => ucfirst(str_replace('_', ' ', $status)),
+        };
     }
 
     protected function paymentMethodEnumValues(): array
@@ -2096,24 +2293,28 @@ class OperationsController extends Controller
             return null;
         }
 
+        $stocks = Stock::query()
+            ->where('branch_id', $branchId)
+            ->whereIn('product_id', $requestedQuantities->keys())
+            ->get(['product_id', 'quantity'])
+            ->keyBy('product_id');
+
         $products = Product::query()
-            ->withSum(['stocks as branch_stock_quantity' => fn ($query) => $query->where('branch_id', $branchId)], 'quantity')
             ->whereIn('id', $requestedQuantities->keys())
-            ->get()
+            ->get(['id', 'name'])
             ->keyBy('id');
 
         foreach ($requestedQuantities as $productId => $requestedQuantity) {
             $product = $products->get((int) $productId);
-            $availableQuantity = (float) ($product?->branch_stock_quantity ?? 0);
+            $stock = $stocks->get((int) $productId);
+            $availableQuantity = (float) ($stock?->quantity ?? 0);
+            $productName = $product?->name ?? $requestedProductNames->get((int) $productId, 'This product');
 
-            if (!$product) {
-                $productName = $requestedProductNames->get((int) $productId, 'This product');
-
-                return "{$productName} is no longer available for ordering right now.";
+            if (!$stock) {
+                return "{$productName} has no stock record for this branch.";
             }
 
             if ($requestedQuantity > $availableQuantity) {
-                $productName = $product?->name ?? $requestedProductNames->get((int) $productId, 'This product');
                 $formattedAvailable = rtrim(rtrim(number_format($availableQuantity, 2, '.', ''), '0'), '.');
 
                 return "{$productName} only has {$formattedAvailable} item(s) available right now.";
@@ -2394,4 +2595,17 @@ class OperationsController extends Controller
             ->get()
             ->each(fn (User $user) => $user->notify(new SystemAlertNotification($payload)));
     }
+
+    protected function notifyBackofficeAudience(array $payload): void
+    {
+        if (!Schema::hasTable('notifications')) {
+            return;
+        }
+
+        User::query()
+            ->get()
+            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
+            ->each(fn (User $user) => $user->notify(new SystemAlertNotification($payload)));
+    }
 }
+

@@ -46,6 +46,17 @@
     line-height: 1.5;
     @apply bg-[var(--color-sys-bg)] text-[var(--color-sys-text-primary)] antialiased;
   }
+
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 @layer utilities {

@@ -27,6 +27,22 @@ function iconForNotification(item) {
     return Tag;
   }
 
+  if (kind === 'subscription_request_created') {
+    return PackagePlus;
+  }
+
+  if (kind === 'subscription_created') {
+    return Package2;
+  }
+
+  if (kind === 'subscription_quote_sent') {
+    return Tag;
+  }
+
+  if (kind === 'subscription_quote_accepted') {
+    return Package2;
+  }
+
   if (kind === 'pickup_reminder') {
     return Bell;
   }

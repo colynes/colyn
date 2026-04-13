@@ -1,173 +1,520 @@
 # AmaniBrew
 
-AmaniBrew is a Laravel + React + Inertia web application for running a food and retail ordering business with both a customer storefront and a backoffice operations dashboard.
+AmaniBrew is a Laravel + React + Inertia web application for running a modern retail/food operations workflow with:
 
-The project combines:
+1. a customer storefront
+2. a customer self-service account area
+3. a full back office operations dashboard
+4. real-time and push notifications
+5. recurring subscription order automation
 
-- a customer-facing shopping experience for products, packs, promotions, cart, checkout, tracking, and profile management
-- a staff/admin backoffice for orders, dashboard monitoring, inventory, packs, promotions, expenses, users, reports, and billing
-- realtime notifications using Laravel Notifications, Pusher, Laravel Echo, and Sonner
+This README documents the implemented project features and how the system works end-to-end.
 
-## What The Project Does
+## 1. Product Scope
 
-### Customer side
+AmaniBrew supports two major experiences:
 
-Customers can:
+1. Customer-facing commerce:
+- browsing products, packs, and promotions
+- managing cart
+- checkout for delivery or pickup
+- order tracking
+- profile management
+- subscription requests and subscription lifecycle
 
-- browse products, packs, and promotions
-- add items to cart
-- place delivery or pickup orders
-- choose precise delivery locations using Google Places or device GPS
-- choose pickup time within configured working hours
-- track orders
-- view profile details
-- receive realtime notification updates
+2. Back office operations:
+- dashboard metrics and pending workload
+- order management and dispatch
+- inventory category/product management
+- pack and promotion management
+- customer and staff management
+- expenses, sales targets, reports
+- fat-clients subscriptions and billing/invoices
 
-### Backoffice side
+## 2. Roles and Access
 
-Staff, managers, and administrators can:
+### Customer role
+- Accesses storefront and customer account pages.
+- Can place orders, track deliveries, manage profile, and manage personal subscriptions.
 
-- monitor pending orders from the dashboard
-- view and manage orders
-- dispatch orders
-- manage categories and products
-- manage stock-related thresholds
-- manage packs and promotions
-- manage customer records
-- manage users and pickup working hours
-- record expenses
-- work with fat-client subscriptions and billing
-- view reports and sales targets
-- receive realtime operational notifications
+### Back office roles
+- `administrator`, `admin`, `manager`, `staff` (case-insensitive handling in core access logic).
+- Accesses dashboard and operations modules.
 
-## Main Features
+### Admin-only capabilities
+- User/staff management and pickup working hours configuration.
 
-- Customer storefront with mobile-friendly layouts
-- Backoffice dashboard with pending-order monitoring
-- Product, category, pack, and promotion management
-- Cart and checkout flow
-- Delivery vs pickup fulfillment
-- GPS/location-assisted delivery address selection
-- Pickup hours controlled from backoffice settings
-- Realtime notification bell and popup toasts
-- Role-based access using Spatie Laravel Permission
-- Inventory-aware ordering and dispatch stock deduction
-- Invoice and billing flows
-- Expense management
-- Customer profile page and order tracking
+## 3. Complete Customer Features
 
-## Tech Stack
+## 3.1 Public Storefront and Catalog
 
-### Backend
+1. Home page (`/`)
+- Active categories preview.
+- Featured active products with availability status (`In Stock`, `Low Stock`, `Out of Stock`).
+- Cart summary integration.
 
-- Laravel 12
-- PHP 8.2+
-- MySQL
-- Inertia Laravel
-- Spatie Laravel Permission
-- Laravel Notifications
-- Pusher PHP Server
-- DomPDF
+2. Products page (`/products`)
+- Category filtering.
+- Search by name/description/SKU.
+- Pagination.
+- Product card data includes stock-aware status and promo-aware pricing.
+- Featured promotions and pack recommendations.
 
-### Frontend
+3. Packs page (`/packs`)
+- Shows active packs.
+- Shows pack composition when `pack_items` exists.
+- Branch-aware pack availability from inventory.
 
-- React 18
-- Inertia React
-- Vite
-- Tailwind CSS
-- shadcn-style UI building blocks in local components
-- Lucide React icons
-- Recharts
-- Sonner
-- Laravel Echo
-- Pusher JS
-- Google Places / Maps integration
+4. Promotions page (`/promotions`)
+- Shows active customer-visible promotions.
+- Supports schedule-aware promotion display and promotion closing behavior.
 
-## Project Structure
+## 3.2 Cart
 
-Key application areas:
+1. Add/update/remove lines
+- Product lines
+- Pack lines
+- Promotion lines
 
-- [`app/Http/Controllers`](/c:/xampp/htdocs/colyn/app/Http/Controllers)
-  Handles auth, checkout, storefront pages, dashboard data, operations, inventory, users, billing, and notifications.
-- [`resources/js/pages`](/c:/xampp/htdocs/colyn/resources/js/pages)
-  Inertia pages for customer and backoffice UIs.
-- [`resources/js/components`](/c:/xampp/htdocs/colyn/resources/js/components)
-  Shared UI pieces including cart, notification bell, profile, packs, and backoffice helpers.
-- [`routes/web.php`](/c:/xampp/htdocs/colyn/routes/web.php)
-  Main route definitions.
-- [`database/migrations`](/c:/xampp/htdocs/colyn/database/migrations)
-  Database schema history for packs, notifications, profile fields, delivery fields, settings, and more.
+2. Stock-safe cart behavior
+- Validates product quantity against available stock.
+- Validates pack availability via pack component stock.
 
-## Main Pages
+3. Cart persistence
+- Session-based cart storage via `App\Support\CartManager`.
 
-### Customer pages
+## 3.3 Checkout
 
-- `/`
-- `/products`
-- `/packs`
-- `/promotions`
-- `/cart`
-- `/checkout`
-- `/track-orders`
-- `/customer/home`
-- `/my-orders`
-- `/profile`
+1. Delivery and pickup modes
+- `fulfillment_method` supports `delivery` and `pickup`.
 
-### Backoffice pages
+2. Address and location support
+- Delivery address fields.
+- Optional latitude/longitude capture.
+- Delivery notes/landmark support.
 
-- `/dashboard`
-- `/orders`
-- `/create-order`
-- `/inventory/categories`
-- `/inventory/products`
-- `/dashboard/packs`
-- `/dashboard/promotions`
-- `/customers`
-- `/users`
-- `/expenses`
-- `/sales`
-- `/reports`
-- `/fat-clients/subscriptions`
-- `/fat-clients/billing`
+3. Pickup window validation
+- Pickup opening/closing times from `app_settings`.
+- Validates selected pickup time is within allowed window.
+- Automatically handles next-day pickup after closing hours.
 
-## Important Business Logic
+4. Guest-to-account flow
+- Guests can check out and get account creation.
+- Existing customer identity collisions force login to prevent duplicate identities.
 
-### Orders and stock
+5. Branch fulfillment resolution
+- Chooses an active branch that can fulfill all requested stock.
+- Blocks checkout with meaningful stock error messages when insufficient.
 
-- Product stock is managed through the `stocks` table.
-- Customer cart updates and checkout validate stock availability.
-- Staff-created orders also validate stock before saving.
-- Stock is reduced when an order is dispatched.
-- Customers should not be able to order beyond available quantity.
+6. Order creation
+- Creates customer and default address records as needed.
+- Creates order and order items.
+- Stores fulfillment metadata and scheduling fields.
+- Sends back office new-order notifications.
 
-### Pickup flow
+## 3.4 Customer Home (`/customer/home`)
 
-- Pickup working hours are managed from the backoffice users area.
-- Customers choosing pickup must select a valid pickup time.
-- Pickup time must stay within the configured working hours.
+1. Personalized customer landing page.
+2. Shows customer-visible promotions.
+3. Shows active packs and products with availability state.
+4. Includes cart summary and quick shopping actions.
 
-### Delivery flow
+## 3.5 Order Tracking and My Orders
 
-- Delivery location can be selected by typing an address with Google suggestions.
-- Customers can also use device GPS to detect their current location.
-- Delivery coordinates and notes are stored with the order.
+1. Track own orders by:
+- recent history
+- order number
+- tracking number
 
-### Notifications
+2. Timeline/status mapping:
+- pending
+- dispatched
+- delivered/completed
+- cancelled
 
-- Notifications are stored in the database.
-- Realtime delivery is powered by Pusher and Laravel Echo.
-- Sonner displays live toast popups.
-- Notification bell data is shared through Inertia props.
+3. Customer actions:
+- Cancel pending orders.
+- Confirm delivery on dispatched delivery orders.
 
-## Environment Variables
+4. Back office receives customer action notifications for order-cancelled/order-delivered events.
 
-The project uses a standard Laravel `.env` file.
+## 3.6 Profile Management (`/profile`)
 
-Important variables include:
+1. View profile and recent orders.
+2. Update:
+- full name
+- email
+- phone
+- city/country
+- address
+- postal code
+- avatar image
+3. Syncs profile updates to both `users` and `customers`.
+4. Maintains default customer address record.
+
+## 3.7 Customer Subscriptions (`/my-subscriptions`)
+
+1. Subscription request creation
+- mix of products and packs
+- requested frequency and delivery days
+- requested start date
+- delivery address
+- offered price
+
+2. Quote workflow
+- customer can accept quote
+- customer can reject quote
+- quote expiry handling
+
+3. Active subscription controls
+- pause
+- resume
+- cancel
+- skip next delivery
+
+4. Forecast and scheduling UX
+- upcoming delivery preview
+- estimated weekly/monthly subscription cost
+
+5. Lifecycle behavior
+- Accepting a quote converts request into active subscription.
+
+## 4. Complete Back Office Features
+
+## 4.1 Dashboard (`/dashboard`)
+
+1. KPIs:
+- today's sales
+- today's orders
+- inventory units
+- monthly revenue
+- active promotions
+- total customers
+
+2. Trends:
+- sales target vs actual trend
+- top product trend
+
+3. Operational widgets:
+- recent orders
+- low stock products
+- today's pending orders (includes subscriber client flags)
+
+## 4.2 Orders (`/orders`)
+
+1. Filter/search orders by order number, customer, status.
+2. Inspect full line items and fulfillment details.
+3. Update order status and details.
+4. Dispatch pending orders.
+5. Complete pickup orders.
+6. Delete orders safely (with dependent cleanup).
+7. Strong stock validation before dispatch/completion.
+8. Automatic delivery record creation/update for delivery orders.
+9. Customer notification on significant status changes.
+
+## 4.3 Create Back Office Orders (`/create-order`)
+
+1. Staff can create orders manually.
+2. Select products/quantities and payment method.
+3. Validates stock for selected branch.
+4. Creates customer by phone if needed (or reuses existing).
+
+## 4.4 Customers (`/customers`)
+
+1. Search/filter customer directory.
+2. View order counts and address metadata.
+3. Customer profile auto-sync:
+- users with customer role but missing customer profile are backfilled.
+
+## 4.5 Inventory Categories (`/inventory/categories`)
+
+1. Category listing with pagination/search/filter.
+2. Create/update/delete categories.
+3. Active/inactive toggle.
+4. Prevent delete when products exist in category.
+
+## 4.6 Inventory Products (`/inventory/products`)
+
+1. Product listing with:
+- category
+- pricing
+- supplier data
+- stock quantity
+- low stock threshold
+- availability status
+
+2. Create/update/delete products.
+3. Product status toggle.
+4. Price record creation/update.
+5. Stock quantity and reorder-level synchronization.
+6. Low-stock and out-of-stock notification broadcast to back office users.
+
+## 4.7 Packs Admin (`/dashboard/packs`)
+
+1. Create/update/delete packs.
+2. Configure pack composition (product + quantity).
+3. Manage pack price and active state.
+4. Auto-build pack description from selected items.
+5. Notify customer audience when a new pack goes live.
+
+## 4.8 Promotions Admin (`/dashboard/promotions`)
+
+1. Create/update/delete promotions.
+2. Schedule promotions (`starts_at`, `ends_at`).
+3. Toggle active state.
+4. Promotion status interpretation:
+- Scheduled
+- Active
+- Promotion Closed
+- Inactive
+5. Notify customer audience when new promotion is created.
+
+## 4.9 Expenses (`/expenses`)
+
+1. Expense listing with pagination.
+2. Summary totals and count.
+3. Create/update/delete expenses.
+4. Tracks creator/editor.
+
+## 4.10 Sales (`/sales`)
+
+1. Daily/weekly/monthly/custom period analytics.
+2. Sales target management:
+- daily target
+- weekly target
+- monthly target
+- conflict detection and overwrite support
+
+3. Target vs actual metrics:
+- variance
+- achievement percentage
+- order counts
+- top products and category revenue
+
+4. Uses reportable statuses: `dispatched`, `delivered`, `completed`.
+
+## 4.11 Reports (`/reports`)
+
+1. Filtered reporting by date range and business filters.
+2. Revenue, orders, customer summaries.
+3. Top products report.
+4. Target/actual performance summaries.
+5. Export capabilities:
+- CSV export
+- PDF export
+
+## 4.12 Fat Clients Subscriptions (`/fat-clients/subscriptions`)
+
+1. Normal subscription CRUD for staff.
+2. New subscription requests review section.
+3. Quote send/update flow for requests.
+4. Accepted customer requests convert to normal subscriptions.
+5. New-request section visibility behavior:
+- only pending/quoted requests are listed
+- section hides when no open requests exist
+- reappears automatically when a new client subscribes
+
+## 4.13 Fat Clients Billing (`/fat-clients/billing`)
+
+1. Invoice listing with search/status filtering.
+2. Receivables summary:
+- total received
+- pending payments
+- overdue payments
+
+3. Create/edit/delete invoices.
+4. Invoice itemized lines with product linkage.
+5. Payment linkage for paid invoices.
+6. Invoice status handling (`draft`, `pending`, `paid`, `overdue`, `sent`).
+7. Invoice preview, print, and download flows.
+
+## 4.14 Staff Management (`/users`)
+
+1. Admin-only staff user management.
+2. Create/update/delete staff accounts.
+3. Role assignment for:
+- Administrator
+- Manager
+- Staff
+
+4. Password reset for staff accounts.
+5. Pickup working hours configuration.
+6. Online/logged-in indication based on active sessions.
+
+## 5. Invoicing and Document Features
+
+1. Dedicated invoice controller for rendering invoice pages.
+2. Invoice generation from existing orders when required.
+3. HTML invoice view.
+4. Print-friendly invoice mode.
+5. PDF download via `barryvdh/laravel-dompdf`.
+6. Stored invoice PDF artifact under `storage/app/public/invoices`.
+
+## 6. Notification Features
+
+## 6.1 In-app Notification Center
+
+1. Notification bell component with unread counter.
+2. Notification pull API:
+- list unread
+- mark one as read
+- mark all as read
+
+3. Notification action URLs and typed icons.
+4. Periodic refresh and real-time merge behavior.
+
+## 6.2 Real-time Notifications
+
+1. Laravel notifications + database channel.
+2. Pusher + Laravel Echo integration for real-time events.
+3. Sonner toast support in UI.
+
+## 6.3 Browser Push Notifications (Firebase Cloud Messaging)
+
+1. Frontend token registration/removal endpoints.
+2. Firebase config endpoint for web clients.
+3. Server-side FCM v1 send support:
+- OAuth JWT token exchange
+- push payload with title/body/data/link
+- stale token cleanup on unregistered/invalid responses
+
+## 7. Subscription Automation Features
+
+## 7.1 Scheduled Jobs
+
+`routes/console.php` schedules:
+
+1. `orders:send-pickup-reminders` every minute
+2. `subscriptions:generate-orders` every minute
+
+## 7.2 Subscription Order Generator
+
+Command: `subscriptions:generate-orders`
+
+1. Detects due active subscriptions.
+2. Creates pending orders for due dates (with missed-date recovery).
+3. Writes `subscription_order_logs` to prevent duplicates.
+4. Recalculates `next_delivery`.
+5. Notifies back office of generated orders.
+
+## 7.3 Pickup Reminder Notifier
+
+Command: `orders:send-pickup-reminders`
+
+1. Finds pickup orders due in ~10 minutes.
+2. Sends customer pickup reminder notifications.
+3. Marks `pickup_reminder_sent_at` to avoid duplicate reminders.
+
+## 8. Core Business Rules
+
+1. Stock-first operations:
+- cart, checkout, and dispatch are stock-validated
+- pack orders expand to underlying product stock requirements
+
+2. Dispatch behavior:
+- stock decremented at dispatch/completion stage
+- not at cart stage
+
+3. Promotion visibility:
+- controlled by active flag + schedule windows
+- customer-visible window has slight grace behavior
+
+4. Pickup constraints:
+- pickup time must be within configured open/close hours
+
+5. Role-aware redirects:
+- back office users -> dashboard
+- customer users -> customer home
+
+## 9. Route Map (High-Level)
+
+## 9.1 Public + Authentication
+
+1. `/`, `/products`, `/packs`, `/promotions`, `/cart`, `/checkout`, `/track-orders`
+2. `/login`, `/register`, `/forgot-password`, `/reset-password/*`, `/logout`
+
+## 9.2 Customer Authenticated
+
+1. `/customer/home`
+2. `/my-orders`
+3. `/profile`
+4. `/my-subscriptions` and request/accept/reject/pause/resume/cancel/skip actions
+5. `/notifications` APIs
+
+## 9.3 Back Office Authenticated
+
+1. `/dashboard`, `/orders`, `/create-order`
+2. `/inventory/categories`, `/inventory/products`
+3. `/dashboard/packs`, `/dashboard/promotions`
+4. `/customers`, `/users`, `/expenses`
+5. `/sales`, `/reports` (+ CSV/PDF exports)
+6. `/fat-clients/subscriptions`, `/fat-clients/billing`
+7. Invoice routes (`/invoices/*`)
+
+## 10. Technical Stack
+
+## 10.1 Backend
+
+1. Laravel 12
+2. PHP 8.2+
+3. MySQL
+4. Inertia Laravel
+5. Spatie Laravel Permission
+6. Laravel Notifications
+7. Pusher PHP server
+8. DomPDF
+
+## 10.2 Frontend
+
+1. React 18
+2. Inertia React
+3. Vite
+4. Tailwind CSS
+5. Lucide React
+6. Recharts
+7. Sonner
+8. Laravel Echo + Pusher JS
+9. Firebase Web SDK
+10. Google Maps / Places integrations
+
+## 11. Key Application Areas
+
+1. `app/Http/Controllers`
+- HTTP modules for storefront, checkout, customer area, operations, billing, inventory, users, notifications.
+
+2. `app/Services`
+- Sales analytics/targets and subscription workflow services.
+
+3. `app/Support`
+- cart manager, pack availability, subscription scheduler, role access helpers.
+
+4. `app/Console/Commands`
+- subscription order automation and pickup reminders.
+
+5. `resources/js/pages`
+- all customer and back office Inertia pages.
+
+6. `resources/js/components`
+- reusable UI components including notification bell and push toggle.
+
+7. `routes/web.php`
+- full HTTP route map.
+
+8. `database/migrations`
+- schema evolution including subscriptions, invoices, notifications, inventory, targets.
+
+## 12. Environment Variables
+
+Use `.env.example` as baseline and set the following groups.
+
+## 12.1 Core App + DB
 
 ```env
 APP_NAME=AmaniBrew
+APP_ENV=local
+APP_KEY=
 APP_URL=http://localhost:8000
+APP_TIMEZONE=Africa/Dar_es_Salaam
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -175,161 +522,141 @@ DB_PORT=3306
 DB_DATABASE=amanibrew
 DB_USERNAME=root
 DB_PASSWORD=
+```
 
+## 12.2 Session / Queue / Broadcast
+
+```env
 SESSION_DRIVER=database
-QUEUE_CONNECTION=database
-
+QUEUE_CONNECTION=sync
 BROADCAST_CONNECTION=pusher
+```
+
+## 12.3 Pusher + Frontend Echo
+
+```env
 PUSHER_APP_ID=
 PUSHER_APP_KEY=
 PUSHER_APP_SECRET=
 PUSHER_APP_CLUSTER=
 
-VITE_PUSHER_APP_KEY=
-VITE_PUSHER_APP_CLUSTER=
+VITE_PUSHER_APP_KEY="${PUSHER_APP_KEY}"
+VITE_PUSHER_APP_CLUSTER="${PUSHER_APP_CLUSTER}"
+VITE_BROADCAST_CONNECTION="${BROADCAST_CONNECTION}"
+```
+
+## 12.4 Google Maps
+
+```env
 VITE_GOOGLE_MAPS_API_KEY=
 ```
 
-## Local Setup
+## 12.5 Firebase Push
 
-### 1. Install backend dependencies
+```env
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
+
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_SENDER_ID=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_VAPID_KEY=
+```
+
+## 13. Local Setup
+
+1. Install backend dependencies:
 
 ```powershell
 composer install
 ```
 
-### 2. Install frontend dependencies
+2. Install frontend dependencies:
 
 ```powershell
 npm install
 ```
 
-### 3. Create environment file
+3. Create environment file:
 
 ```powershell
 copy .env.example .env
 ```
 
-Then update:
-
-- database credentials
-- Pusher credentials
-- Google Maps API key
-
-### 4. Generate application key
+4. Generate app key:
 
 ```powershell
 php artisan key:generate
 ```
 
-### 5. Run migrations
+5. Run migrations:
 
 ```powershell
 php artisan migrate
 ```
 
-### 6. Link storage if needed
+6. Optional storage symlink:
 
 ```powershell
 php artisan storage:link
 ```
 
-### 7. Start the app
-
-You can use the combined dev script:
+7. Run development stack:
 
 ```powershell
 composer run dev
 ```
 
-That starts:
+`composer run dev` runs:
 
-- Laravel server
-- queue listener
-- Vite dev server
+1. Laravel HTTP server
+2. Vite dev server
+3. scheduler worker (`php artisan schedule:work`)
 
-Or run services separately:
-
-```powershell
-php artisan serve
-php artisan queue:listen --tries=1 --timeout=0
-npm run dev
-```
-
-## Build For Production
-
-```powershell
-npm run build
-```
-
-## Queue, Realtime, and Notifications
-
-For the notification system to work correctly:
-
-- `notifications` table must exist
-- broadcasting must be configured
-- Pusher credentials must be valid
-- queue worker should be running when queued jobs are used
-
-If configuration changes are not taking effect:
-
-```powershell
-php artisan optimize:clear
-```
-
-## Google Maps Requirements
-
-The checkout delivery-location feature depends on:
-
-- Google Places Autocomplete
-- Geocoding / reverse geocoding
-- a valid browser API key in `VITE_GOOGLE_MAPS_API_KEY`
-
-If address suggestions or GPS-to-address conversion fail, verify:
-
-- the API key is active
-- the correct Google APIs are enabled
-- key restrictions allow localhost usage
-
-## Roles
-
-The application supports multiple backoffice and customer roles. In the current database/history, role names may appear in mixed casing, including:
-
-- `admin`
-- `Administrator`
-- `manager`
-- `Manager`
-- `staff`
-- `customer`
-
-Access checks and notifications should account for those variants.
-
-## Useful Commands
+## 14. Useful Commands
 
 ```powershell
 php artisan migrate
 php artisan optimize:clear
-php artisan queue:listen --tries=1 --timeout=0
+php artisan schedule:work
+php artisan subscriptions:generate-orders
+php artisan orders:send-pickup-reminders
 php artisan test
 npm run dev
 npm run build
 ```
 
-## Screens and Artifacts In Repo
+## 15. Testing and Build
 
-The repository also includes some local screenshots and checks used during development, such as:
+1. Backend tests:
 
-- [`billing-page-shot.png`](/c:/xampp/htdocs/colyn/billing-page-shot.png)
-- [`create-invoice-shot.png`](/c:/xampp/htdocs/colyn/create-invoice-shot.png)
-- [`invoice-preview-shot.png`](/c:/xampp/htdocs/colyn/invoice-preview-shot.png)
-- [`invoice-download-check.txt`](/c:/xampp/htdocs/colyn/invoice-download-check.txt)
+```powershell
+php artisan test
+```
 
-## Notes
+2. Frontend production build:
 
-- Currency formatting in the app uses `TSh` / `TZS` depending on context.
-- The UI is customer-facing on the storefront and operational on the dashboard.
-- The project has been customized significantly beyond the default Laravel starter.
+```powershell
+npm run build
+```
+
+## 16. Operational Notes
+
+1. Currency is typically shown as `TZS`/`TSh` depending on UI context.
+2. Notification system depends on DB notifications + broadcast configuration.
+3. Subscription automation depends on scheduler being active in non-dev environments.
+4. Stock integrity depends on keeping `stocks` and `pack_items` data accurate.
+
+## 17. Security Note
+
+1. Do not commit real credentials or private keys to source control.
+2. Rotate any leaked keys immediately (mail, Firebase, Pusher, Maps, DB).
+3. Prefer environment-specific secret management for production deployments.
 
 ## License
 
-This project is currently maintained as an application codebase rather than a reusable package. If you want a formal project license section, add your preferred license here.
+This codebase is maintained as an application project. Add your preferred formal license text if needed.

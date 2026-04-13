@@ -1,4 +1,4 @@
-import { BellRing, PackagePlus, PackageSearch, ShoppingBag, Tag, Truck, XCircle } from 'lucide-react';
+import { BellRing, Package2, PackagePlus, PackageSearch, ShoppingBag, Tag, Truck, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const recentIds = new Set();
@@ -41,6 +41,22 @@ function resolveToast(notification) {
 
   if (kind === 'new_pack') {
     return { method: 'success', icon: <PackagePlus size={18} /> };
+  }
+
+  if (kind === 'subscription_request_created') {
+    return { method: 'success', icon: <PackagePlus size={18} /> };
+  }
+
+  if (kind === 'subscription_created') {
+    return { method: 'success', icon: <Package2 size={18} /> };
+  }
+
+  if (kind === 'subscription_quote_sent') {
+    return { method: 'success', icon: <Tag size={18} /> };
+  }
+
+  if (kind === 'subscription_quote_accepted') {
+    return { method: 'success', icon: <Package2 size={18} /> };
   }
 
   return { method: 'info', icon: <BellRing size={18} /> };

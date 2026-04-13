@@ -45,6 +45,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
         { label: 'Packs', href: '/packs', active: currentUrl.startsWith('/packs') },
         { label: 'Promotion', href: '/promotions', active: currentUrl.startsWith('/promotions') },
         { label: 'My Orders', href: '/my-orders', active: currentUrl.startsWith('/my-orders') || currentUrl.startsWith('/track-orders') },
+        { label: 'My Subscriptions', href: '/my-subscriptions', active: currentUrl.startsWith('/my-subscriptions') },
         { label: 'Profile', href: '/profile', active: currentUrl.startsWith('/profile') },
       ]
     : isBackoffice
@@ -242,3 +243,6 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
     </div>
   );
 }
+
+
+

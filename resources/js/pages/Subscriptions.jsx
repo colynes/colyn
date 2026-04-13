@@ -22,6 +22,14 @@ const statusTone = {
   Inactive: 'bg-slate-100 text-slate-600',
 };
 
+const requestStatusTone = {
+  pending_review: 'bg-amber-100 text-amber-700',
+  quoted: 'bg-sky-100 text-sky-700',
+  accepted: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-rose-100 text-rose-700',
+  expired: 'bg-slate-100 text-slate-700',
+};
+
 const seedTemplates = [
   {
     frequency: 'Weekly',
@@ -106,6 +114,25 @@ function normalizePhone(value) {
 
 function productLabel(product) {
   return `${product.name} - ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 2 }).format(product.quantity)} ${product.unit || 'pcs'}`;
+}
+
+function quantityLabel(quantity, unit) {
+  return `${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 2 }).format(quantity || 0)} ${unit || 'pcs'}`;
+}
+
+function requestItemsPreview(items = []) {
+  const normalizedItems = Array.isArray(items) ? items : [];
+
+  if (normalizedItems.length === 0) {
+    return 'No items listed';
+  }
+
+  const topItems = normalizedItems
+    .slice(0, 2)
+    .map((item) => `${item.name} (${quantityLabel(item.quantity, item.unit)})`);
+  const moreCount = normalizedItems.length - topItems.length;
+
+  return moreCount > 0 ? `${topItems.join(', ')} +${moreCount} more` : topItems.join(', ');
 }
 
 function buildInitialSubscriptions(customers = []) {
@@ -427,15 +454,113 @@ function SubscriptionModal({ subscription, customers, products, onClose, onSave 
   );
 }
 
-export default function Subscriptions({ auth, customers = [], products = [], subscriptions = [], perPageOptions = [50, 100, 250, 500] }) {
+function QuoteRequestModal({ requestItem, form, setForm, submitting, onClose, onSubmit }) {
+  if (!requestItem) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-6">
+      <div className="my-auto w-full max-w-[720px] overflow-hidden rounded-[1.75rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between px-8 py-7">
+          <div>
+            <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Send Quote</h2>
+            <p className="mt-1 text-sm text-[#73563a]">
+              {requestItem.request_number} • {requestItem.customer_name}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6d5036] transition hover:bg-[#f3ede5]"
+            aria-label="Close quote modal"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-6 px-8 pb-8">
+          <div className="rounded-xl border border-[#eadcca] bg-[#faf5ee] px-5 py-4">
+            <p className="text-sm font-semibold text-[#4f3118]">Client offered: {money(requestItem.offered_price)}</p>
+            <p className="mt-2 text-sm text-[#6f5238]">{requestItemsPreview(requestItem.items)}</p>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Quoted Price (Tsh)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              value={form.quoted_price}
+              onChange={(event) => setForm((current) => ({ ...current, quoted_price: event.target.value }))}
+              className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+              placeholder="Enter the final quoted amount"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Quote Valid Until</label>
+            <input
+              type="date"
+              value={form.quote_valid_until}
+              onChange={(event) => setForm((current) => ({ ...current, quote_valid_until: event.target.value }))}
+              className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Message to Client</label>
+            <textarea
+              value={form.quoted_message}
+              onChange={(event) => setForm((current) => ({ ...current, quoted_message: event.target.value }))}
+              rows={4}
+              className="w-full rounded-xl border border-[#dcccba] bg-white px-5 py-4 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+              placeholder="Optional note for the client"
+            />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-14 rounded-xl border border-[#d9c4a9] bg-white text-[1rem] font-semibold text-[#4f3118]"
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="h-14 rounded-xl bg-[#4f3118] text-[1rem] font-semibold text-white transition hover:bg-[#402612] disabled:opacity-60"
+              disabled={submitting}
+            >
+              {submitting ? 'Sending quote...' : 'Send Quote'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function Subscriptions({ auth, customers = [], products = [], subscriptions = [], subscriptionRequests = [], perPageOptions = [50, 100, 250, 500] }) {
   const productChoices = products;
   const subscriptionsRows = useMemo(() => subscriptions, [subscriptions]);
+  const subscriptionRequestRows = useMemo(() => subscriptionRequests, [subscriptionRequests]);
+  const hasOpenSubscriptionRequests = subscriptionRequestRows.length > 0;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [perPage, setPerPage] = useState(perPageOptions[0]);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeSubscription, setActiveSubscription] = useState(null);
   const [deletingSubscription, setDeletingSubscription] = useState(null);
+  const [activeQuoteRequest, setActiveQuoteRequest] = useState(null);
+  const [quoteForm, setQuoteForm] = useState({
+    quoted_price: '',
+    quoted_message: '',
+    quote_valid_until: '',
+  });
+  const [quotingRequest, setQuotingRequest] = useState(false);
 
   const filteredRows = useMemo(() => {
     return subscriptionsRows.filter((subscription) => {
@@ -451,6 +576,29 @@ export default function Subscriptions({ auth, customers = [], products = [], sub
       return matchesSearch && matchesStatus;
     });
   }, [search, statusFilter, subscriptionsRows]);
+
+  const filteredRequestRows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+
+    if (!needle) {
+      return subscriptionRequestRows;
+    }
+
+    return subscriptionRequestRows.filter((requestItem) => {
+      const requestText = [
+        requestItem.request_number,
+        requestItem.customer_name,
+        requestItem.phone,
+        requestItem.email,
+        requestItem.frequency,
+        requestItem.status_label,
+        requestItem.delivery_days_label,
+        (requestItem.items || []).map((item) => item.name).join(' '),
+      ].join(' ').toLowerCase();
+
+      return requestText.includes(needle);
+    });
+  }, [search, subscriptionRequestRows]);
 
   const visibleRows = useMemo(() => {
     const start = (currentPage - 1) * perPage;
@@ -489,6 +637,36 @@ export default function Subscriptions({ auth, customers = [], products = [], sub
     router.post('/fat-clients/subscriptions', payload, options);
   };
 
+  const openQuoteModal = (requestItem) => {
+    setActiveQuoteRequest(requestItem);
+    setQuoteForm({
+      quoted_price: requestItem.quoted_price ?? requestItem.offered_price ?? '',
+      quoted_message: requestItem.quoted_message || '',
+      quote_valid_until: requestItem.quote_valid_until || '',
+    });
+  };
+
+  const submitQuote = (event) => {
+    event.preventDefault();
+
+    if (!activeQuoteRequest) {
+      return;
+    }
+
+    setQuotingRequest(true);
+
+    router.patch(`/fat-clients/subscription-requests/${activeQuoteRequest.id}/quote`, {
+      quoted_price: quoteForm.quoted_price,
+      quoted_message: quoteForm.quoted_message || null,
+      quote_valid_until: quoteForm.quote_valid_until || null,
+    }, {
+      preserveScroll: true,
+      preserveState: false,
+      onSuccess: () => setActiveQuoteRequest(null),
+      onFinish: () => setQuotingRequest(false),
+    });
+  };
+
   return (
     <AppLayout user={auth?.user}>
       <SubscriptionModal
@@ -497,6 +675,15 @@ export default function Subscriptions({ auth, customers = [], products = [], sub
         products={productChoices}
         onClose={() => setActiveSubscription(null)}
         onSave={saveSubscription}
+      />
+
+      <QuoteRequestModal
+        requestItem={activeQuoteRequest}
+        form={quoteForm}
+        setForm={setQuoteForm}
+        submitting={quotingRequest}
+        onClose={() => setActiveQuoteRequest(null)}
+        onSubmit={submitQuote}
       />
 
       <ConfirmModal
@@ -568,6 +755,82 @@ export default function Subscriptions({ auth, customers = [], products = [], sub
             onChange={(event) => setPerPage(Number(event.target.value))}
           />
         </div>
+
+        {hasOpenSubscriptionRequests ? (
+          <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
+            <CardContent className="p-0">
+              <div className="border-b border-[#eadcca] bg-[#f7efe4] px-8 py-5">
+                <h2 className="text-[1.2rem] font-semibold text-[#3a2513]">New Subscription Requests</h2>
+                <p className="mt-1 text-sm text-[#6f5238]">
+                  {filteredRequestRows.length} request{filteredRequestRows.length === 1 ? '' : 's'} currently visible
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left">
+                  <thead className="bg-[#ede1cf]">
+                    <tr>
+                      {['Request', 'Client', 'Schedule', 'Items', 'Pricing', 'Status', 'Action'].map((header) => (
+                        <th key={header} className="px-8 py-5 text-[1rem] font-semibold text-[#2f2115]">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRequestRows.length > 0 ? filteredRequestRows.map((requestItem, index) => (
+                      <tr key={requestItem.id} className={`${index !== filteredRequestRows.length - 1 ? 'border-b border-[#eadcca]' : ''} bg-white`}>
+                        <td className="px-8 py-6">
+                          <p className="text-[1.02rem] font-semibold text-[#352314]">{requestItem.request_number}</p>
+                          <p className="mt-1 text-[0.92rem] text-[#6f5238]">{requestItem.submitted_date_label || 'N/A'}</p>
+                        </td>
+                        <td className="px-8 py-6">
+                          <p className="text-[1.02rem] font-semibold text-[#352314]">{requestItem.customer_name}</p>
+                          <p className="mt-1 text-[0.92rem] text-[#6f5238]">{requestItem.phone || 'No phone'}</p>
+                          <p className="mt-1 text-[0.86rem] text-[#8a6d4d]">{requestItem.email || 'No email'}</p>
+                        </td>
+                        <td className="px-8 py-6 text-[0.95rem] text-[#5f4328]">
+                          <p className="font-semibold">{requestItem.frequency}</p>
+                          <p className="mt-1">{requestItem.delivery_days_label}</p>
+                          <p className="mt-1 text-[0.85rem] text-[#8a6d4d]">Start: {requestItem.start_date_label || 'N/A'}</p>
+                        </td>
+                        <td className="px-8 py-6 text-[0.95rem] text-[#5f4328]">
+                          {requestItemsPreview(requestItem.items)}
+                        </td>
+                        <td className="px-8 py-6 text-[0.95rem] text-[#5f4328]">
+                          <p>Offered: <span className="font-semibold text-[#352314]">{money(requestItem.offered_price)}</span></p>
+                          <p className="mt-1">Quoted: <span className="font-semibold text-[#352314]">{requestItem.quoted_price !== null ? money(requestItem.quoted_price) : 'Pending'}</span></p>
+                        </td>
+                        <td className="px-8 py-6">
+                          <span className={`inline-flex rounded-full px-4 py-2 text-[0.9rem] font-medium ${requestStatusTone[requestItem.status] || 'bg-slate-100 text-slate-700'}`}>
+                            {requestItem.status_label}
+                          </span>
+                        </td>
+                        <td className="px-8 py-6">
+                          {requestItem.can_quote ? (
+                            <button
+                              type="button"
+                              onClick={() => openQuoteModal(requestItem)}
+                              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#4f3118] px-4 text-sm font-semibold text-white transition hover:bg-[#402612]"
+                            >
+                              {requestItem.status === 'quoted' ? 'Update Quote' : 'Send Quote'}
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={7} className="px-8 py-12 text-center">
+                          <p className="text-lg font-medium text-[#4d3218]">No matching subscription requests.</p>
+                          <p className="mt-2 text-sm text-[#7a5c3e]">Try another search term.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card className="overflow-hidden rounded-[1.35rem] border border-[#e0d1bf] bg-white shadow-none">
           <CardContent className="p-0">

@@ -5,7 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreProductRequest;
 use App\Models\Branch;
 use App\Models\Category;
+use App\Models\PackItem;
 use App\Models\Product;
+use App\Models\Subscription;
+use App\Models\SubscriptionItem;
+use App\Models\SubscriptionRequest;
+use App\Models\SubscriptionRequestItem;
 use App\Models\User;
 use App\Notifications\SystemAlertNotification;
 use Illuminate\Http\Request;
@@ -131,7 +136,12 @@ class ProductController extends Controller
     {
         $this->ensureBackoffice();
 
+        if ($message = $this->blockingDeletionMessage($product)) {
+            return back()->with('error', $message);
+        }
+
         $product->delete();
+
         return back()->with('success', 'Product deleted.');
     }
 
@@ -251,5 +261,91 @@ class ProductController extends Controller
                 'status' => $status,
                 'action_url' => '/inventory/products',
             ])));
+    }
+
+    protected function blockingDeletionMessage(Product $product): ?string
+    {
+        $dependencies = [];
+
+        if (Schema::hasTable('pack_items')) {
+            $packNames = PackItem::query()
+                ->with('pack:id,name')
+                ->where('product_id', $product->id)
+                ->get()
+                ->pluck('pack.name')
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($packNames->isNotEmpty()) {
+                $preview = $packNames->take(2)->implode(', ');
+                $extra = $packNames->count() > 2 ? ', +' . ($packNames->count() - 2) . ' more' : '';
+                $dependencies[] = $packNames->count() === 1
+                    ? 'pack ' . $preview
+                    : $packNames->count() . ' packs (' . $preview . $extra . ')';
+            }
+        }
+
+        if (Schema::hasTable('subscription_items') && Schema::hasTable('subscriptions')) {
+            $subscriptionCount = SubscriptionItem::query()
+                ->join('subscriptions', 'subscriptions.id', '=', 'subscription_items.subscription_id')
+                ->where('subscription_items.product_id', $product->id)
+                ->whereIn('subscriptions.status', [
+                    Subscription::STATUS_ACTIVE,
+                    Subscription::STATUS_PAUSED,
+                ])
+                ->distinct()
+                ->count('subscriptions.id');
+
+            if ($subscriptionCount > 0) {
+                $dependencies[] = $subscriptionCount . ' live ' . $this->pluralize($subscriptionCount, 'subscription');
+            }
+        }
+
+        if (Schema::hasTable('subscription_request_items') && Schema::hasTable('subscription_requests')) {
+            $requestCount = SubscriptionRequestItem::query()
+                ->join('subscription_requests', 'subscription_requests.id', '=', 'subscription_request_items.subscription_request_id')
+                ->where('subscription_request_items.product_id', $product->id)
+                ->whereIn('subscription_requests.status', [
+                    SubscriptionRequest::STATUS_PENDING_REVIEW,
+                    SubscriptionRequest::STATUS_QUOTED,
+                ])
+                ->distinct()
+                ->count('subscription_requests.id');
+
+            if ($requestCount > 0) {
+                $dependencies[] = $requestCount . ' open ' . $this->pluralize($requestCount, 'subscription request');
+            }
+        }
+
+        if ($dependencies === []) {
+            return null;
+        }
+
+        return 'Cannot delete ' . $product->name . ' because it is still used in '
+            . $this->naturalLanguageList($dependencies)
+            . '. Remove it from those live records first.';
+    }
+
+    protected function pluralize(int $count, string $singular, ?string $plural = null): string
+    {
+        return $count === 1 ? $singular : ($plural ?? $singular . 's');
+    }
+
+    protected function naturalLanguageList(array $items): string
+    {
+        $items = array_values(array_filter($items));
+
+        if ($items === []) {
+            return '';
+        }
+
+        if (count($items) === 1) {
+            return $items[0];
+        }
+
+        $lastItem = array_pop($items);
+
+        return implode(', ', $items) . ' and ' . $lastItem;
     }
 }

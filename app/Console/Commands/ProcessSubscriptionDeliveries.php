@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Order;
-use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\SubscriptionOrderLog;
 use App\Models\User;
@@ -14,6 +13,7 @@ use App\Support\BackofficeAccess;
 use App\Support\SubscriptionScheduler;
 use Illuminate\Console\Command;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -35,6 +35,7 @@ class ProcessSubscriptionDeliveries extends Command
         }
 
         $subscriptions = Subscription::query()
+            ->with(['items.product', 'items.pack'])
             ->whereRaw('LOWER(status) = ?', ['active'])
             ->whereNotNull('next_delivery')
             ->whereDate('next_delivery', '<=', $today->toDateString())
@@ -51,11 +52,9 @@ class ProcessSubscriptionDeliveries extends Command
                 continue;
             }
 
-            $products = collect($subscription->products ?? [])
-                ->filter(fn ($item) => !empty($item['product_id']) && (float) ($item['quantity'] ?? 0) > 0)
-                ->values();
+            $lineItems = $this->buildLineItems($subscription);
 
-            if ($products->isEmpty()) {
+            if ($lineItems->isEmpty()) {
                 $subscription->update([
                     'next_delivery' => SubscriptionScheduler::nextDeliveryDate(
                         (string) $subscription->frequency,
@@ -64,32 +63,7 @@ class ProcessSubscriptionDeliveries extends Command
                     )->toDateString(),
                 ]);
 
-                $this->warn("Subscription {$subscription->id} skipped because it has no valid products.");
-                continue;
-            }
-
-            $productIds = $products->pluck('product_id')->unique()->values()->all();
-            $catalog = Product::query()
-                ->with('currentPrice')
-                ->whereIn('id', $productIds)
-                ->get()
-                ->keyBy('id');
-
-            $lineItems = $products->map(function ($item) use ($catalog) {
-                $product = $catalog->get((int) $item['product_id']);
-                $quantity = max(1, (int) round((float) ($item['quantity'] ?? 1)));
-                $unitPrice = (float) ($product?->currentPrice?->promo_price ?? $product?->currentPrice?->price ?? 0);
-
-                return [
-                    'product' => $product,
-                    'quantity' => $quantity,
-                    'unit_price' => $unitPrice,
-                    'subtotal' => $unitPrice * $quantity,
-                ];
-            })->filter(fn ($line) => $line['product'] !== null)->values();
-
-            if ($lineItems->isEmpty()) {
-                $this->warn("Subscription {$subscription->id} skipped because linked products are unavailable.");
+                $this->warn("Subscription {$subscription->id} skipped because it has no valid items.");
                 continue;
             }
 
@@ -109,7 +83,7 @@ class ProcessSubscriptionDeliveries extends Command
                     continue;
                 }
 
-                $subtotal = (float) $lineItems->sum('subtotal');
+                $subtotal = round((float) $lineItems->sum('subtotal'), 2);
 
                 [$order] = DB::transaction(function () use ($subscription, $customerId, $branchId, $dueDate, $lineItems, $subtotal) {
                     $order = $this->createOrderWithUniqueNumber(
@@ -155,7 +129,7 @@ class ProcessSubscriptionDeliveries extends Command
         int $customerId,
         int $branchId,
         $dueDate,
-        $lineItems,
+        Collection $lineItems,
         float $subtotal
     ): Order {
         $maxAttempts = 5;
@@ -181,15 +155,18 @@ class ProcessSubscriptionDeliveries extends Command
 
                 foreach ($lineItems as $line) {
                     $order->items()->create([
-                        'product_id' => $line['product']->id,
+                        'product_id' => $line['product_id'],
                         'quantity' => $line['quantity'],
                         'price' => $line['unit_price'],
                         'unit_price' => $line['unit_price'],
                         'subtotal' => $line['subtotal'],
                         'notes' => json_encode([
-                            'type' => 'subscription',
+                            'type' => $line['item_type'],
+                            'item_id' => $line['item_id'],
                             'subscription_id' => $subscription->id,
-                            'name' => $line['product']->name,
+                            'name' => $line['name'],
+                            'description' => $line['description'] ?? null,
+                            'unit' => $line['unit'] ?? null,
                         ]),
                     ]);
                 }
@@ -206,6 +183,72 @@ class ProcessSubscriptionDeliveries extends Command
         }
 
         throw new \RuntimeException('Failed to generate a unique order number for subscription order.');
+    }
+
+    protected function buildLineItems(Subscription $subscription): Collection
+    {
+        $items = $subscription->items->isNotEmpty()
+            ? $subscription->items->map(fn ($item) => [
+                'item_type' => $item->item_type,
+                'item_id' => $item->item_type === 'pack' ? $item->pack_id : $item->product_id,
+                'product_id' => $item->product_id,
+                'name' => $item->item_name ?: ($item->item_type === 'pack' ? $item->pack?->name : $item->product?->name),
+                'description' => null,
+                'quantity' => max(0.01, (float) $item->quantity),
+                'unit' => $item->unit,
+                'unit_price' => (float) $item->unit_price,
+                'subtotal' => (float) ($item->line_total ?: ((float) $item->unit_price * (float) $item->quantity)),
+            ])
+            : collect($subscription->products ?? [])->map(fn (array $item) => [
+                'item_type' => $item['item_type'] ?? 'product',
+                'item_id' => $item['item_id'] ?? ($item['product_id'] ?? null),
+                'product_id' => $item['product_id'] ?? null,
+                'name' => $item['name'] ?? 'Subscription Item',
+                'description' => $item['description'] ?? null,
+                'quantity' => max(0.01, (float) ($item['quantity'] ?? 1)),
+                'unit' => $item['unit'] ?? 'pcs',
+                'unit_price' => (float) ($item['unit_price'] ?? 0),
+                'subtotal' => (float) ($item['line_total'] ?? ((float) ($item['unit_price'] ?? 0) * (float) ($item['quantity'] ?? 1))),
+            ]);
+
+        $normalized = $items
+            ->filter(fn (array $item) => !empty($item['name']) && (float) $item['quantity'] > 0)
+            ->values();
+
+        if ($normalized->isEmpty()) {
+            return collect();
+        }
+
+        $targetTotal = round((float) ($subscription->agreed_price ?: $subscription->value ?: 0), 2);
+        $baseTotal = round((float) $normalized->sum('subtotal'), 2);
+
+        if ($targetTotal <= 0 || $baseTotal <= 0 || abs($targetTotal - $baseTotal) < 0.01) {
+            return $normalized->map(fn (array $item) => [
+                ...$item,
+                'unit_price' => round((float) $item['unit_price'], 2),
+                'subtotal' => round((float) $item['subtotal'], 2),
+            ])->values();
+        }
+
+        $allocated = collect();
+        $allocatedSubtotal = 0.0;
+        $lastIndex = $normalized->count() - 1;
+
+        foreach ($normalized->values() as $index => $item) {
+            $quantity = max(0.01, (float) $item['quantity']);
+            $lineSubtotal = $index === $lastIndex
+                ? round($targetTotal - $allocatedSubtotal, 2)
+                : round(((float) $item['subtotal'] / $baseTotal) * $targetTotal, 2);
+
+            $allocatedSubtotal = round($allocatedSubtotal + $lineSubtotal, 2);
+            $allocated->push([
+                ...$item,
+                'unit_price' => round($lineSubtotal / $quantity, 2),
+                'subtotal' => round($lineSubtotal, 2),
+            ]);
+        }
+
+        return $allocated->values();
     }
 
     protected function generateOrderNumberForDate($date): string
@@ -272,3 +315,5 @@ class ProcessSubscriptionDeliveries extends Command
         return (int) $customer->id;
     }
 }
+
+

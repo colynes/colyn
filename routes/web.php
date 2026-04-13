@@ -7,6 +7,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\CommerceController;
 use App\Http\Controllers\CustomerHomeController;
+use App\Http\Controllers\CustomerSubscriptionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\NotificationController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StorefrontController;
+use App\Http\Controllers\SubscriptionRequestController;
 use App\Http\Controllers\UserController;
 
 // ── Public Routes ──────────────────────────────────────
@@ -45,6 +47,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/api/save-notification-token', [PushNotificationController::class, 'saveToken'])->name('push.token.save');
     Route::delete('/api/remove-notification-token', [PushNotificationController::class, 'removeToken'])->name('push.token.remove');
     Route::get('/customer/home', [CustomerHomeController::class, 'index'])->name('customer.home');
+    Route::get('/my-subscriptions', [CustomerSubscriptionController::class, 'index'])->name('customer.subscriptions.index');
+    Route::post('/my-subscriptions/requests', [SubscriptionRequestController::class, 'store'])->name('customer.subscriptions.requests.store');
+    Route::post('/my-subscriptions/requests/{subscriptionRequest}/accept-quote', [SubscriptionRequestController::class, 'acceptQuote'])->name('customer.subscriptions.requests.accept');
+    Route::post('/my-subscriptions/requests/{subscriptionRequest}/reject-quote', [SubscriptionRequestController::class, 'rejectQuote'])->name('customer.subscriptions.requests.reject');
+    Route::patch('/my-subscriptions/{subscription}/pause', [CustomerSubscriptionController::class, 'pause'])->name('customer.subscriptions.pause');
+    Route::patch('/my-subscriptions/{subscription}/resume', [CustomerSubscriptionController::class, 'resume'])->name('customer.subscriptions.resume');
+    Route::patch('/my-subscriptions/{subscription}/cancel', [CustomerSubscriptionController::class, 'cancel'])->name('customer.subscriptions.cancel');
+    Route::patch('/my-subscriptions/{subscription}/skip-next-delivery', [CustomerSubscriptionController::class, 'skipNextDelivery'])->name('customer.subscriptions.skip-next-delivery');
     Route::get('/my-orders', [CommerceController::class, 'tracking'])->name('my-orders');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
@@ -89,6 +99,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/fat-clients/subscriptions', [OperationsController::class, 'storeSubscription'])->name('fat-clients.subscriptions.store');
     Route::put('/fat-clients/subscriptions/{subscription}', [OperationsController::class, 'updateSubscription'])->name('fat-clients.subscriptions.update');
     Route::delete('/fat-clients/subscriptions/{subscription}', [OperationsController::class, 'destroySubscription'])->name('fat-clients.subscriptions.destroy');
+    Route::patch('/fat-clients/subscription-requests/{subscriptionRequest}/quote', [SubscriptionRequestController::class, 'quote'])->name('fat-clients.subscription-requests.quote');
     Route::get('/fat-clients/billing', [OperationsController::class, 'billing'])->name('fat-clients.billing');
     Route::get('/fat-clients/billing/create', [OperationsController::class, 'createInvoice'])->name('fat-clients.billing.create');
     Route::post('/fat-clients/billing', [OperationsController::class, 'storeInvoice'])->name('fat-clients.billing.store');
@@ -123,3 +134,5 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/dashboard/promotions/{promotion}', [OperationsController::class, 'updatePromotion'])->name('dashboard.promotions.update');
     Route::delete('/dashboard/promotions/{promotion}', [OperationsController::class, 'destroyPromotion'])->name('dashboard.promotions.destroy');
 });
+
+

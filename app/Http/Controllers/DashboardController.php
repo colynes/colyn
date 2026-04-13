@@ -7,7 +7,8 @@ use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Promotion;
-use App\Models\SalesTarget;
+use App\Services\SalesTargetService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -33,63 +34,59 @@ class DashboardController extends Controller
 
         $salesStart = now()->startOfWeek()->startOfDay();
         $salesEnd = now()->endOfWeek()->endOfDay();
+        $targetService = app(SalesTargetService::class);
+        $salesAnalytics = $targetService->buildPerformance($salesStart, $salesEnd);
+        $salesSummary = collect($salesAnalytics['daily_summary']);
+        $statusPlaceholders = implode(',', array_fill(0, count(SalesTargetService::REPORTABLE_ORDER_STATUSES), '?'));
 
-        $targetRecords = SalesTarget::query()
-            ->with('product:id,name')
-            ->whereDate('start_date', '<=', $salesEnd->toDateString())
-            ->whereDate('end_date', '>=', $salesStart->toDateString())
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->get();
-        $allProductsTarget = $targetRecords->firstWhere('product_id', null);
-        $targets = $targetRecords
-            ->whereNotNull('product_id')
-            ->unique('product_id')
-            ->keyBy('product_id');
+        $topProducts = collect(DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->join('products', 'products.id', '=', 'order_items.product_id')
+            ->whereBetween('orders.created_at', [$salesStart, $salesEnd])
+            ->whereRaw("LOWER(COALESCE(orders.status, '')) IN ({$statusPlaceholders})", SalesTargetService::REPORTABLE_ORDER_STATUSES)
+            ->groupBy('products.id', 'products.name')
+            ->selectRaw('products.id as id, products.name as name, SUM(order_items.subtotal) as actual')
+            ->orderByDesc('actual')
+            ->limit(6)
+            ->get())
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'name' => $row->name,
+                'actual' => round((float) $row->actual, 2),
+            ])
+            ->values();
 
-        $topProducts = Product::query()
-            ->active()
-            ->with('orderItems')
-            ->get(['id', 'name'])
-            ->map(function (Product $product) use ($salesStart, $salesEnd, $targets) {
-                $periodItems = $product->orderItems->whereBetween('created_at', [$salesStart, $salesEnd]);
-                $revenue = (float) $periodItems->sum('subtotal');
-                $targetRecord = $targets->get($product->id);
-                $target = (float) ($targetRecord?->target_amount ?? ($revenue > 0 ? round($revenue * 1.07, 2) : 0));
+        $totalTopProductActual = max((float) $topProducts->sum('actual'), 0.0);
+        $totalTargetForPeriod = (float) $salesSummary->get('total_target', 0);
+
+        $topProducts = $topProducts
+            ->map(function (array $product) use ($totalTopProductActual, $totalTargetForPeriod) {
+                $target = $totalTopProductActual > 0
+                    ? round(($product['actual'] / $totalTopProductActual) * $totalTargetForPeriod, 2)
+                    : 0.0;
 
                 return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'actual' => $revenue,
+                    ...$product,
                     'target' => $target,
                 ];
             })
             ->filter(fn (array $product) => $product['actual'] > 0 || $product['target'] > 0)
-            ->sortByDesc('actual')
             ->take(4)
             ->values();
 
-        $configuredDailyTarget = (float) ($allProductsTarget?->target_amount ?? $targets->sum(fn (SalesTarget $target) => (float) $target->target_amount));
-        $fallbackTotalTarget = (float) $topProducts->sum('target');
-        $dailyTarget = $configuredDailyTarget > 0 ? $configuredDailyTarget : round($fallbackTotalTarget / 7, 2);
-
-        $salesTrend = collect(range(6, 0))
-            ->map(function (int $daysAgo) use ($salesEnd, $dailyTarget) {
-                $date = $salesEnd->copy()->subDays($daysAgo);
-                $actual = (float) Order::whereDate('created_at', $date)->sum('total');
-
-                return [
-                    'day' => $date->format('D'),
-                    'actual' => $actual,
-                    'target' => $dailyTarget > 0 ? $dailyTarget : ($actual > 0 ? round($actual * 0.94, 2) : 0),
-                ];
-            });
+        $salesTrend = collect($salesAnalytics['daily_trend'])
+            ->map(fn ($row) => [
+                'day' => Carbon::parse($row['date'])->format('D'),
+                'actual' => (float) $row['actual'],
+                'target' => (float) $row['target'],
+            ])
+            ->values();
 
         $productTrend = $topProducts->map(fn (array $product) => [
             'name' => $product['name'],
-            'actual' => $product['actual'],
-            'target' => $product['target'],
-        ]);
+            'actual' => (float) $product['actual'],
+            'target' => (float) $product['target'],
+        ])->values();
 
         $recentOrders = Order::query()
             ->with('customer')
