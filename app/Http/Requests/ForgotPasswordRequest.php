@@ -21,8 +21,10 @@ class ForgotPasswordRequest extends FormRequest
 
     public function rules(): array
     {
+        $emailRule = app()->environment('local') ? 'email:rfc' : 'email:rfc,dns';
+
         return [
-            'email' => ['required', 'email:rfc,dns', 'max:255'],
+            'email' => ['required', $emailRule, 'max:255'],
         ];
     }
 }

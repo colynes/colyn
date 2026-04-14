@@ -3,10 +3,13 @@
 $pusherConfigured = filled(env('PUSHER_APP_KEY'))
     && filled(env('PUSHER_APP_SECRET'))
     && filled(env('PUSHER_APP_ID'));
+$isLocalEnvironment = env('APP_ENV') === 'local';
+$allowExternalBroadcastingInLocal = filter_var(env('ENABLE_EXTERNAL_BROADCASTS_IN_LOCAL', false), FILTER_VALIDATE_BOOL);
+$shouldUsePusherDriver = $pusherConfigured && (! $isLocalEnvironment || $allowExternalBroadcastingInLocal);
 
 $defaultBroadcaster = env('BROADCAST_CONNECTION', 'null');
 
-if ($defaultBroadcaster === 'pusher' && ! $pusherConfigured) {
+if ($defaultBroadcaster === 'pusher' && ! $shouldUsePusherDriver) {
     $defaultBroadcaster = 'log';
 }
 
@@ -41,7 +44,7 @@ return [
     'connections' => [
 
         'pusher' => [
-            'driver' => $pusherConfigured ? 'pusher' : 'log',
+            'driver' => $shouldUsePusherDriver ? 'pusher' : 'log',
             'key' => env('PUSHER_APP_KEY'),
             'secret' => env('PUSHER_APP_SECRET'),
             'app_id' => env('PUSHER_APP_ID'),

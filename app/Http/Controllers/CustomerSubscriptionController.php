@@ -32,12 +32,17 @@ class CustomerSubscriptionController extends Controller
         $customer->loadMissing('defaultAddress');
         $this->workflow->expireStaleQuotes($customer);
 
-        $requests = SubscriptionRequest::query()
+        $requestsQuery = SubscriptionRequest::query()
             ->where('customer_id', $customer->id)
             ->where('status', '!=', SubscriptionRequest::STATUS_ACCEPTED)
             ->with(['items.product.currentPrice', 'items.pack', 'subscription.items'])
-            ->latest()
-            ->get();
+            ->latest();
+
+        if (SubscriptionRequest::hasDatabaseColumn('archived_at')) {
+            $requestsQuery->whereNull('archived_at');
+        }
+
+        $requests = $requestsQuery->get();
 
         $subscriptions = Subscription::query()
             ->where('customer_id', $customer->id)
@@ -189,6 +194,9 @@ class CustomerSubscriptionController extends Controller
             'request_number' => $subscriptionRequest->request_number,
             'submitted_date' => optional($subscriptionRequest->created_at)->toDateString(),
             'submitted_date_label' => optional($subscriptionRequest->created_at)->format('d M Y'),
+            'resubmitted_from_request_id' => SubscriptionRequest::hasDatabaseColumn('resubmitted_from_request_id')
+                ? $subscriptionRequest->resubmitted_from_request_id
+                : null,
             'frequency' => $subscriptionRequest->frequency,
             'delivery_days' => $subscriptionRequest->delivery_days ?? [],
             'delivery_days_label' => $this->deliveryDaysLabel($subscriptionRequest->frequency, $subscriptionRequest->delivery_days ?? []),
@@ -311,9 +319,12 @@ class CustomerSubscriptionController extends Controller
         return [
             'id' => $item->id,
             'item_type' => $item->item_type,
+            'product_id' => $item->product_id,
+            'pack_id' => $item->pack_id,
             'name' => $item->item_name ?: ($item->item_type === 'pack' ? $item->pack?->name : $item->product?->name),
             'quantity' => (float) $item->quantity,
             'unit' => $item->unit ?: ($item->item_type === 'pack' ? 'pack' : $item->product?->unit),
+            'price' => (float) $item->unit_price,
             'unit_price' => (float) $item->unit_price,
             'line_total' => (float) $item->line_total,
         ];

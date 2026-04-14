@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
@@ -139,11 +141,18 @@ class UserController extends Controller
     {
         $this->ensureAdministrator();
 
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email'))),
+            'name' => preg_replace('/\s+/', ' ', trim((string) $request->input('name'))),
+        ]);
+
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users',
+            'email'    => ['required', 'email', 'max:255', 'unique:users,email', 'unique:customers,email'],
             'password' => ['required', 'confirmed', Password::defaults()],
             'role'     => 'required|in:Administrator,Manager,Staff',
+        ], [
+            'email.unique' => 'This email address is already in use by another account.',
         ]);
 
         $roleName = collect($this->availableRoleOptions())
@@ -170,10 +179,25 @@ class UserController extends Controller
     {
         $this->ensureAdministrator();
 
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email'))),
+            'name' => preg_replace('/\s+/', ' ', trim((string) $request->input('name'))),
+        ]);
+
+        $customerId = $user->customer?->id;
+
         $validated = $request->validate([
             'name'  => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+                Rule::unique('customers', 'email')->ignore($customerId),
+            ],
             'role'  => 'required|in:Administrator,Manager,Staff',
+        ], [
+            'email.unique' => 'This email address is already in use by another account.',
         ]);
 
         $roleName = collect($this->availableRoleOptions())

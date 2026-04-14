@@ -34,7 +34,29 @@ class SubscriptionWorkflowService
                 ]);
             }
 
-            $request = SubscriptionRequest::create([
+            $sourceRequest = null;
+            $supportsResubmissionTracking = SubscriptionRequest::hasDatabaseColumn('resubmitted_from_request_id');
+
+            if ($supportsResubmissionTracking && !empty($validated['resubmitted_from_request_id'])) {
+                $sourceRequest = SubscriptionRequest::query()
+                    ->whereKey($validated['resubmitted_from_request_id'])
+                    ->where('customer_id', $customer->id)
+                    ->first();
+
+                if (!$sourceRequest) {
+                    throw ValidationException::withMessages([
+                        'resubmitted_from_request_id' => ['You can only resend one of your own subscription requests.'],
+                    ]);
+                }
+
+                if ($sourceRequest->status !== SubscriptionRequest::STATUS_REJECTED) {
+                    throw ValidationException::withMessages([
+                        'resubmitted_from_request_id' => ['Only rejected requests can be resent as a new offer.'],
+                    ]);
+                }
+            }
+
+            $requestData = [
                 'request_number' => $this->temporaryRequestNumber(),
                 'user_id' => $user->id,
                 'customer_id' => $customer->id,
@@ -45,7 +67,13 @@ class SubscriptionWorkflowService
                 'notes' => $validated['notes'] ?? null,
                 'offered_price' => round((float) $validated['offered_price'], 2),
                 'status' => SubscriptionRequest::STATUS_PENDING_REVIEW,
-            ]);
+            ];
+
+            if ($supportsResubmissionTracking) {
+                $requestData['resubmitted_from_request_id'] = $sourceRequest?->id;
+            }
+
+            $request = SubscriptionRequest::create($requestData);
 
             $request->update([
                 'request_number' => $this->formatRequestNumber($request->id),
@@ -164,6 +192,11 @@ class SubscriptionWorkflowService
                 'customer_responded_at' => now(),
                 'subscription_id' => $subscription->id,
             ]);
+
+            if (SubscriptionRequest::hasDatabaseColumn('resubmitted_from_request_id')
+                && SubscriptionRequest::hasDatabaseColumn('archived_at')) {
+                $this->archiveAncestorRequests($request);
+            }
 
             return $subscription->fresh(['items.product', 'items.pack', 'request']);
         });
@@ -534,6 +567,35 @@ class SubscriptionWorkflowService
             throw ValidationException::withMessages([
                 'request' => ['This subscription request can no longer be quoted.'],
             ]);
+        }
+    }
+
+    protected function archiveAncestorRequests(SubscriptionRequest $request): void
+    {
+        if (!SubscriptionRequest::hasDatabaseColumn('resubmitted_from_request_id')
+            || !SubscriptionRequest::hasDatabaseColumn('archived_at')) {
+            return;
+        }
+
+        $ancestorId = $request->resubmitted_from_request_id;
+        $visited = [];
+
+        while ($ancestorId && !in_array($ancestorId, $visited, true)) {
+            $visited[] = $ancestorId;
+
+            $ancestor = SubscriptionRequest::query()->find($ancestorId);
+
+            if (!$ancestor) {
+                break;
+            }
+
+            if ($ancestor->archived_at === null) {
+                $ancestor->update([
+                    'archived_at' => now(),
+                ]);
+            }
+
+            $ancestorId = $ancestor->resubmitted_from_request_id;
         }
     }
 

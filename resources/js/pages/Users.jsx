@@ -37,6 +37,7 @@ function UserModal({ user, roles, onClose }) {
       password: '',
       password_confirmation: '',
     });
+    form.clearErrors();
     setShowPassword(false);
     setShowConfirmPassword(false);
   }, [user, roles]);
@@ -85,6 +86,12 @@ function UserModal({ user, roles, onClose }) {
         </div>
 
         <form onSubmit={submit} className="space-y-5 px-7 pb-7">
+          {Object.keys(form.errors).length > 0 ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {form.errors.email || form.errors.name || form.errors.role || form.errors.password || 'We could not save this staff member. Please review the form and try again.'}
+            </div>
+          ) : null}
+
           <div>
             <label className="mb-2 block text-[1rem] font-semibold text-[#3a2513]">Full Name</label>
             <input
@@ -92,6 +99,7 @@ function UserModal({ user, roles, onClose }) {
               value={form.data.name}
               onChange={(e) => form.setData('name', e.target.value)}
               placeholder="Enter full name"
+              required
               className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
             />
             {form.errors.name ? <p className="mt-2 text-xs text-red-500">{form.errors.name}</p> : null}
@@ -104,6 +112,7 @@ function UserModal({ user, roles, onClose }) {
               value={form.data.email}
               onChange={(e) => form.setData('email', e.target.value)}
               placeholder="user@amanibrew.com"
+              required
               className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
             />
             {form.errors.email ? <p className="mt-2 text-xs text-red-500">{form.errors.email}</p> : null}
@@ -114,6 +123,7 @@ function UserModal({ user, roles, onClose }) {
             <select
               value={form.data.role}
               onChange={(e) => form.setData('role', e.target.value)}
+              required
               className="h-14 w-full rounded-xl border border-[#dcccba] bg-white px-5 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
             >
               {roles.map((role) => (

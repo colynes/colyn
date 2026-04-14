@@ -30,10 +30,11 @@ class UpdateProfileRequest extends FormRequest
     {
         $user = $this->user();
         $customerId = $user?->customer?->id;
+        $emailRule = app()->environment('local') ? 'email:rfc' : 'email:rfc,dns';
 
         return [
             'full_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email:rfc,dns', 'max:255', Rule::unique('users', 'email')->ignore($user?->id), Rule::unique('customers', 'email')->ignore($customerId)],
+            'email' => ['required', $emailRule, 'max:255', Rule::unique('users', 'email')->ignore($user?->id), Rule::unique('customers', 'email')->ignore($customerId)],
             'phone' => ['required', 'string', 'max:30', Rule::unique('customers', 'phone')->ignore($customerId)],
             'city' => ['required', 'string', 'max:255'],
             'country' => ['required', 'string', 'max:255'],

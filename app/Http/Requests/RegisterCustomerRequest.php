@@ -25,10 +25,12 @@ class RegisterCustomerRequest extends FormRequest
 
     public function rules(): array
     {
+        $emailRule = app()->environment('local') ? 'email:rfc' : 'email:rfc,dns';
+
         return [
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:30', 'unique:customers,phone'],
-            'email' => ['required', 'email:rfc,dns', 'max:255', 'unique:users,email', 'unique:customers,email'],
+            'email' => ['required', $emailRule, 'max:255', 'unique:users,email', 'unique:customers,email'],
             'address' => ['required', 'string', 'max:1000'],
             'password' => ['required', 'confirmed', Password::defaults()],
         ];

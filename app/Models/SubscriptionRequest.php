@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class SubscriptionRequest extends Model
 {
@@ -12,10 +13,13 @@ class SubscriptionRequest extends Model
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_EXPIRED = 'expired';
 
+    protected static array $databaseColumnPresence = [];
+
     protected $fillable = [
         'request_number',
         'user_id',
         'customer_id',
+        'resubmitted_from_request_id',
         'frequency',
         'delivery_days',
         'start_date',
@@ -33,6 +37,7 @@ class SubscriptionRequest extends Model
         'response_message',
         'rejection_reason',
         'subscription_id',
+        'archived_at',
     ];
 
     protected $casts = [
@@ -44,6 +49,7 @@ class SubscriptionRequest extends Model
         'quoted_at' => 'datetime',
         'reviewed_at' => 'datetime',
         'customer_responded_at' => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     public function user()
@@ -54,6 +60,16 @@ class SubscriptionRequest extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function resubmittedFrom()
+    {
+        return $this->belongsTo(self::class, 'resubmitted_from_request_id');
+    }
+
+    public function resubmissions()
+    {
+        return $this->hasMany(self::class, 'resubmitted_from_request_id');
     }
 
     public function reviewer()
@@ -76,5 +92,20 @@ class SubscriptionRequest extends Model
         return $this->status === self::STATUS_QUOTED
             && $this->quote_valid_until
             && $this->quote_valid_until->lt(now()->startOfDay());
+    }
+
+    public function isArchived(): bool
+    {
+        return self::hasDatabaseColumn('archived_at') && $this->archived_at !== null;
+    }
+
+    public static function hasDatabaseColumn(string $column): bool
+    {
+        if (!array_key_exists($column, self::$databaseColumnPresence)) {
+            self::$databaseColumnPresence[$column] = Schema::hasTable('subscription_requests')
+                && Schema::hasColumn('subscription_requests', $column);
+        }
+
+        return self::$databaseColumnPresence[$column];
     }
 }

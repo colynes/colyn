@@ -67,6 +67,7 @@ function quantityLabel(quantity, unit) {
 function buildInitialForm(customerMeta = {}) {
   return {
     items: [],
+    resubmitted_from_request_id: null,
     frequency: 'weekly',
     delivery_days: ['Mon'],
     start_date: new Date().toISOString().slice(0, 10),
@@ -76,6 +77,32 @@ function buildInitialForm(customerMeta = {}) {
     draft_item_type: 'product',
     draft_item_id: '',
     draft_quantity: '1',
+  };
+}
+
+function buildPrefilledFormFromRequest(request, customerMeta = {}) {
+  const baseForm = buildInitialForm(customerMeta);
+
+  return {
+    ...baseForm,
+    items: (request?.items || []).map((item) => ({
+      item_type: item.item_type,
+      product_id: item.product_id ?? null,
+      pack_id: item.pack_id ?? null,
+      name: item.name,
+      quantity: String(item.quantity ?? 1),
+      unit: item.unit,
+      price: item.price ?? 0,
+    })),
+    resubmitted_from_request_id: request?.id ?? null,
+    frequency: request?.frequency || baseForm.frequency,
+    delivery_days: Array.isArray(request?.delivery_days)
+      ? [...request.delivery_days]
+      : [...baseForm.delivery_days],
+    start_date: request?.start_date || baseForm.start_date,
+    delivery_address: request?.delivery_address || baseForm.delivery_address,
+    notes: request?.notes || '',
+    offered_price: request?.offered_price ?? '',
   };
 }
 
@@ -120,7 +147,7 @@ function StatusBadge({ toneMap, value, label }) {
     </span>
   );
 }
-function RequestFormModal({ open, onClose, form, setForm, products, packs, errors, submitting, onSubmit }) {
+function RequestFormModal({ open, onClose, form, setForm, products, packs, errors, submitting, onSubmit, title = 'New Subscription Request', description = 'Submit your preferred price. Our team will review and send you a quote within 24 hours.', submitLabel = 'Submit Request' }) {
   if (!open) {
     return null;
   }
@@ -191,10 +218,8 @@ function RequestFormModal({ open, onClose, form, setForm, products, packs, error
       <div className="my-auto w-full max-w-[72rem] overflow-hidden rounded-[2rem] bg-white shadow-[0_28px_90px_rgba(38,24,14,0.26)]">
         <div className="flex items-start justify-between border-b border-[#eadfce] px-6 py-6 md:px-8">
           <div>
-            <h2 className="text-[2rem] font-black tracking-[-0.04em] text-[#3a2513]">New Subscription Request</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#7d6247]">
-              Submit your preferred price. Our team will review and send you a quote within 24 hours.
-            </p>
+            <h2 className="text-[2rem] font-black tracking-[-0.04em] text-[#3a2513]">{title}</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#7d6247]">{description}</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#6d5036] transition hover:bg-[#f3ede5]" aria-label="Close subscription request form">
             <X className="h-5 w-5" />
@@ -287,14 +312,14 @@ function RequestFormModal({ open, onClose, form, setForm, products, packs, error
 
           <div className="flex flex-col-reverse gap-3 border-t border-[#eadfce] pt-6 md:flex-row md:justify-end">
             <button type="button" onClick={onClose} className="inline-flex h-12 items-center justify-center rounded-xl border border-[#d9c4a9] bg-white px-5 text-sm font-semibold text-[#4f3118]">Cancel</button>
-            <button type="submit" disabled={submitting} className="inline-flex h-12 items-center justify-center rounded-xl bg-[#4f3118] px-5 text-sm font-semibold text-white transition hover:bg-[#3f2513] disabled:cursor-not-allowed disabled:opacity-70">{submitting ? 'Submitting...' : 'Submit Request'}</button>
+            <button type="submit" disabled={submitting} className="inline-flex h-12 items-center justify-center rounded-xl bg-[#4f3118] px-5 text-sm font-semibold text-white transition hover:bg-[#3f2513] disabled:cursor-not-allowed disabled:opacity-70">{submitting ? 'Submitting...' : submitLabel}</button>
           </div>
         </form>
       </div>
     </div>
   );
 }
-function RequestCard({ request, onAccept, onReject, onOpenSubscription, processingKey }) {
+function RequestCard({ request, onAccept, onReject, onOpenSubscription, onSendNewOffer, processingKey }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const requestTitle = request.items.map((item) => item.name).slice(0, 2).join(' + ') || 'Subscription request';
   const acceptedSubscription = request.subscription;
@@ -464,7 +489,23 @@ function RequestCard({ request, onAccept, onReject, onOpenSubscription, processi
         ) : null}
 
         {request.status === 'accepted' ? <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold">Quote accepted successfully.</p><p className="mt-1">Your active subscription is ready and future deliveries will appear in your dashboard.</p></div>{request.subscription ? <button type="button" onClick={() => onOpenSubscription(request.subscription.id)} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#1f6f55] px-4 text-sm font-semibold text-white">Open Subscription</button> : null}</div></div> : null}
-        {request.status === 'rejected' ? <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700"><p className="font-semibold">Request closed.</p><p className="mt-1">{request.rejection_reason || request.response_message || 'This request was rejected.'}</p></div> : null}
+        {request.status === 'rejected' ? (
+          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-semibold">Request closed.</p>
+                <p className="mt-1">{request.rejection_reason || request.response_message || 'This request was rejected.'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onSendNewOffer(request)}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-[#4f3118] px-4 text-sm font-semibold text-white transition hover:bg-[#3f2513]"
+              >
+                Send New Offer
+              </button>
+            </div>
+          </div>
+        ) : null}
         {request.status === 'expired' ? <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">This quote expired before it was accepted. Submit a fresh request if you still want this delivery plan.</div> : null}
       </CardContent>
     </Card>
@@ -530,6 +571,7 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
   const [activeTab, setActiveTab] = useState(initialTab || 'requests');
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [requestForm, setRequestForm] = useState(buildInitialForm(customerMeta));
+  const [requestModalMode, setRequestModalMode] = useState('new');
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [processingKey, setProcessingKey] = useState('');
@@ -539,7 +581,24 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
 
   const counts = useMemo(() => ({ requests: subscriptionRequests.length, active: activeSubscriptions.length, upcoming: upcomingDeliveries.length }), [subscriptionRequests.length, activeSubscriptions.length, upcomingDeliveries.length]);
   const reloadSubscriptionData = () => new Promise((resolve) => router.reload({ only: ['subscriptionRequests', 'activeSubscriptions', 'upcomingDeliveries', 'summary', 'notifications'], preserveScroll: true, onFinish: () => resolve() }));
-  const closeRequestModal = () => { setRequestModalOpen(false); setRequestForm(buildInitialForm(customerMeta)); setFormErrors({}); };
+  const closeRequestModal = () => {
+    setRequestModalOpen(false);
+    setRequestModalMode('new');
+    setRequestForm(buildInitialForm(customerMeta));
+    setFormErrors({});
+  };
+  const openNewRequestModal = () => {
+    setRequestModalMode('new');
+    setRequestForm(buildInitialForm(customerMeta));
+    setFormErrors({});
+    setRequestModalOpen(true);
+  };
+  const openSendOfferModal = (request) => {
+    setRequestModalMode('resend');
+    setRequestForm(buildPrefilledFormFromRequest(request, customerMeta));
+    setFormErrors({});
+    setRequestModalOpen(true);
+  };
 
   useEffect(() => {
     const type = flash?.error ? 'error' : flash?.success ? 'success' : null;
@@ -572,6 +631,7 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
 
     const payload = {
       items: requestForm.items.map((item) => ({ item_type: item.item_type, product_id: item.product_id, pack_id: item.pack_id, quantity: Number(item.quantity || 0) })),
+      resubmitted_from_request_id: requestForm.resubmitted_from_request_id,
       frequency: requestForm.frequency,
       delivery_days: ['weekly', 'custom'].includes(requestForm.frequency) ? requestForm.delivery_days : [],
       start_date: requestForm.start_date,
@@ -647,10 +707,15 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
   };
 
   const openSubscriptionFromRequest = (subscriptionId) => { setActiveTab('active'); setExpandedSubscriptionId(subscriptionId); };
+  const requestModalTitle = requestModalMode === 'resend' ? 'Send New Offer' : 'New Subscription Request';
+  const requestModalDescription = requestModalMode === 'resend'
+    ? 'We filled in your previous request so you can adjust the offer and send it back to the back office team.'
+    : 'Submit your preferred price. Our team will review and send you a quote within 24 hours.';
+  const requestModalSubmitLabel = requestModalMode === 'resend' ? 'Send Offer' : 'Submit Request';
 
   return (
     <StoreLayout title="My Subscriptions" subtitle="Create delivery requests, review admin quotes, and manage your recurring deliveries from one place.">
-      <RequestFormModal open={requestModalOpen} onClose={closeRequestModal} form={requestForm} setForm={setRequestForm} products={catalog.products || []} packs={catalog.packs || []} errors={formErrors} submitting={submitting} onSubmit={submitRequest} />
+      <RequestFormModal open={requestModalOpen} onClose={closeRequestModal} form={requestForm} setForm={setRequestForm} products={catalog.products || []} packs={catalog.packs || []} errors={formErrors} submitting={submitting} onSubmit={submitRequest} title={requestModalTitle} description={requestModalDescription} submitLabel={requestModalSubmitLabel} />
       <ConfirmModal isOpen={Boolean(confirmState)} onClose={() => setConfirmState(null)} onConfirm={() => confirmState?.onConfirm?.()} title={confirmState?.title} message={confirmState?.message} confirmText={confirmState?.confirmText} type={confirmState?.type || 'warning'} />
 
       <div className="space-y-8">
@@ -664,11 +729,11 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
         <section className="rounded-[2rem] border border-[#eadfce] bg-white p-5 shadow-sm md:p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap gap-2 rounded-[1.25rem] bg-[#f4ede3] p-2">{tabOptions.map((tab) => <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={`inline-flex items-center rounded-[1rem] px-4 py-2.5 text-sm font-semibold transition ${activeTab === tab.key ? 'bg-[#4f3118] text-white shadow-sm' : 'text-[#6b4a2b] hover:bg-white'}`}>{tab.label}<span className={`ml-2 inline-flex min-w-6 items-center justify-center rounded-full px-2 py-0.5 text-[11px] ${activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-white text-[#6b4a2b]'}`}>{counts[tab.key]}</span></button>)}</div>
-            <button type="button" onClick={() => { setRequestModalOpen(true); setFormErrors({}); }} className="inline-flex items-center justify-center rounded-[1.05rem] bg-[#4f3118] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#3f2513]"><Plus size={18} className="mr-2" />New Subscription Request</button>
+            <button type="button" onClick={openNewRequestModal} className="inline-flex items-center justify-center rounded-[1.05rem] bg-[#4f3118] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#3f2513]"><Plus size={18} className="mr-2" />New Subscription Request</button>
           </div>
         </section>
 
-        {activeTab === 'requests' ? <section className="space-y-5">{subscriptionRequests.length > 0 ? subscriptionRequests.map((request) => <RequestCard key={request.id} request={request} onAccept={handleAcceptQuote} onReject={confirmRejectQuote} onOpenSubscription={openSubscriptionFromRequest} processingKey={processingKey} />) : <EmptyState title="No subscription requests yet" description="Start a subscription request with your preferred products, delivery days, and offered price. Once the team responds with a quote, you can accept it here and the subscription will move into your active plans." action={<button type="button" onClick={() => setRequestModalOpen(true)} className="inline-flex items-center justify-center rounded-xl bg-[#4f3118] px-5 py-3 text-sm font-semibold text-white"><Plus size={18} className="mr-2" />Create your first request</button>} />}</section> : null}
+        {activeTab === 'requests' ? <section className="space-y-5">{subscriptionRequests.length > 0 ? subscriptionRequests.map((request) => <RequestCard key={request.id} request={request} onAccept={handleAcceptQuote} onReject={confirmRejectQuote} onOpenSubscription={openSubscriptionFromRequest} onSendNewOffer={openSendOfferModal} processingKey={processingKey} />) : <EmptyState title="No subscription requests yet" description="Start a subscription request with your preferred products, delivery days, and offered price. Once the team responds with a quote, you can accept it here and the subscription will move into your active plans." action={<button type="button" onClick={openNewRequestModal} className="inline-flex items-center justify-center rounded-xl bg-[#4f3118] px-5 py-3 text-sm font-semibold text-white"><Plus size={18} className="mr-2" />Create your first request</button>} />}</section> : null}
 
         {activeTab === 'active' ? <section className="space-y-5">{activeSubscriptions.length > 0 ? activeSubscriptions.map((subscription) => <SubscriptionCard key={subscription.id} subscription={subscription} expanded={expandedSubscriptionId === subscription.id} onToggleExpand={(subscriptionId) => setExpandedSubscriptionId((current) => current === subscriptionId ? null : subscriptionId)} onAction={handleSubscriptionAction} processingKey={processingKey} />) : <EmptyState title="No active subscriptions yet" description="Accepted quotes will move here automatically. You will be able to pause, resume, cancel, and skip upcoming deliveries from this tab." />}</section> : null}
 

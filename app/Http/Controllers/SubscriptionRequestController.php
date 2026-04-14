@@ -41,6 +41,7 @@ class SubscriptionRequestController extends Controller
             'delivery_address' => ['required', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'offered_price' => ['required', 'numeric', 'min:0'],
+            'resubmitted_from_request_id' => ['nullable', 'integer', 'exists:subscription_requests,id'],
         ]);
 
         $this->validateItemScopes($validated['items']);

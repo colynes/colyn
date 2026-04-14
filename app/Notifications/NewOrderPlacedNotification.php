@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Order;
+use App\Notifications\Concerns\UsesOptionalBroadcastChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
@@ -10,6 +11,7 @@ use Illuminate\Notifications\Notification;
 class NewOrderPlacedNotification extends Notification
 {
     use Queueable;
+    use UsesOptionalBroadcastChannel;
 
     public function __construct(
         protected Order $order,
@@ -18,7 +20,7 @@ class NewOrderPlacedNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database', 'broadcast'];
+        return $this->notificationChannels();
     }
 
     public function toArray(object $notifiable): array
