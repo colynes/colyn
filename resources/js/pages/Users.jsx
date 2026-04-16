@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { Card, CardContent } from '@/components/ui/Card';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { Eye, EyeOff, Lock, Pencil, Plus, Search, Shield, Trash2, X } from 'lucide-react';
@@ -361,14 +362,18 @@ export default function Users({ auth, users, roles = [], filters = {}, pickupHou
             <p className="mt-2 text-[0.95rem] text-[#73563a]">Manage staff accounts and access permissions</p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveUser({})}
-            className="inline-flex items-center gap-3 self-start rounded-[1.05rem] bg-[#4f3118] px-6 py-3.5 text-[1.05rem] font-semibold text-white transition hover:bg-[#402612]"
-          >
-            <Plus className="h-5 w-5" strokeWidth={2.25} />
-            Add Staff
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <LanguageSwitcher className="self-start" />
+
+            <button
+              type="button"
+              onClick={() => setActiveUser({})}
+              className="inline-flex items-center gap-3 self-start rounded-[1.05rem] bg-[#4f3118] px-6 py-3.5 text-[1.05rem] font-semibold text-white transition hover:bg-[#402612]"
+            >
+              <Plus className="h-5 w-5" strokeWidth={2.25} />
+              Add Staff
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-5 md:grid-cols-3">

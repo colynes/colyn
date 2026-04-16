@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Link, router, usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import StoreLayout from '@/components/StoreLayout';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { Card, CardContent } from '@/components/ui/Card';
 import ProfileCard from '@/components/customer/ProfileCard';
 import EditProfileDialog from '@/components/customer/EditProfileDialog';
+import { useI18n } from '@/lib/i18n';
 
 const money = (value) => new Intl.NumberFormat('en-TZ', {
   style: 'currency',
@@ -12,6 +14,7 @@ const money = (value) => new Intl.NumberFormat('en-TZ', {
 }).format(value || 0);
 
 export default function Profile({ profileMeta, orders = [] }) {
+  const { t } = useI18n();
   const { auth, flash } = usePage().props;
   const [dialogOpen, setDialogOpen] = useState(false);
   const user = auth?.user;
@@ -26,8 +29,8 @@ export default function Profile({ profileMeta, orders = [] }) {
 
   return (
     <StoreLayout
-      title="Your Profile"
-      subtitle="View your personal details, update them anytime, and quickly jump back into your order activity."
+      title={t('frontend.profile.title', 'Your Profile')}
+      subtitle={t('frontend.profile.subtitle', 'View your personal details, update them anytime, and quickly jump back into your order activity.')}
     >
       <EditProfileDialog
         open={dialogOpen}
@@ -43,12 +46,16 @@ export default function Profile({ profileMeta, orders = [] }) {
           </div>
         )}
 
+        <div className="flex justify-end">
+          <LanguageSwitcher />
+        </div>
+
         <ProfileCard user={user} onEdit={() => setDialogOpen(true)} />
 
         <div className="grid gap-8">
           <Card className="rounded-2xl border border-gray-100 bg-white shadow-md">
             <CardContent className="p-6">
-              <h2 className="text-xl font-bold text-gray-800">Recent Orders</h2>
+              <h2 className="text-xl font-bold text-gray-800">{t('frontend.profile.recent_orders', 'Recent Orders')}</h2>
               <div className="mt-5 space-y-4">
                 {orders.length > 0 ? orders.map((order) => (
                   <div key={order.id} className="rounded-2xl bg-gray-50 p-4">
@@ -67,7 +74,7 @@ export default function Profile({ profileMeta, orders = [] }) {
                             onClick={() => cancelOrder(order.id)}
                             className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white"
                           >
-                            Cancel Order
+                            {t('frontend.profile.actions.cancel_order', 'Cancel Order')}
                           </button>
                         )}
                         {order.can_mark_delivered && (
@@ -76,14 +83,14 @@ export default function Profile({ profileMeta, orders = [] }) {
                             onClick={() => confirmDelivery(order.id)}
                             className="rounded-xl bg-[var(--color-brand-dark)] px-4 py-2 text-sm font-semibold text-white"
                           >
-                            Confirm Delivery
+                            {t('frontend.profile.actions.confirm_delivery', 'Confirm Delivery')}
                           </button>
                         )}
                       </div>
                     )}
                   </div>
                 )) : (
-                  <p className="text-sm text-gray-500">No previous orders yet.</p>
+                  <p className="text-sm text-gray-500">{t('frontend.profile.no_previous_orders', 'No previous orders yet.')}</p>
                 )}
               </div>
             </CardContent>

@@ -8,6 +8,7 @@ import { Toaster } from 'sonner';
 import { startEcho } from './lib/echo';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Amani Brew';
+const TOAST_DURATION_MS = 5000;
 
 void startEcho();
 
@@ -19,7 +20,7 @@ createInertiaApp({
         root.render(
             <>
                 <App {...props} />
-                <Toaster position="top-right" richColors closeButton duration={4500} />
+                <Toaster position="top-right" richColors closeButton duration={TOAST_DURATION_MS} />
             </>,
         );
     },

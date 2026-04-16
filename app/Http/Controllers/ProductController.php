@@ -28,6 +28,8 @@ class ProductController extends Controller
     {
         $this->ensureBackoffice();
 
+        $perPage = max(1, min((int) $request->integer('per_page', 15), 100));
+
         $products = Product::query()
             ->with(['category', 'currentPrice', 'stocks'])
             ->withSum('stocks as stock_quantity', 'quantity')
@@ -38,7 +40,7 @@ class ProductController extends Controller
             ->when($request->status !== null && $request->status !== '', fn($q) =>
                 $q->where('is_active', $request->status === 'active'))
             ->orderBy('name')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString()
             ->through(function (Product $product) {
                 $stockQuantity = (float) ($product->stock_quantity ?? 0);
@@ -76,7 +78,7 @@ class ProductController extends Controller
         return Inertia::render('Inventory/Products', [
             'products'   => $products,
             'categories' => $categories,
-            'filters'    => $request->only(['search', 'category_id', 'status']),
+            'filters'    => $request->only(['search', 'category_id', 'status', 'per_page']),
         ]);
     }
 

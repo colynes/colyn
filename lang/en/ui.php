@@ -1,0 +1,88 @@
+<?php
+
+return [
+    'language_switcher' => [
+        'label' => 'Language',
+    ],
+    'store' => [
+        'brand_tagline' => 'Fresh ordering',
+        'nav' => [
+            'home' => 'Home',
+            'products' => 'Products',
+            'packs' => 'Packs',
+            'promotions' => 'Promotions',
+            'my_orders' => 'My Orders',
+            'my_subscriptions' => 'My Subscriptions',
+            'profile' => 'Profile',
+            'store_home' => 'Store Home',
+            'dashboard' => 'Dashboard',
+            'sign_up' => 'Sign up',
+        ],
+        'actions' => [
+            'dashboard' => 'Dashboard',
+            'logout' => 'Logout',
+            'sign_in' => 'Sign in',
+            'profile' => 'Profile',
+        ],
+        'mobile' => [
+            'navigation' => 'Navigation',
+            'close_navigation_overlay' => 'Close navigation overlay',
+            'close_navigation_menu' => 'Close navigation menu',
+            'open_navigation_menu' => 'Open navigation menu',
+        ],
+        'hero' => [
+            'delivery_pickup_ready' => 'Delivery and pickup ready',
+            'fast_ordering' => 'Built for fast ordering',
+        ],
+    ],
+    'backoffice' => [
+        'brand_tagline' => 'Premium Butchery',
+        'nav' => [
+            'dashboard' => 'Dashboard',
+            'customers' => 'Customers',
+            'inventory' => 'Inventory',
+            'categories' => 'Categories',
+            'products' => 'Products',
+            'orders' => 'Orders',
+            'promotions' => 'Promotions',
+            'packs' => 'Packs',
+            'fat_clients' => 'Fat Clients',
+            'subscriptions' => 'Subscriptions',
+            'billing' => 'Billing',
+            'expenses' => 'Expenses',
+            'sales' => 'Sales',
+            'reports' => 'Reports',
+            'staff' => 'Staff',
+        ],
+        'fallback' => [
+            'admin_name' => 'Admin User',
+            'admin_email' => 'admin@amanibrew.com',
+        ],
+        'actions' => [
+            'logout' => 'Logout',
+        ],
+    ],
+    'login' => [
+        'brand_tagline' => 'Premium Butchery',
+        'headline' => 'Where Quality Meets Tradition',
+        'description' => 'From farm to table, we deliver the finest cuts of meat with a commitment to excellence, freshness, and sustainability.',
+        'stats' => [
+            'happy_clients' => 'Happy Clients',
+            'years_experience' => 'Years Experience',
+            'premium_cuts' => 'Premium Cuts',
+        ],
+        'copyright' => 'Copyright 2026 Amani Brew. All rights reserved.',
+        'title' => 'Welcome back',
+        'subtitle' => 'Staff and customers use this same sign-in page. Your role decides where you go after login.',
+        'email_label' => 'Email Address',
+        'email_placeholder' => 'Enter your email address',
+        'password_label' => 'Password',
+        'password_placeholder' => 'Enter your password',
+        'remember_me' => 'Remember me',
+        'forgot_password' => 'Forgot password?',
+        'signing_in' => 'Signing In...',
+        'sign_in' => 'Sign In',
+        'new_customer' => 'New customer?',
+        'create_account' => 'Create a customer account',
+    ],
+];

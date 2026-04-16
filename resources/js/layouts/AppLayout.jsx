@@ -29,7 +29,7 @@ export default function AppLayout({ children, user }) {
       <div className="lg:pl-64 flex flex-col min-h-screen transition-all duration-300">
         <MobileHeader onMenuClick={() => setSidebarOpen(true)} />
 
-        <div className="hidden lg:flex items-center justify-end px-6 pt-6">
+        <div className="hidden lg:flex items-center justify-end gap-3 px-6 pt-6">
           <NotificationBell />
         </div>
 

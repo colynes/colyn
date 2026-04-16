@@ -22,6 +22,7 @@ import {
   XCircle,
 } from 'lucide-react';
 
+const TOAST_DURATION_MS = 5000;
 const dayOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const tabOptions = [
   { key: 'requests', label: 'Requests' },
@@ -617,11 +618,11 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
     flashToastKeyRef.current = nextKey;
 
     if (type === 'error') {
-      toast.error(message, { duration: 3500 });
+      toast.error(message, { duration: TOAST_DURATION_MS });
       return;
     }
 
-    toast.success(message, { duration: 3500 });
+    toast.success(message, { duration: TOAST_DURATION_MS });
   }, [flash?.error, flash?.success]);
 
   const submitRequest = async (event) => {
@@ -649,7 +650,7 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
       if (error.response?.status === 422) {
         setFormErrors(error.response.data?.errors || {});
       } else {
-        toast.error(error.response?.data?.message || 'We could not submit your subscription request. Please try again.', { duration: 3500 });
+        toast.error(error.response?.data?.message || 'We could not submit your subscription request. Please try again.', { duration: TOAST_DURATION_MS });
       }
     } finally {
       setSubmitting(false);
@@ -663,7 +664,7 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
       await reloadSubscriptionData();
       setActiveTab('active');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'We could not accept this quote right now.', { duration: 3500 });
+      toast.error(error.response?.data?.message || 'We could not accept this quote right now.', { duration: TOAST_DURATION_MS });
     } finally {
       setProcessingKey('');
     }
@@ -671,8 +672,8 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
 
   const confirmRejectQuote = (request) => setConfirmState({ title: 'Reject Quote?', message: `This will close ${request.request_number}. You can always create a new subscription request later.`, confirmText: 'Reject Quote', type: 'danger', onConfirm: async () => {
     setProcessingKey(`reject-${request.id}`);
-    try { const response = await window.axios.post(`/my-subscriptions/requests/${request.id}/reject-quote`, { response_message: 'Quote rejected by customer.' }); await reloadSubscriptionData(); setActiveTab('requests'); toast.success(response.data?.message || 'Quote rejected successfully.', { duration: 3500 }); }
-    catch (error) { toast.error(error.response?.data?.message || 'We could not reject this quote right now.', { duration: 3500 }); }
+    try { const response = await window.axios.post(`/my-subscriptions/requests/${request.id}/reject-quote`, { response_message: 'Quote rejected by customer.' }); await reloadSubscriptionData(); setActiveTab('requests'); toast.success(response.data?.message || 'Quote rejected successfully.', { duration: TOAST_DURATION_MS }); }
+    catch (error) { toast.error(error.response?.data?.message || 'We could not reject this quote right now.', { duration: TOAST_DURATION_MS }); }
     finally { setProcessingKey(''); }
   } });
 
@@ -690,9 +691,9 @@ export default function MySubscriptions({ subscriptionRequests = [], activeSubsc
         const response = await window.axios[config.method](config.path);
         await reloadSubscriptionData();
         setActiveTab(action === 'skip' ? 'upcoming' : 'active');
-        toast.success(response.data?.message || config.success, { duration: 3500 });
+        toast.success(response.data?.message || config.success, { duration: TOAST_DURATION_MS });
       } catch (error) {
-        toast.error(error.response?.data?.message || 'We could not update that subscription right now.', { duration: 3500 });
+        toast.error(error.response?.data?.message || 'We could not update that subscription right now.', { duration: TOAST_DURATION_MS });
       } finally {
         setProcessingKey('');
       }

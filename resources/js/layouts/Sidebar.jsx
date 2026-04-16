@@ -13,37 +13,41 @@ import {
   X,
   ChevronDown
 } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 import { logoutCurrentBrowser } from '@/lib/logout';
 
 export default function Sidebar({ isOpen, setIsOpen, user }) {
   const { url } = usePage();
+  const { t } = useI18n();
 
   const navItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Customers', href: '/customers', icon: UsersRound },
+    { id: 'dashboard', name: t('ui.backoffice.nav.dashboard', 'Dashboard'), href: '/dashboard', icon: LayoutDashboard },
+    { id: 'customers', name: t('ui.backoffice.nav.customers', 'Customers'), href: '/customers', icon: UsersRound },
     { 
-      name: 'Inventory', 
+      id: 'inventory',
+      name: t('ui.backoffice.nav.inventory', 'Inventory'), 
       icon: Package,
       children: [
-        { name: 'Categories', href: '/inventory/categories' },
-        { name: 'Products', href: '/inventory/products' }
+        { id: 'categories', name: t('ui.backoffice.nav.categories', 'Categories'), href: '/inventory/categories' },
+        { id: 'products', name: t('ui.backoffice.nav.products', 'Products'), href: '/inventory/products' }
       ]
     },
-    { name: 'Orders', href: '/orders', icon: ShoppingCart },
-    { name: 'Promotions', href: '/dashboard/promotions', icon: Package },
-    { name: 'Packs', href: '/dashboard/packs', icon: Package, role: ['administrator', 'admin', 'manager'] },
+    { id: 'orders', name: t('ui.backoffice.nav.orders', 'Orders'), href: '/orders', icon: ShoppingCart },
+    { id: 'promotions', name: t('ui.backoffice.nav.promotions', 'Promotions'), href: '/dashboard/promotions', icon: Package },
+    { id: 'packs', name: t('ui.backoffice.nav.packs', 'Packs'), href: '/dashboard/packs', icon: Package, role: ['administrator', 'admin', 'manager'] },
     { 
-      name: 'Fat Clients', 
+      id: 'fat_clients',
+      name: t('ui.backoffice.nav.fat_clients', 'Fat Clients'), 
       icon: UsersRound,
       children: [
-        { name: 'Subscriptions', href: '/fat-clients/subscriptions' },
-        { name: 'Billing', href: '/fat-clients/billing' }
+        { id: 'subscriptions', name: t('ui.backoffice.nav.subscriptions', 'Subscriptions'), href: '/fat-clients/subscriptions' },
+        { id: 'billing', name: t('ui.backoffice.nav.billing', 'Billing'), href: '/fat-clients/billing' }
       ]
     },
-    { name: 'Expenses', href: '/expenses', icon: Wallet },
-    { name: 'Sales', href: '/sales', icon: TrendingUp },
-    { name: 'Reports', href: '/reports', icon: FileText },
-    { name: 'Staff', href: '/users', icon: Users, role: ['administrator', 'admin'] },
+    { id: 'expenses', name: t('ui.backoffice.nav.expenses', 'Expenses'), href: '/expenses', icon: Wallet },
+    { id: 'sales', name: t('ui.backoffice.nav.sales', 'Sales'), href: '/sales', icon: TrendingUp },
+    { id: 'reports', name: t('ui.backoffice.nav.reports', 'Reports'), href: '/reports', icon: FileText },
+    { id: 'staff', name: t('ui.backoffice.nav.staff', 'Staff'), href: '/users', icon: Users, role: ['administrator', 'admin'] },
   ];
 
   const checkActive = (href) => url.startsWith(href);
@@ -55,17 +59,17 @@ export default function Sidebar({ isOpen, setIsOpen, user }) {
 
     navItems.forEach((item) => {
       if (item.children) {
-        nextOpenSections[item.name] = item.children.some((child) => checkActive(child.href));
+        nextOpenSections[item.id] = item.children.some((child) => checkActive(child.href));
       }
     });
 
     setOpenSections((current) => ({ ...current, ...nextOpenSections }));
   }, [url]);
 
-  const toggleSection = (sectionName) => {
+  const toggleSection = (sectionId) => {
     setOpenSections((current) => ({
       ...current,
-      [sectionName]: !current[sectionName],
+      [sectionId]: !current[sectionId],
     }));
   };
 
@@ -80,7 +84,7 @@ export default function Sidebar({ isOpen, setIsOpen, user }) {
           </div>
           <div>
             <h1 className="text-[1.35rem] font-bold tracking-wide">Amani Brew</h1>
-            <p className="text-[0.9rem] text-amber-200/75 uppercase tracking-tight font-semibold -mt-0.5">Premium Butchery</p>
+            <p className="text-[0.9rem] text-amber-200/75 uppercase tracking-tight font-semibold -mt-0.5">{t('ui.backoffice.brand_tagline', 'Premium Butchery')}</p>
           </div>
         </Link>
         <button onClick={() => setIsOpen(false)} className="lg:hidden text-gray-400 hover:text-white">
@@ -97,14 +101,14 @@ export default function Sidebar({ isOpen, setIsOpen, user }) {
           const Icon = item.icon;
 
           if (item.children) {
-            const isSectionOpen = Boolean(openSections[item.name]);
+            const isSectionOpen = Boolean(openSections[item.id]);
             const isSectionActive = item.children.some((c) => checkActive(c.href));
 
             return (
-              <div key={index} className="pb-1">
+              <div key={item.id || index} className="pb-1">
                 <button
                   type="button"
-                  onClick={() => toggleSection(item.name)}
+                  onClick={() => toggleSection(item.id)}
                   className={`flex w-full items-center justify-between px-4 py-3 text-[1rem] font-semibold rounded-xl transition-colors ${
                     isSectionActive ? 'text-white' : 'text-gray-300 hover:bg-white/5 hover:text-white'
                   }`}
@@ -119,7 +123,7 @@ export default function Sidebar({ isOpen, setIsOpen, user }) {
                   <div className="pl-11 space-y-1 mt-1 border-l border-white/10 ml-5">
                     {item.children.map((child, cIdx) => (
                       <Link
-                        key={cIdx}
+                        key={child.id || cIdx}
                         href={child.href}
                         className={`block px-3 py-2 text-[0.95rem] rounded-md transition-colors ${
                           checkActive(child.href) 
@@ -138,7 +142,7 @@ export default function Sidebar({ isOpen, setIsOpen, user }) {
 
           return (
             <Link
-              key={index}
+              key={item.id || index}
               href={item.href}
               className={`flex items-center px-4 py-3 text-[1rem] font-semibold rounded-xl transition-colors ${
                 isActive 
@@ -163,10 +167,10 @@ export default function Sidebar({ isOpen, setIsOpen, user }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[1rem] font-semibold text-white truncate">
-                  {user?.name || 'Admin User'}
+                  {user?.name || t('ui.backoffice.fallback.admin_name', 'Admin User')}
                 </p>
                 <p className="text-[0.9rem] text-gray-400 truncate">
-                  {user?.email || 'admin@amanibrew.com'}
+                  {user?.email || t('ui.backoffice.fallback.admin_email', 'admin@amanibrew.com')}
                 </p>
               </div>
             </div>
@@ -176,7 +180,7 @@ export default function Sidebar({ isOpen, setIsOpen, user }) {
               className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#B33B3B] hover:bg-[#9E2F2F] text-white rounded-xl text-[1rem] font-bold transition-all duration-200 shadow-lg shadow-[#B33B3B]/10"
             >
               <LogOut size={18} />
-              Logout
+              {t('ui.backoffice.actions.logout', 'Logout')}
             </button>
           </div>
         </div>

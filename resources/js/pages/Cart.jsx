@@ -4,6 +4,7 @@ import StoreLayout from '@/components/StoreLayout';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Minus, Plus, Trash2, X } from 'lucide-react';
 import { logoutCurrentBrowser } from '@/lib/logout';
+import { useI18n } from '@/lib/i18n';
 
 const money = (value) => new Intl.NumberFormat('en-TZ', {
   style: 'currency',
@@ -12,6 +13,8 @@ const money = (value) => new Intl.NumberFormat('en-TZ', {
 }).format(value || 0);
 
 function SignInCheckoutModal({ open, onClose, hasActiveSession }) {
+  const { t } = useI18n();
+
   if (!open) {
     return null;
   }
@@ -34,10 +37,10 @@ function SignInCheckoutModal({ open, onClose, hasActiveSession }) {
       <div className="w-full max-w-xl rounded-[2rem] bg-white shadow-[0_35px_90px_rgba(36,24,22,0.3)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#eadfd4] px-6 py-5 sm:px-8">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7a1f28]">Sign In Required</p>
-            <h2 className="mt-2 text-2xl font-black text-[#241816]">Sign in to complete your order</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7a1f28]">{t('frontend.cart.sign_in_required', 'Sign In Required')}</p>
+            <h2 className="mt-2 text-2xl font-black text-[#241816]">{t('frontend.cart.sign_in_title', 'Sign in to complete your order')}</h2>
             <p className="mt-2 text-sm leading-7 text-[#6f5d57]">
-              In order to complete the order, please sign in first. After signing in, you can continue with checkout and finish your order.
+              {t('frontend.cart.sign_in_description', 'In order to complete the order, please sign in first. After signing in, you can continue with checkout and finish your order.')}
             </p>
           </div>
           <button
@@ -55,7 +58,7 @@ function SignInCheckoutModal({ open, onClose, hasActiveSession }) {
             onClick={handleSignInClick}
             className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#2c1d14]"
           >
-            Sign in
+            {t('ui.login.sign_in', 'Sign In')}
           </button>
 
           <button
@@ -63,7 +66,7 @@ function SignInCheckoutModal({ open, onClose, hasActiveSession }) {
             onClick={onClose}
             className="mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-[#eadfd4] px-5 py-3 text-sm font-semibold text-[#241816] transition hover:bg-[#f8f3ee]"
           >
-            Cancel
+            {t('frontend.common.cancel', 'Cancel')}
           </button>
         </div>
       </div>
@@ -72,6 +75,7 @@ function SignInCheckoutModal({ open, onClose, hasActiveSession }) {
 }
 
 export default function Cart({ cart }) {
+  const { t, tp } = useI18n();
   const { auth } = usePage().props;
   const items = cart?.items || [];
   const [signInPromptOpen, setSignInPromptOpen] = useState(false);
@@ -128,8 +132,8 @@ export default function Cart({ cart }) {
 
   return (
     <StoreLayout
-      title="Your Cart"
-      subtitle="Review quantities, keep the basket flexible, and move straight into the richer checkout flow when you're ready."
+      title={t('frontend.cart.title', 'Your Cart')}
+      subtitle={t('frontend.cart.subtitle', 'Review quantities, keep the basket flexible, and move straight into the richer checkout flow when you\'re ready.')}
       showLiveCart={false}
     >
       <SignInCheckoutModal
@@ -147,7 +151,9 @@ export default function Cart({ cart }) {
                   <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--color-sys-text-secondary)]">{item.category} • {item.unit}</p>
                   <h2 className="mt-2 text-2xl font-black">{item.name}</h2>
                   <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--color-sys-text-secondary)]">{item.description}</p>
-                  <p className="mt-3 text-sm font-semibold text-[var(--color-brand-dark)]">{money(item.price)} each</p>
+                  <p className="mt-3 text-sm font-semibold text-[var(--color-brand-dark)]">
+                    {tp('frontend.common.labels.each_price', ':price each', { price: money(item.price) })}
+                  </p>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center rounded-2xl border border-[var(--color-sys-border)] bg-[#f7f1e8] p-1">
@@ -180,7 +186,7 @@ export default function Cart({ cart }) {
                           event.currentTarget.blur();
                         }
                       }}
-                      aria-label={`Quantity for ${item.name}`}
+                      aria-label={`${t('frontend.common.labels.line_items', 'Line items')} ${item.name}`}
                       className="w-14 border-0 bg-transparent px-1 text-center text-sm font-bold text-[var(--color-brand-dark)] outline-none focus:ring-0"
                     />
                     <button
@@ -192,7 +198,7 @@ export default function Cart({ cart }) {
                     </button>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-sys-text-secondary)]">Line total</p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-sys-text-secondary)]">{t('frontend.common.labels.line_total', 'Line total')}</p>
                     <p className="mt-1 text-xl font-black">{money(item.subtotal)}</p>
                   </div>
                   <button
@@ -208,10 +214,10 @@ export default function Cart({ cart }) {
           )) : (
             <Card className="rounded-[1.75rem] border-none shadow-sm">
               <CardContent className="p-10 text-center">
-                <h2 className="text-2xl font-black">Your cart is empty</h2>
-                <p className="mt-3 text-sm text-[var(--color-sys-text-secondary)]">Add items first, then come back here to review the order before checkout.</p>
+                <h2 className="text-2xl font-black">{t('frontend.cart.empty_title', 'Your cart is empty')}</h2>
+                <p className="mt-3 text-sm text-[var(--color-sys-text-secondary)]">{t('frontend.cart.empty_description', 'Add items first, then come back here to review the order before checkout.')}</p>
                 <Link href="/products" className="mt-6 inline-flex rounded-2xl bg-[var(--color-brand-dark)] px-5 py-3 text-sm font-semibold text-white">
-                  Browse items
+                  {t('frontend.common.browse_items', 'Browse items')}
                 </Link>
               </CardContent>
             </Card>
@@ -220,19 +226,19 @@ export default function Cart({ cart }) {
 
         <aside className="space-y-6 lg:pt-2">
           <section className="space-y-4 text-[var(--color-brand-dark)]">
-            <h2 className="text-xl font-black">Order Summary</h2>
+            <h2 className="text-xl font-black">{t('frontend.cart.order_summary', 'Order Summary')}</h2>
             <div className="space-y-4 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[var(--color-sys-text-secondary)]">Line items</span>
+                <span className="text-[var(--color-sys-text-secondary)]">{t('frontend.common.labels.line_items', 'Line items')}</span>
                 <span className="font-bold">{cart?.line_count || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[var(--color-sys-text-secondary)]">Units in cart</span>
+                <span className="text-[var(--color-sys-text-secondary)]">{t('frontend.common.labels.total_items', 'Total Items')}</span>
                 <span className="font-bold">{cart?.count || 0}</span>
               </div>
               <div className="border-t border-[var(--color-sys-border)] pt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[var(--color-sys-text-secondary)]">Subtotal</span>
+                  <span className="text-[var(--color-sys-text-secondary)]">{t('frontend.common.labels.subtotal', 'Subtotal')}</span>
                   <span className="text-2xl font-black">{money(cart?.subtotal || 0)}</span>
                 </div>
               </div>
@@ -244,14 +250,14 @@ export default function Cart({ cart }) {
               href="/products"
               className="inline-flex w-full items-center justify-center rounded-2xl border border-[var(--color-brand-dark)] px-4 py-3 text-sm font-semibold text-[var(--color-brand-dark)] transition hover:bg-[var(--color-brand-dark)] hover:text-white"
             >
-              Add more items
+              {t('frontend.common.add_more_items', 'Add more items')}
             </Link>
             {isSignedInCustomer ? (
               <Link
                 href="/checkout"
                 className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] px-5 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#2c1d14]"
               >
-                Continue to checkout
+                {t('frontend.common.continue_to_checkout', 'Continue to checkout')}
               </Link>
             ) : (
               <button
@@ -259,7 +265,7 @@ export default function Cart({ cart }) {
                 onClick={() => setSignInPromptOpen(true)}
                 className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] px-5 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#2c1d14]"
               >
-                Continue to checkout
+                {t('frontend.common.continue_to_checkout', 'Continue to checkout')}
               </button>
             )}
           </div>

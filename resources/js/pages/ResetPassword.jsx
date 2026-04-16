@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 export default function ResetPassword() {
+  const { t } = useI18n();
   const { flash, formData } = usePage().props;
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -21,9 +23,12 @@ export default function ResetPassword() {
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #3B2A1E 0%, #5C3D2E 40%, #8C6F53 100%)' }}>
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-14 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: 'radial-gradient(circle at 20% 80%, #CDAD7D 0%, transparent 50%), radial-gradient(circle at 80% 20%, #C8A97E 0%, transparent 50%)'
-        }} />
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 20% 80%, #CDAD7D 0%, transparent 50%), radial-gradient(circle at 80% 20%, #C8A97E 0%, transparent 50%)',
+          }}
+        />
 
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-16">
@@ -32,19 +37,23 @@ export default function ResetPassword() {
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-wide">Amani Brew</h1>
-              <p className="text-sm text-amber-200 font-light">Reset Password</p>
+              <p className="text-sm text-amber-200 font-light">{t('frontend.reset_password.brand_tagline', 'Reset Password')}</p>
             </div>
           </div>
 
           <div className="space-y-6 max-w-sm">
-            <h2 className="text-4xl font-bold leading-tight">Choose a new password for your account.</h2>
+            <h2 className="text-4xl font-bold leading-tight">
+              {t('frontend.reset_password.hero_title', 'Choose a new password for your account.')}
+            </h2>
             <p className="text-amber-100/80 text-base leading-relaxed">
-              Use a strong password you have not used before so your account stays secure.
+              {t('frontend.reset_password.hero_description', 'Use a strong password you have not used before so your account stays secure.')}
             </p>
           </div>
         </div>
 
-        <p className="relative z-10 text-xs text-amber-200/60 text-center">© 2026 Amani Brew. All rights reserved.</p>
+        <p className="relative z-10 text-xs text-amber-200/60 text-center">
+          {t('frontend.reset_password.copyright', '© 2026 Amani Brew. All rights reserved.')}
+        </p>
       </div>
 
       <div className="w-full lg:w-1/2 flex items-center justify-center bg-[#F9F5EC] p-6">
@@ -55,15 +64,17 @@ export default function ResetPassword() {
             </div>
             <div>
               <p className="font-bold text-xl text-[var(--color-brand-dark)]">Amani Brew</p>
-              <p className="text-xs text-[var(--color-brand-tan)]">Reset Password</p>
+              <p className="text-xs text-[var(--color-brand-tan)]">{t('frontend.reset_password.brand_tagline', 'Reset Password')}</p>
             </div>
           </div>
 
           <div className="bg-white rounded-3xl shadow-xl p-10">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Reset password</h2>
+              <h2 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">
+                {t('frontend.reset_password.title', 'Reset password')}
+              </h2>
               <p className="mt-1.5 text-sm text-[var(--color-sys-text-secondary)]">
-                Enter your email and choose your new password.
+                {t('frontend.reset_password.subtitle', 'Enter your email and choose your new password.')}
               </p>
             </div>
 
@@ -81,12 +92,14 @@ export default function ResetPassword() {
               <input type="hidden" value={data.token} readOnly />
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Email Address</label>
+                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                  {t('frontend.reset_password.fields.email', 'Email Address')}
+                </label>
                 <input
                   type="email"
                   value={data.email}
                   onChange={(event) => setData('email', event.target.value)}
-                  placeholder="Enter your account email"
+                  placeholder={t('frontend.reset_password.placeholders.email', 'Enter your account email')}
                   required
                   className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                 />
@@ -94,13 +107,15 @@ export default function ResetPassword() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">New Password</label>
+                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                  {t('frontend.reset_password.fields.password', 'New Password')}
+                </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={data.password}
                     onChange={(event) => setData('password', event.target.value)}
-                    placeholder="Enter your new password"
+                    placeholder={t('frontend.reset_password.placeholders.password', 'Enter your new password')}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                   />
@@ -116,13 +131,15 @@ export default function ResetPassword() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Confirm Password</label>
+                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                  {t('frontend.reset_password.fields.password_confirmation', 'Confirm Password')}
+                </label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={data.password_confirmation}
                     onChange={(event) => setData('password_confirmation', event.target.value)}
-                    placeholder="Confirm your new password"
+                    placeholder={t('frontend.reset_password.placeholders.password_confirmation', 'Confirm your new password')}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                   />
@@ -141,14 +158,16 @@ export default function ResetPassword() {
                 disabled={processing}
                 className="w-full py-3 bg-[var(--color-brand-dark)] text-white rounded-xl font-semibold text-sm hover:bg-[#2c1d14] transition-colors disabled:opacity-50"
               >
-                {processing ? 'Resetting Password...' : 'Reset Password'}
+                {processing
+                  ? t('frontend.reset_password.actions.resetting', 'Resetting Password...')
+                  : t('frontend.reset_password.actions.reset_password', 'Reset Password')}
               </button>
             </form>
 
             <p className="mt-6 text-center text-sm text-[var(--color-sys-text-secondary)]">
-              Need to sign in instead?{' '}
+              {t('frontend.reset_password.footer.need_sign_in', 'Need to sign in instead?')}{' '}
               <Link href="/login" className="font-semibold text-[var(--color-brand-dark)] hover:underline">
-                Back to sign in
+                {t('frontend.reset_password.actions.back_to_sign_in', 'Back to sign in')}
               </Link>
             </p>
           </div>

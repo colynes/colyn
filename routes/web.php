@@ -9,6 +9,7 @@ use App\Http\Controllers\CustomerHomeController;
 use App\Http\Controllers\CustomerSubscriptionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\PushNotificationController;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Route;
 
 // Public storefront
 Route::get('/', [StorefrontController::class, 'index'])->name('home');
+Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 Route::post('/cart/items', [CartController::class, 'store'])->name('cart.store');
 Route::patch('/cart/items/{productId}', [CartController::class, 'update'])->name('cart.update');
 Route::delete('/cart/items/{productId}', [CartController::class, 'destroy'])->name('cart.destroy');

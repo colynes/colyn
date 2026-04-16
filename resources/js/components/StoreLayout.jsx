@@ -5,6 +5,7 @@ import CustomerCartPanel from '@/components/CustomerCartPanel';
 import NotificationBell from '@/components/NotificationBell';
 import PushNotificationBridge from '@/components/PushNotificationBridge';
 import NotificationRealtimeBridge from '@/components/NotificationRealtimeBridge';
+import { useI18n } from '@/lib/i18n';
 import { logoutCurrentBrowser } from '@/lib/logout';
 
 function navClass(active) {
@@ -33,6 +34,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
   const { auth, cart = { line_count: 0 } } = usePage().props;
   const currentUrl = usePage().url;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { t } = useI18n();
   const isAuthenticated = Boolean(auth?.user);
   const isCustomer = auth?.user?.role_key === 'customer';
   const isBackoffice = isAuthenticated && !isCustomer;
@@ -40,28 +42,28 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
   const handleLogout = () => logoutCurrentBrowser();
   const navItems = isCustomer
     ? [
-        { label: 'Home', href: '/customer/home', active: currentUrl === '/customer/home' },
-        { label: 'Products', href: '/products', active: currentUrl.startsWith('/products') },
-        { label: 'Packs', href: '/packs', active: currentUrl.startsWith('/packs') },
-        { label: 'Promotion', href: '/promotions', active: currentUrl.startsWith('/promotions') },
-        { label: 'My Orders', href: '/my-orders', active: currentUrl.startsWith('/my-orders') || currentUrl.startsWith('/track-orders') },
-        { label: 'My Subscriptions', href: '/my-subscriptions', active: currentUrl.startsWith('/my-subscriptions') },
-        { label: 'Profile', href: '/profile', active: currentUrl.startsWith('/profile') },
+        { label: t('ui.store.nav.home', 'Home'), href: '/customer/home', active: currentUrl === '/customer/home' },
+        { label: t('ui.store.nav.products', 'Products'), href: '/products', active: currentUrl.startsWith('/products') },
+        { label: t('ui.store.nav.packs', 'Packs'), href: '/packs', active: currentUrl.startsWith('/packs') },
+        { label: t('ui.store.nav.promotions', 'Promotions'), href: '/promotions', active: currentUrl.startsWith('/promotions') },
+        { label: t('ui.store.nav.my_orders', 'My Orders'), href: '/my-orders', active: currentUrl.startsWith('/my-orders') || currentUrl.startsWith('/track-orders') },
+        { label: t('ui.store.nav.my_subscriptions', 'My Subscriptions'), href: '/my-subscriptions', active: currentUrl.startsWith('/my-subscriptions') },
+        { label: t('ui.store.nav.profile', 'Profile'), href: '/profile', active: currentUrl.startsWith('/profile') },
       ]
     : isBackoffice
       ? [
-          { label: 'Store Home', href: '/', active: currentUrl === '/' },
-          { label: 'Products', href: '/products', active: currentUrl.startsWith('/products') },
-          { label: 'Packs', href: '/packs', active: currentUrl.startsWith('/packs') },
-          { label: 'Promotion', href: '/promotions', active: currentUrl.startsWith('/promotions') },
-          { label: 'Dashboard', href: '/dashboard', active: currentUrl.startsWith('/dashboard') },
+          { label: t('ui.store.nav.store_home', 'Store Home'), href: '/', active: currentUrl === '/' },
+          { label: t('ui.store.nav.products', 'Products'), href: '/products', active: currentUrl.startsWith('/products') },
+          { label: t('ui.store.nav.packs', 'Packs'), href: '/packs', active: currentUrl.startsWith('/packs') },
+          { label: t('ui.store.nav.promotions', 'Promotions'), href: '/promotions', active: currentUrl.startsWith('/promotions') },
+          { label: t('ui.store.nav.dashboard', 'Dashboard'), href: '/dashboard', active: currentUrl.startsWith('/dashboard') },
         ]
       : [
-          { label: 'Home', href: '/', active: currentUrl === '/' },
-          { label: 'Products', href: '/#products', active: currentUrl === '/' },
-          { label: 'Packs', href: '/packs', active: currentUrl.startsWith('/packs') },
-          { label: 'Promotion', href: '/promotions', active: currentUrl.startsWith('/promotions') },
-          { label: 'Signup', href: '/register', active: currentUrl.startsWith('/register') },
+          { label: t('ui.store.nav.home', 'Home'), href: '/', active: currentUrl === '/' },
+          { label: t('ui.store.nav.products', 'Products'), href: '/#products', active: currentUrl === '/' },
+          { label: t('ui.store.nav.packs', 'Packs'), href: '/packs', active: currentUrl.startsWith('/packs') },
+          { label: t('ui.store.nav.promotions', 'Promotions'), href: '/promotions', active: currentUrl.startsWith('/promotions') },
+          { label: t('ui.store.nav.sign_up', 'Sign up'), href: '/register', active: currentUrl.startsWith('/register') },
         ];
 
   return (
@@ -77,7 +79,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
             </div>
             <div>
               <p className="text-[1.05rem] font-black tracking-[-0.02em]">AmaniBrew</p>
-              <p className="mt-1 text-[11px] uppercase tracking-[0.28em] text-[var(--color-sys-text-secondary)]">Fresh ordering</p>
+              <p className="mt-1 text-[11px] uppercase tracking-[0.28em] text-[var(--color-sys-text-secondary)]">{t('ui.store.brand_tagline', 'Fresh ordering')}</p>
             </div>
           </Link>
 
@@ -103,7 +105,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                   <Link
                     href="/profile"
                     className="hidden h-11 w-11 items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] text-white shadow-sm transition hover:bg-[#4a3527] sm:inline-flex"
-                    aria-label="Open profile"
+                    aria-label={t('ui.store.actions.profile', 'Profile')}
                   >
                     <UserRound size={18} />
                   </Link>
@@ -113,7 +115,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                     className="hidden rounded-2xl bg-[var(--color-brand-dark)] px-5 py-3 text-sm font-semibold text-white shadow-sm sm:inline-flex"
                   >
                     <UserRound size={16} className="mr-2" />
-                    Dashboard
+                    {t('ui.store.actions.dashboard', 'Dashboard')}
                   </Link>
                 )}
                 <button
@@ -121,19 +123,19 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                   onClick={handleLogout}
                   className="hidden rounded-2xl border border-[#efb1b1] bg-[#fff5f5] px-5 py-3 text-sm font-semibold text-[#b42318] transition hover:bg-[#ffe9e9] lg:inline-flex"
                 >
-                  Logout
+                  {t('ui.store.actions.logout', 'Logout')}
                 </button>
               </>
             ) : (
               <Link href="/login" className="hidden rounded-2xl bg-[var(--color-brand-dark)] px-5 py-3 text-sm font-semibold text-white shadow-sm sm:inline-flex">
-                Sign in
+                {t('ui.store.actions.sign_in', 'Sign in')}
               </Link>
             )}
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
               className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--color-sys-border)] bg-white text-[var(--color-brand-dark)] shadow-sm md:hidden"
-              aria-label="Open navigation menu"
+              aria-label={t('ui.store.mobile.open_navigation_menu', 'Open navigation menu')}
             >
               <Menu size={20} />
             </button>
@@ -147,19 +149,19 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
             type="button"
             onClick={() => setSidebarOpen(false)}
             className="absolute inset-0 bg-[#1a1a1a]/45 backdrop-blur-sm"
-            aria-label="Close navigation overlay"
+            aria-label={t('ui.store.mobile.close_navigation_overlay', 'Close navigation overlay')}
           />
           <aside className="absolute right-0 top-0 flex h-full w-[20rem] max-w-[88vw] flex-col bg-white shadow-[0_24px_80px_rgba(44,30,22,0.22)]">
             <div className="flex items-center justify-between border-b border-[var(--color-sys-border)] px-5 py-5">
               <div>
-                <p className="text-lg font-black text-[var(--color-sys-text-primary)]">Navigation</p>
+                <p className="text-lg font-black text-[var(--color-sys-text-primary)]">{t('ui.store.mobile.navigation', 'Navigation')}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.24em] text-[var(--color-sys-text-secondary)]">Amani Brew</p>
               </div>
               <button
                 type="button"
                 onClick={() => setSidebarOpen(false)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-sys-border)] text-[var(--color-sys-text-secondary)]"
-                aria-label="Close navigation menu"
+                aria-label={t('ui.store.mobile.close_navigation_menu', 'Close navigation menu')}
               >
                 <X size={18} />
               </button>
@@ -197,7 +199,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                       className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] px-4 py-3 text-sm font-semibold text-white"
                     >
                       <UserRound size={16} className="mr-2" />
-                      {isCustomer ? 'Profile' : 'Dashboard'}
+                      {isCustomer ? t('ui.store.actions.profile', 'Profile') : t('ui.store.actions.dashboard', 'Dashboard')}
                     </Link>
                     <button
                       type="button"
@@ -207,7 +209,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                       }}
                       className="inline-flex w-full items-center justify-center rounded-2xl border border-[#efb1b1] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]"
                     >
-                      Logout
+                      {t('ui.store.actions.logout', 'Logout')}
                     </button>
                   </>
                 ) : (
@@ -216,7 +218,7 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
                     onClick={() => setSidebarOpen(false)}
                     className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] px-4 py-3 text-sm font-semibold text-white"
                   >
-                    Sign in
+                    {t('ui.store.actions.sign_in', 'Sign in')}
                   </Link>
                 )}
               </div>
@@ -233,8 +235,8 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
             {title && <h1 className="text-3xl font-black tracking-tight">{title}</h1>}
             {subtitle && <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-sys-text-secondary)]">{subtitle}</p>}
             <div className="mt-5 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-sys-text-secondary)]">
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#f3ede3] px-4 py-2"><MapPin size={14} /> Delivery and pickup ready</span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#f3ede3] px-4 py-2"><Tag size={14} /> Built for fast ordering</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#f3ede3] px-4 py-2"><MapPin size={14} /> {t('ui.store.hero.delivery_pickup_ready', 'Delivery and pickup ready')}</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#f3ede3] px-4 py-2"><Tag size={14} /> {t('ui.store.hero.fast_ordering', 'Built for fast ordering')}</span>
             </div>
           </section>
         )}

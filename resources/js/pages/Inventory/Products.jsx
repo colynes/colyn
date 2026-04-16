@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { router, useForm, usePage } from '@inertiajs/react';
+import { Link, router, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
+import BackofficePagination from '@/components/backoffice/BackofficePagination';
+import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -15,13 +17,15 @@ function formatCurrency(value) {
   }).format(value || 0);
 }
 
-export default function Products({ auth, products, categories, filters = {} }) {
+export default function Products({ auth, products, categories, filters = {}, perPageOptions = [15, 30, 50, 100] }) {
   const { flash } = usePage().props;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [deletingProduct, setDeletingProduct] = useState(null);
   const search = filters.search || '';
   const categoryId = filters.category_id || '';
+  const status = filters.status || '';
+  const perPage = filters.per_page || perPageOptions[0];
 
   const productForm = useForm({
     category_id: '',
@@ -36,6 +40,10 @@ export default function Products({ auth, products, categories, filters = {} }) {
   });
 
   const rows = useMemo(() => products?.data || [], [products]);
+  const hasFilters = useMemo(
+    () => Boolean(search.trim() || categoryId || status),
+    [categoryId, search, status],
+  );
 
   const openCreateModal = () => {
     setEditingProduct(null);
@@ -151,6 +159,27 @@ export default function Products({ auth, products, categories, filters = {} }) {
             </option>
           ))}
         </select>
+        <select
+          name="status"
+          defaultValue={status}
+          className="h-11 rounded-lg border border-[var(--color-sys-border)] bg-white px-4 text-sm outline-none"
+        >
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <BackofficePerPageControl
+          options={perPageOptions}
+          value={perPage}
+          onChange={(event) => router.get('/inventory/products', {
+            search,
+            category_id: categoryId,
+            status,
+            per_page: event.target.value,
+            page: 1,
+          }, { preserveScroll: true, preserveState: true })}
+          className="h-11"
+        />
         <Button type="submit" variant="outline" className="h-11 px-5">Filter</Button>
       </form>
 
@@ -238,6 +267,27 @@ export default function Products({ auth, products, categories, filters = {} }) {
           </table>
         </div>
       </Card>
+
+      {hasFilters ? (
+        <div className="mt-4 flex justify-end">
+          <Link href="/inventory/products" className="text-sm font-semibold text-[#4f3118]">
+            Clear filters
+          </Link>
+        </div>
+      ) : null}
+
+      <div className="mt-4">
+        <BackofficePagination
+          paginator={products}
+          path="/inventory/products"
+          query={{
+            search,
+            category_id: categoryId,
+            status,
+            per_page: perPage,
+          }}
+        />
+      </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-[#1A1A1A]/60 p-4 backdrop-blur-sm">

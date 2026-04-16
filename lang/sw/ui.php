@@ -1,0 +1,87 @@
+<?php
+
+return [
+    'language_switcher' => [
+        'label' => 'Lugha',
+    ],
+    'store' => [
+        'brand_tagline' => 'Fresh ordering',
+        'nav' => [
+            'home' => 'Nyumbani',
+            'products' => 'Bidhaa',
+            'packs' => 'Vifurushi',
+            'promotions' => 'Promosheni',
+            'my_orders' => 'Oda zangu',
+            'my_subscriptions' => 'Mpango',
+            'profile' => 'Akaunti',
+            'store_home' => 'Bucha',
+            'dashboard' => 'Dashbodi',
+            'sign_up' => 'Jisajili',
+        ],
+        'actions' => [
+            'dashboard' => 'Dashbodi',
+            'logout' => 'Kutoka',
+            'sign_in' => 'Ingia',
+            'profile' => 'Akaunti',
+        ],
+        'mobile' => [
+            'navigation' => 'Navigation',
+            'close_navigation_overlay' => 'Close navigation overlay',
+            'close_navigation_menu' => 'Close navigation menu',
+            'open_navigation_menu' => 'Open navigation menu',
+        ],
+        'hero' => [
+            'delivery_pickup_ready' => 'Tunafanya delivery na Kuandaa oda za kubeba',
+            'fast_ordering' => 'Imetengenezwa kwa ajili ya kuagiza haraka',
+        ],
+    ],
+    'backoffice' => [
+        'nav' => [
+            'dashboard' => 'Dashbodi',
+            'customers' => 'Wateja',
+            'inventory' => 'Stoo',
+            'categories' => 'Kategori',
+            'products' => 'Bidhaa',
+            'orders' => 'Oda',
+            'promotions' => 'Promosheni',
+            'packs' => 'Vifurushi',
+            'fat_clients' => 'Wateja Wakuu',
+            'subscriptions' => 'Mpango',
+            'billing' => 'Bili',
+            'expenses' => 'Matumizi',
+            'sales' => 'Mauzo',
+            'reports' => 'Ripoti',
+            'staff' => 'Staff',
+        ],
+        'fallback' => [
+            'admin_name' => 'Admin User',
+            'admin_email' => 'admin@amanibrew.com',
+        ],
+        'actions' => [
+            'logout' => 'Kutoka',
+        ],
+    ],
+    'login' => [
+        'brand_tagline' => 'Bucha Kisasa',
+        'headline' => 'Ubora na Utamaduni',
+        'description' => 'Tunatoa nyama bora kutoka shamba hadi kwenye meza yako, kwa kujitolea kwa ubora, upya, na uendelevu.',
+        'stats' => [
+            'happy_clients' => 'Wateja Wetu',
+            'years_experience' => 'Miaka ya Uzoefu',
+            'premium_cuts' => 'Michonjo Bora',
+        ],
+        'copyright' => 'Hakimiliki 2026 Amani Brew. Haki zote zimehifadhiwa.',
+        'title' => 'Karibu tena',
+        'subtitle' => 'Wafanyakazi na wateja hutumia ukurasa huu huu wa kuingia. Jukumu lako litaamua unakoelekezwa baada ya kuingia.',
+        'email_label' => 'Barua Pepe',
+        'email_placeholder' => 'Andika Barua Pepe',
+        'password_label' => 'Neno la siri',
+        'password_placeholder' => 'Ingiza neno la siri',
+        'remember_me' => 'Kumbuka',
+        'forgot_password' => 'Umesahau neno la siri?',
+        'signing_in' => 'Unaingia...',
+        'sign_in' => 'Ingia',
+        'new_customer' => 'Mteja Mpya?',
+        'create_account' => 'Fungua akaunti ya mteja',
+    ],
+];

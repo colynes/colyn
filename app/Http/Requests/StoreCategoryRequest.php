@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Category;
 use App\Support\BackofficeAccess;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class StoreCategoryRequest extends FormRequest
@@ -16,9 +16,15 @@ class StoreCategoryRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $category = $this->route('category');
+        $normalizedName = preg_replace('/\s+/', ' ', trim((string) $this->input('name')));
+        $slugInput = trim((string) $this->input('slug'));
+
         $this->merge([
-            'name' => preg_replace('/\s+/', ' ', trim((string) $this->input('name'))),
-            'slug' => filled($this->input('slug')) ? Str::slug((string) $this->input('slug')) : null,
+            'name' => $normalizedName,
+            'slug' => filled($slugInput)
+                ? Category::generateUniqueSlug($slugInput, $category?->id)
+                : Category::generateUniqueSlug($normalizedName, $category?->id),
             'description' => filled($this->input('description')) ? trim((string) $this->input('description')) : null,
             'image' => filled($this->input('image')) ? trim((string) $this->input('image')) : null,
         ]);

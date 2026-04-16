@@ -1,8 +1,11 @@
 import React from 'react';
 import { router } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 export default function PromotionCard({ promotion }) {
+  const { t, tp } = useI18n();
+
   const addPromotionToCart = () => {
     if (promotion.is_closed) {
       return;
@@ -21,11 +24,15 @@ export default function PromotionCard({ promotion }) {
         <span className={`rounded-full px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] ${
           promotion.is_closed ? 'bg-white/10 text-[#f5e8dd]' : 'bg-white/10 text-[#ffe1d2]'
         }`}>
-          {promotion.is_closed ? (promotion.status_label || 'Promotion Closed') : (promotion.discount_label || 'Special offer')}
+          {promotion.is_closed
+            ? (promotion.status_label || t('frontend.promotion_card.closed', 'Promotion Closed'))
+            : (promotion.discount_label || t('frontend.promotion_card.special_offer', 'Special offer'))}
         </span>
         {promotion.ends_at && (
           <span className="pt-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[#f3d9cf]">
-            {promotion.is_closed ? `Closed ${promotion.ends_at}` : `Until ${promotion.ends_at}`}
+            {promotion.is_closed
+              ? tp('frontend.promotion_card.closed_on', 'Closed :date', { date: promotion.ends_at })
+              : tp('frontend.promotion_card.until', 'Until :date', { date: promotion.ends_at })}
           </span>
         )}
       </div>
@@ -34,7 +41,7 @@ export default function PromotionCard({ promotion }) {
         type="button"
         onClick={addPromotionToCart}
         disabled={promotion.is_closed}
-        aria-label={`Add ${promotion.title} to cart`}
+        aria-label={tp('frontend.promotion_card.add_to_cart', 'Add :title to cart', { title: promotion.title })}
         className="absolute right-6 top-1/2 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#5b2b23] shadow-[0_10px_25px_rgba(17,12,10,0.18)] transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#8e7b73]"
       >
         <Plus size={22} strokeWidth={2.5} />
@@ -50,10 +57,10 @@ export default function PromotionCard({ promotion }) {
       <div className="mt-7 flex items-end justify-between gap-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#f1d8cf]">
           {promotion.is_closed
-            ? 'Promotion closed for customers'
+            ? t('frontend.promotion_card.closed_for_customers', 'Promotion closed for customers')
             : promotion.starts_at
-              ? `Started ${promotion.starts_at}`
-              : 'Active now'}
+              ? tp('frontend.promotion_card.started_on', 'Started :date', { date: promotion.starts_at })
+              : t('frontend.promotion_card.active_now', 'Active now')}
         </p>
       </div>
     </article>

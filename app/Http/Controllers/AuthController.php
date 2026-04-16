@@ -63,7 +63,7 @@ class AuthController extends Controller
             'user_exists' => User::query()->where('email', $validated['email'])->exists(),
         ]);
 
-        return back()->with('success', 'If the account exists, a password reset link has been sent to that email address.');
+        return back()->with('success', __('messages.auth.reset_link_sent'));
     }
 
     public function showResetPassword(Request $request, string $token)
@@ -110,7 +110,7 @@ class AuthController extends Controller
 
             return redirect()
                 ->route('login')
-                ->with('success', 'Your password has been reset successfully. You can sign in now.');
+                ->with('success', __('messages.auth.password_reset_success'));
         }
 
         Log::warning('Password reset failed.', [
@@ -121,7 +121,7 @@ class AuthController extends Controller
 
         return back()->withErrors([
             'email' => in_array($status, [Password::INVALID_TOKEN, Password::INVALID_USER], true)
-                ? 'This password reset link is invalid or has expired.'
+                ? __('messages.auth.password_reset_invalid')
                 : __($status),
         ])->onlyInput('email');
     }
@@ -168,7 +168,7 @@ class AuthController extends Controller
         ]);
 
         return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
+            'email' => __('messages.auth.invalid_credentials'),
         ])->onlyInput('email', 'remember');
     }
 
@@ -186,7 +186,7 @@ class AuthController extends Controller
         if ($existingUser || $existingCustomer) {
             return redirect()
                 ->route('login')
-                ->with('error', 'This customer account already exists. Please log in instead.');
+                ->with('error', __('messages.auth.account_exists_login'));
         }
 
         $validated = $request->validated();
@@ -195,6 +195,7 @@ class AuthController extends Controller
             $user = User::create([
                 'name'     => $validated['full_name'],
                 'email'    => $validated['email'],
+                'preferred_language' => app()->getLocale(),
                 'password' => $validated['password'],
             ]);
 
@@ -221,7 +222,7 @@ class AuthController extends Controller
             'ip' => $request->ip(),
         ]);
 
-        return redirect()->route('customer.home')->with('success', 'Customer account created successfully.');
+        return redirect()->route('customer.home')->with('success', __('messages.auth.registration_success'));
     }
 
     public function logout(Request $request)

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\FrontendTranslations;
 use App\Support\CartManager;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
@@ -60,7 +61,20 @@ class HandleInertiaRequests extends Middleware
                     'avatar_url' => $user->avatar ? Storage::disk('public')->url($user->avatar) : null,
                     'role'  => $primaryRole ?: ($user->customer ? 'Customer' : null),
                     'role_key' => $roleKey,
+                    'preferred_language' => $user->preferred_language,
                 ] : null,
+            ],
+            'localization' => fn () => [
+                'current' => app()->getLocale(),
+                'available' => collect((array) config('app.supported_locales', []))
+                    ->map(fn (array|string $locale, string $code) => [
+                        'code' => $code,
+                        'name' => is_array($locale) ? ($locale['name'] ?? strtoupper($code)) : (string) $locale,
+                        'native' => is_array($locale) ? ($locale['native'] ?? $locale['name'] ?? strtoupper($code)) : (string) $locale,
+                    ])
+                    ->values()
+                    ->all(),
+                'translations' => FrontendTranslations::forLocale(app()->getLocale()),
             ],
             'notifications' => fn () => ($user && $hasNotificationsTable) ? [
                 'unread_count' => $user->unreadNotifications()->count(),
@@ -88,7 +102,7 @@ class HandleInertiaRequests extends Middleware
 
         return [
             'id' => $notification->id,
-            'title' => $data['title'] ?? 'Notification',
+            'title' => $data['title'] ?? __('general.notification'),
             'message' => $data['message'] ?? '',
             'order_id' => $data['order_id'] ?? null,
             'order_number' => $data['order_number'] ?? null,

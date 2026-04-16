@@ -23,20 +23,38 @@ class Category extends Model
         'is_active' => 'boolean',
     ];
 
-    // Auto-generate slug
     protected static function booted(): void
     {
-        static::creating(function (Category $cat) {
-            if (empty($cat->slug)) {
-                $cat->slug = Str::slug($cat->name);
+        static::saving(function (Category $category) {
+            if (blank($category->slug) || ($category->isDirty('name') && ! $category->isDirty('slug'))) {
+                $category->slug = static::generateUniqueSlug(
+                    $category->name,
+                    $category->exists ? $category->getKey() : null
+                );
             }
         });
+    }
 
-        static::updating(function (Category $cat) {
-            if ($cat->isDirty('name') && !$cat->isDirty('slug')) {
-                $cat->slug = Str::slug($cat->name);
-            }
-        });
+    public static function generateUniqueSlug(?string $value, ?int $ignoreId = null): string
+    {
+        $base = Str::slug((string) $value);
+
+        if ($base === '') {
+            $base = 'category';
+        }
+
+        $slug = $base;
+        $suffix = 2;
+
+        while (static::withTrashed()
+            ->where('slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()) {
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     // Relationships

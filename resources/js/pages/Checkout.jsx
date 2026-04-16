@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
 import DeliveryLocationSelector from '@/components/customer/DeliveryLocationSelector';
+import { useI18n } from '@/lib/i18n';
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-TZ', {
@@ -12,6 +13,7 @@ function formatCurrency(value) {
 }
 
 export default function Checkout({ cart, customer, pickupHours, formData, deliverySchedule, pickupSchedule }) {
+  const { t, tp } = useI18n();
   const { auth, flash } = usePage().props;
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -137,28 +139,35 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
     errors.full_name ||
     errors.phone ||
     errors.email ||
-    errors.password
+    errors.password,
   );
 
   const pickupWindowLabel = pickupAvailable
-    ? `Choose a pickup time for ${pickupSchedule?.scheduled_date_label || 'today'} from ${pickupHours?.min_time} until ${pickupHours?.close_time}.`
-    : `Pickup is currently unavailable. Working hours are ${pickupHours?.open_time} to ${pickupHours?.close_time}.`;
+    ? tp('frontend.checkout.pickup_window', 'Choose a pickup time for :date from :min until :close.', {
+      date: pickupSchedule?.scheduled_date_label || 'today',
+      min: pickupHours?.min_time,
+      close: pickupHours?.close_time,
+    })
+    : tp('frontend.checkout.pickup_unavailable', 'Pickup is currently unavailable. Working hours are :open to :close.', {
+      open: pickupHours?.open_time,
+      close: pickupHours?.close_time,
+    });
 
   return (
     <div className="min-h-screen bg-[#f7f2ea] px-6 py-10">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7a1f28]">Checkout</p>
-            <h1 className="mt-2 text-4xl font-black text-[#241816]">Confirm your order</h1>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7a1f28]">{t('frontend.checkout.eyebrow', 'Checkout')}</p>
+            <h1 className="mt-2 text-4xl font-black text-[#241816]">{t('frontend.checkout.title', 'Confirm your order')}</h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-[#6f5d57]">
               {isGuest
-                ? 'Create your customer account while confirming the order. We will collect your details, delivery or pickup choice, precise delivery location when needed, pickup time if needed, and your password.'
-                : 'Review your details below and confirm the order. Delivery orders require a confirmed location before submission.'}
+                ? t('frontend.checkout.guest_description', 'Create your customer account while confirming the order. We will collect your details, delivery or pickup choice, precise delivery location when needed, pickup time if needed, and your password.')
+                : t('frontend.checkout.customer_description', 'Review your details below and confirm the order. Delivery orders require a confirmed location before submission.')}
             </p>
           </div>
           <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[#3b241d]/15 bg-white px-5 py-3 text-sm font-bold text-[#241816]">
-            Back To Store
+            {t('frontend.checkout.back_to_store', 'Back To Store')}
           </Link>
         </div>
 
@@ -185,14 +194,14 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
           <div className="rounded-[2rem] bg-white p-8 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <h2 className="text-2xl font-black text-[#241816]">{isGuest ? 'Customer account details' : 'Customer details'}</h2>
+                <h2 className="text-2xl font-black text-[#241816]">{isGuest ? t('frontend.checkout.customer_account_details', 'Customer account details') : t('frontend.checkout.customer_details', 'Customer details')}</h2>
                 <p className="mt-2 text-sm text-[#6f5d57]">
-                  Full name, phone, and email are required. Delivery orders also need a valid selected location.
+                  {t('frontend.checkout.details_help', 'Full name, phone, and email are required. Delivery orders also need a valid selected location.')}
                 </p>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-[#241816]">Full Name</label>
+                <label className="mb-1.5 block text-sm font-medium text-[#241816]">{t('frontend.checkout.fields.full_name', 'Full Name')}</label>
                 <input
                   type="text"
                   value={data.full_name}
@@ -204,7 +213,7 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
 
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">Phone</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">{t('frontend.checkout.fields.phone', 'Phone')}</label>
                   <input
                     type="text"
                     value={data.phone}
@@ -215,7 +224,7 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">Email</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">{t('frontend.checkout.fields.email', 'Email')}</label>
                   <input
                     type="email"
                     value={data.email}
@@ -228,14 +237,14 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
 
               <div className="grid gap-5 md:grid-cols-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">Delivery Or Pickup</label>
+                  <label className="mb-1.5 block text-sm font-medium text-[#241816]">{t('frontend.checkout.fields.fulfillment_method', 'Delivery Or Pickup')}</label>
                   <select
                     value={data.fulfillment_method}
                     onChange={(e) => setData('fulfillment_method', e.target.value)}
                     className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d]"
                   >
-                    <option value="delivery">Delivery</option>
-                    <option value="pickup">Pickup</option>
+                    <option value="delivery">{t('frontend.checkout.options.delivery', 'Delivery')}</option>
+                    <option value="pickup">{t('frontend.checkout.options.pickup', 'Pickup')}</option>
                   </select>
                   {errors.fulfillment_method && <div className="mt-1 text-xs text-red-500">{errors.fulfillment_method}</div>}
                 </div>
@@ -243,14 +252,14 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
                 {data.fulfillment_method === 'pickup' ? (
                   <>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">Hour</label>
+                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">{t('frontend.checkout.fields.hour', 'Hour')}</label>
                       <select
                         value={selectedPickupHour ?? ''}
                         onChange={(e) => handlePickupHourChange(e.target.value)}
                         disabled={!pickupAvailable}
                         className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {!timeChoices.hours.length && <option value="">No hours available</option>}
+                        {!timeChoices.hours.length && <option value="">{t('frontend.checkout.options.no_hours', 'No hours available')}</option>}
                         {timeChoices.hours.map((hour) => (
                           <option key={hour} value={hour}>
                             {String(hour).padStart(2, '0')}
@@ -260,14 +269,14 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">Minutes</label>
+                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">{t('frontend.checkout.fields.minutes', 'Minutes')}</label>
                       <select
                         value={selectedPickupMinute ?? ''}
                         onChange={(e) => handlePickupMinuteChange(e.target.value)}
                         disabled={!pickupAvailable || selectedPickupHour == null}
                         className="w-full rounded-xl border border-[#e8ddd2] bg-[#f8f3ee] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#cdad7d] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {selectedPickupHour == null && <option value="">Select hour first</option>}
+                        {selectedPickupHour == null && <option value="">{t('frontend.checkout.options.select_hour_first', 'Select hour first')}</option>}
                         {(timeChoices.minutesByHour[selectedPickupHour] || []).map((minute) => (
                           <option key={minute} value={minute}>
                             {String(minute).padStart(2, '0')}
@@ -283,15 +292,15 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
                 <>
                   <div className="rounded-2xl border border-[#eadfce] bg-[#fbf7f1] p-5">
                     <p className="text-sm font-semibold text-[#241816]">
-                      Delivery schedule: {deliverySchedule?.scheduled_date_label || 'Today'}
+                      {tp('frontend.checkout.delivery_schedule', 'Delivery schedule: :date', { date: deliverySchedule?.scheduled_date_label || 'Today' })}
                     </p>
                     <p className="mt-2 text-xs text-[#6f5d57]">
                       {deliverySchedule?.after_closing_hours
-                        ? `Orders placed after ${deliverySchedule?.close_time} are scheduled for next-day delivery.`
-                        : `Orders placed before ${deliverySchedule?.close_time} are scheduled for same-day delivery where possible.`}
+                        ? tp('frontend.checkout.delivery_after_close', 'Orders placed after :time are scheduled for next-day delivery.', { time: deliverySchedule?.close_time })
+                        : tp('frontend.checkout.delivery_before_close', 'Orders placed before :time are scheduled for same-day delivery where possible.', { time: deliverySchedule?.close_time })}
                     </p>
                     <p className="mt-3 text-xs text-[#6f5d57]">
-                      Manual address entry is active right now while Google Maps is turned off.
+                      {t('frontend.checkout.manual_address_notice', 'Manual address entry is active right now while Google Maps is turned off.')}
                     </p>
                   </div>
                   <DeliveryLocationSelector
@@ -306,17 +315,17 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
               {data.fulfillment_method === 'pickup' ? (
                 <div className="rounded-2xl border border-[#eadfce] bg-[#fbf7f1] p-5">
                   <p className="text-sm font-semibold text-[#241816]">
-                    Pickup schedule: {pickupSchedule?.scheduled_date_label || 'Today'}
+                    {tp('frontend.checkout.pickup_schedule', 'Pickup schedule: :date', { date: pickupSchedule?.scheduled_date_label || 'Today' })}
                   </p>
                   <p className="mt-2 text-xs text-[#6f5d57]">
                     {pickupSchedule?.after_closing_hours
-                      ? `Orders placed after ${pickupSchedule?.close_time} are scheduled for next-day pickup.`
-                      : `Orders placed before ${pickupSchedule?.close_time} can be picked up the same day during working hours.`}
+                      ? tp('frontend.checkout.pickup_after_close', 'Orders placed after :time are scheduled for next-day pickup.', { time: pickupSchedule?.close_time })
+                      : tp('frontend.checkout.pickup_before_close', 'Orders placed before :time can be picked up the same day during working hours.', { time: pickupSchedule?.close_time })}
                   </p>
                   <p className="mt-3 text-xs text-[#6f5d57]">{pickupWindowLabel}</p>
                   {!pickupAvailable ? (
                     <div className="mt-3 rounded-xl border border-[#e8ddd2] bg-white px-4 py-3 text-sm text-[#6f5d57]">
-                      No pickup times are available right now.
+                      {t('frontend.checkout.pickup_empty', 'No pickup times are available right now.')}
                     </div>
                   ) : null}
                   {errors.pickup_time && <div className="mt-2 text-xs text-red-500">{errors.pickup_time}</div>}
@@ -326,15 +335,15 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
               {isGuest && (
                 <>
                   <div className="border-t border-[#efe5da] pt-6">
-                    <h3 className="text-xl font-black text-[#241816]">Create your password</h3>
+                    <h3 className="text-xl font-black text-[#241816]">{t('frontend.checkout.create_password', 'Create your password')}</h3>
                     <p className="mt-2 text-sm text-[#6f5d57]">
-                      Your account is created while you confirm this order.
+                      {t('frontend.checkout.create_password_help', 'Your account is created while you confirm this order.')}
                     </p>
                   </div>
 
                   <div className="grid gap-5 md:grid-cols-2">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">Password</label>
+                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">{t('frontend.checkout.fields.password', 'Password')}</label>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
@@ -354,7 +363,7 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">Confirm Password</label>
+                      <label className="mb-1.5 block text-sm font-medium text-[#241816]">{t('frontend.checkout.fields.password_confirmation', 'Confirm Password')}</label>
                       <div className="relative">
                         <input
                           type={showConfirmPassword ? 'text' : 'password'}
@@ -380,19 +389,19 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
                 disabled={!canSubmit}
                 className="w-full rounded-xl bg-[#3b241d] py-3.5 text-sm font-bold text-white transition hover:bg-[#241816] disabled:opacity-50"
               >
-                {processing ? 'Confirming Order...' : 'Confirm Order'}
+                {processing ? t('frontend.checkout.confirming_order', 'Confirming Order...') : t('frontend.checkout.confirm_order', 'Confirm Order')}
               </button>
               {data.fulfillment_method === 'delivery' && !deliveryLocationValid ? (
                 <p className="text-xs text-[#7d6a5f]">
-                  Enter your delivery address before confirming a delivery order.
+                  {t('frontend.checkout.delivery_address_required', 'Enter your delivery address before confirming a delivery order.')}
                 </p>
               ) : null}
             </form>
           </div>
 
           <div className="rounded-[2rem] bg-[#2f1d19] p-8 text-white shadow-[0_26px_70px_rgba(36,24,22,0.18)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#e8d6cf]">Order Summary</p>
-            <h2 className="mt-3 text-3xl font-black">Cart items</h2>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#e8d6cf]">{t('frontend.checkout.order_summary', 'Order Summary')}</p>
+            <h2 className="mt-3 text-3xl font-black">{t('frontend.checkout.cart_items', 'Cart items')}</h2>
 
             <div className="mt-6 space-y-4">
               {cart?.items?.map((item) => (
@@ -410,19 +419,19 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
 
             <div className="mt-6 border-t border-white/10 pt-5">
               <div className="flex items-center justify-between text-sm text-[#e8d6cf]">
-                <span>Total Items</span>
+                <span>{t('frontend.common.labels.total_items', 'Total Items')}</span>
                 <span>{cart?.count || 0}</span>
               </div>
               <div className="mt-3 flex items-center justify-between text-xl font-black">
-                <span>Subtotal</span>
+                <span>{t('frontend.common.labels.subtotal', 'Subtotal')}</span>
                 <span>{formatCurrency(cart?.subtotal || 0)}</span>
               </div>
             </div>
 
             <p className="mt-6 text-sm leading-7 text-[#f2e6e0]">
               {isGuest
-                ? 'Your customer account will be created automatically as part of this confirmation step.'
-                : 'Your customer profile will be used to complete this order.'}
+                ? t('frontend.checkout.guest_note', 'Your customer account will be created automatically as part of this confirmation step.')
+                : t('frontend.checkout.customer_note', 'Your customer profile will be used to complete this order.')}
             </p>
           </div>
         </div>

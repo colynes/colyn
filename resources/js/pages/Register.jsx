@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useForm } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 export default function Register() {
+  const { t } = useI18n();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { data, setData, post, processing, errors } = useForm({
@@ -22,9 +24,12 @@ export default function Register() {
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #3B2A1E 0%, #5C3D2E 40%, #8C6F53 100%)' }}>
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-14 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: 'radial-gradient(circle at 20% 80%, #CDAD7D 0%, transparent 50%), radial-gradient(circle at 80% 20%, #C8A97E 0%, transparent 50%)'
-        }} />
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 20% 80%, #CDAD7D 0%, transparent 50%), radial-gradient(circle at 80% 20%, #C8A97E 0%, transparent 50%)',
+          }}
+        />
 
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-16">
@@ -33,14 +38,16 @@ export default function Register() {
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-wide">Amani Brew</h1>
-              <p className="text-sm text-amber-200 font-light">Customer Registration</p>
+              <p className="text-sm text-amber-200 font-light">{t('frontend.register.brand_tagline', 'Customer Registration')}</p>
             </div>
           </div>
 
           <div className="space-y-6 max-w-md">
-            <h2 className="text-4xl font-bold leading-tight">Create your customer account and start ordering fresh meat.</h2>
+            <h2 className="text-4xl font-bold leading-tight">
+              {t('frontend.register.hero_title', 'Create your customer account and start ordering fresh meat.')}
+            </h2>
             <p className="text-amber-100/80 text-base leading-relaxed">
-              Self-registration is for customers only. Staff accounts are created by the administrator inside the system.
+              {t('frontend.register.hero_description', 'Self-registration is for customers only. Staff accounts are created by the administrator inside the system.')}
             </p>
           </div>
         </div>
@@ -48,9 +55,9 @@ export default function Register() {
         <div className="relative z-10">
           <div className="grid grid-cols-3 gap-4 mb-10">
             {[
-              { value: 'Fast', label: 'Signup Process' },
-              { value: 'Delivery', label: 'Or Pickup' },
-              { value: 'Fresh', label: 'Daily Stock' },
+              { value: 'Fast', label: t('frontend.register.stats.signup_process', 'Signup Process') },
+              { value: 'Delivery', label: t('frontend.register.stats.delivery_or_pickup', 'Or Pickup') },
+              { value: 'Fresh', label: t('frontend.register.stats.daily_stock', 'Daily Stock') },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
                 <p className="text-3xl font-extrabold text-[#CDAD7D]">{stat.value}</p>
@@ -58,7 +65,9 @@ export default function Register() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-amber-200/60 text-center">© 2026 Amani Brew. All rights reserved.</p>
+          <p className="text-xs text-amber-200/60 text-center">
+            {t('frontend.register.copyright', '© 2026 Amani Brew. All rights reserved.')}
+          </p>
         </div>
       </div>
 
@@ -70,26 +79,30 @@ export default function Register() {
             </div>
             <div>
               <p className="font-bold text-xl text-[var(--color-brand-dark)]">Amani Brew</p>
-              <p className="text-xs text-[var(--color-brand-tan)]">Customer Registration</p>
+              <p className="text-xs text-[var(--color-brand-tan)]">{t('frontend.register.brand_tagline', 'Customer Registration')}</p>
             </div>
           </div>
 
           <div className="bg-white rounded-3xl shadow-xl p-10">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">Create customer account</h2>
+              <h2 className="text-2xl font-bold text-[var(--color-sys-text-primary)]">
+                {t('frontend.register.title', 'Create customer account')}
+              </h2>
               <p className="text-sm text-[var(--color-sys-text-secondary)] mt-1.5">
-                Enter your details below. Customers who sign up on their own are registered as customers automatically.
+                {t('frontend.register.subtitle', 'Enter your details below. Customers who sign up on their own are registered as customers automatically.')}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Full Name</label>
+                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                  {t('frontend.register.fields.full_name', 'Full Name')}
+                </label>
                 <input
                   type="text"
                   value={data.full_name}
                   onChange={(e) => setData('full_name', e.target.value)}
-                  placeholder="Enter your full name"
+                  placeholder={t('frontend.register.placeholders.full_name', 'Enter your full name')}
                   required
                   className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                 />
@@ -98,12 +111,14 @@ export default function Register() {
 
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Phone Number</label>
+                  <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                    {t('frontend.register.fields.phone', 'Phone Number')}
+                  </label>
                   <input
                     type="text"
                     value={data.phone}
                     onChange={(e) => setData('phone', e.target.value)}
-                    placeholder="+255 7XX XXX XXX"
+                    placeholder={t('frontend.register.placeholders.phone', '+255 7XX XXX XXX')}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                   />
@@ -111,12 +126,14 @@ export default function Register() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Email Address</label>
+                  <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                    {t('frontend.register.fields.email', 'Email Address')}
+                  </label>
                   <input
                     type="email"
                     value={data.email}
                     onChange={(e) => setData('email', e.target.value)}
-                    placeholder="Enter your email address"
+                    placeholder={t('frontend.register.placeholders.email', 'Enter your email address')}
                     required
                     className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                   />
@@ -125,11 +142,13 @@ export default function Register() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Address</label>
+                <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                  {t('frontend.register.fields.address', 'Address')}
+                </label>
                 <textarea
                   value={data.address}
                   onChange={(e) => setData('address', e.target.value)}
-                  placeholder="Enter your address"
+                  placeholder={t('frontend.register.placeholders.address', 'Enter your address')}
                   required
                   rows={4}
                   className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition resize-none"
@@ -139,13 +158,15 @@ export default function Register() {
 
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Password</label>
+                  <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                    {t('frontend.register.fields.password', 'Password')}
+                  </label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={data.password}
                       onChange={(e) => setData('password', e.target.value)}
-                      placeholder="Enter your password"
+                      placeholder={t('frontend.register.placeholders.password', 'Enter your password')}
                       required
                       className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                     />
@@ -161,13 +182,15 @@ export default function Register() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">Confirm Password</label>
+                  <label className="block text-sm font-medium text-[var(--color-sys-text-primary)] mb-1.5">
+                    {t('frontend.register.fields.password_confirmation', 'Confirm Password')}
+                  </label>
                   <div className="relative">
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={data.password_confirmation}
                       onChange={(e) => setData('password_confirmation', e.target.value)}
-                      placeholder="Confirm your password"
+                      placeholder={t('frontend.register.placeholders.password_confirmation', 'Confirm your password')}
                       required
                       className="w-full px-4 py-3 rounded-xl border border-[var(--color-sys-border)] bg-[var(--color-sys-bg)] text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand-tan)] placeholder:text-gray-400 transition"
                     />
@@ -187,14 +210,16 @@ export default function Register() {
                 disabled={processing}
                 className="w-full py-3 bg-[var(--color-brand-dark)] text-white rounded-xl font-semibold text-sm hover:bg-[#2c1d14] transition-colors mt-2 disabled:opacity-50"
               >
-                {processing ? 'Creating Account...' : 'Create Account'}
+                {processing
+                  ? t('frontend.register.actions.creating_account', 'Creating Account...')
+                  : t('frontend.register.actions.create_account', 'Create Account')}
               </button>
             </form>
 
             <p className="mt-6 text-center text-sm text-[var(--color-sys-text-secondary)]">
-              Already have an account?{' '}
+              {t('frontend.register.footer.already_have_account', 'Already have an account?')}{' '}
               <Link href="/login" className="font-semibold text-[var(--color-brand-dark)] hover:underline">
-                Sign in
+                {t('frontend.register.actions.sign_in', 'Sign in')}
               </Link>
             </p>
           </div>

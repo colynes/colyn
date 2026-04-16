@@ -2,6 +2,7 @@ import { BellRing, Package2, PackagePlus, PackageSearch, ShoppingBag, Tag, Truck
 import { toast } from 'sonner';
 
 const recentIds = new Set();
+const TOAST_DURATION_MS = 5000;
 
 export function normalizeIncomingNotification(notification = {}) {
   return {
@@ -86,6 +87,6 @@ export function dispatchNotificationEvent(notification) {
     id,
     description: incoming.message || '',
     icon: toastConfig.icon,
-    duration: 4500,
+    duration: TOAST_DURATION_MS,
   });
 }

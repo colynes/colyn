@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
-import CustomerCartPanel from '@/components/CustomerCartPanel';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useI18n } from '@/lib/i18n';
 import {
   ArrowRight,
   CheckCircle2,
   ChevronRight,
   Clock3,
-  Eye,
-  EyeOff,
   MapPin,
   Menu,
   ShieldCheck,
@@ -19,80 +18,25 @@ import {
   X,
 } from 'lucide-react';
 
-const NAV_LINKS = [
-  { label: 'Products', href: '/products' },
-  { label: 'Cart', href: '/cart' },
-  { label: 'How It Works', href: '#how-it-works' },
-  { label: 'Track Order', href: '/track-orders' },
-  { label: 'Sign in', href: '/login' },
-];
-
-const TRUST_POINTS = [
-  { title: 'Fresh Daily Stock', icon: Sparkles },
-  { title: 'Fast Local Delivery', icon: Truck },
-  { title: 'Clean & Safe Packaging', icon: ShieldCheck },
-  { title: 'Pickup Available', icon: Store },
-];
-
-const ORDER_STEPS = [
-  {
-    title: 'Browse Products',
-    description: 'Customers can browse live products and categories loaded directly from your database.',
-    icon: ShoppingBasket,
-  },
-  {
-    title: 'Add to Cart',
-    description: 'Anyone can add items to the cart before creating an account.',
-    icon: CheckCircle2,
-  },
-  {
-    title: 'Create Account To Confirm',
-    description: 'At checkout we collect full name, phone, email, region or city, district or area, address, delivery or pickup, pickup time, and password.',
-    icon: ShieldCheck,
-  },
-  {
-    title: 'Receive Your Order',
-    description: 'Orders are saved to the system after account creation and checkout confirmation.',
-    icon: Clock3,
-  },
-];
-
-const REASONS = [
-  {
-    title: 'Live Inventory Categories',
-    description: 'The homepage now reads categories from the database instead of hardcoded sample content.',
-    icon: Sparkles,
-  },
-  {
-    title: 'Real Product Listings',
-    description: 'Featured products on the landing page come from the products and product_prices tables.',
-    icon: ShoppingBasket,
-  },
-  {
-    title: 'Guest Cart Support',
-    description: 'Visitors can browse and add items to cart before signup, making ordering feel easier.',
-    icon: Store,
-  },
-  {
-    title: 'Checkout With Delivery Or Pickup',
-    description: 'Customers choose delivery or pickup during confirmation and can set a pickup time when needed.',
-    icon: Truck,
-  },
-];
-
-const FOOTER_LINKS = [
-  { label: 'Products', href: '/products' },
-  { label: 'Categories', href: '#categories' },
-  { label: 'Cart', href: '/cart' },
-  { label: 'Promotions', href: '/promotions' },
-];
-
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-TZ', {
     style: 'currency',
     currency: 'TZS',
     maximumFractionDigits: 0,
   }).format(value || 0);
+}
+
+function translateProductStatus(status, t) {
+  switch (String(status || '').toLowerCase()) {
+    case 'in stock':
+      return t('frontend.common.status.in_stock', 'In Stock');
+    case 'low stock':
+      return t('frontend.common.status.low_stock', 'Low Stock');
+    case 'out of stock':
+      return t('frontend.common.status.out_of_stock', 'Out of Stock');
+    default:
+      return status || t('frontend.common.product', 'Product');
+  }
 }
 
 function SectionHeading({ eyebrow, title, description, center = false }) {
@@ -150,6 +94,8 @@ function GuestCheckoutModal({
   onClose,
   cart,
 }) {
+  const { t, tp } = useI18n();
+
   if (!open) {
     return null;
   }
@@ -161,10 +107,10 @@ function GuestCheckoutModal({
       <div className="my-auto max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] bg-white shadow-[0_35px_90px_rgba(36,24,22,0.3)]">
         <div className="flex items-start justify-between gap-4 border-b border-[#eadfd4] px-6 py-5 sm:px-8">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7a1f28]">Customer Confirmation</p>
-            <h2 className="mt-2 text-2xl font-black text-[#241816]">Login before confirming order</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7a1f28]">{t('frontend.home.guest_checkout.eyebrow', 'Customer Confirmation')}</p>
+            <h2 className="mt-2 text-2xl font-black text-[#241816]">{t('frontend.home.guest_checkout.title', 'Login before confirming order')}</h2>
             <p className="mt-2 text-sm leading-7 text-[#6f5d57]">
-              To confirm your order, log in with your existing account first. If you do not have an account yet, sign up and then continue to checkout.
+              {t('frontend.home.guest_checkout.description', 'To confirm your order, log in with your existing account first. If you do not have an account yet, sign up and then continue to checkout.')}
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full border border-[#eadfd4] p-2 text-[#6f5d57] transition hover:text-[#241816]">
@@ -175,7 +121,7 @@ function GuestCheckoutModal({
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="p-6 sm:p-8">
             <div className="rounded-2xl border border-[#eadfd4] bg-[#fcf6f0] p-5 text-sm leading-7 text-[#6f5d57]">
-              Your cart stays saved. After you log in, you can complete the order using your account details and delivery location.
+              {t('frontend.home.guest_checkout.cart_notice', 'Your cart stays saved. After you log in, you can complete the order using your account details and delivery location.')}
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -183,13 +129,13 @@ function GuestCheckoutModal({
                 href="/login"
                 className={`inline-flex items-center justify-center rounded-xl bg-[#7a1f28] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#651820] ${!hasItems ? 'pointer-events-none bg-[#c8b1ab]' : ''}`}
               >
-                Login To Continue
+                {t('frontend.home.actions.login_continue', 'Login To Continue')}
               </Link>
               <Link
                 href="/register"
                 className="inline-flex items-center justify-center rounded-xl border border-[#eadfd4] px-5 py-3 text-sm font-bold text-[#241816]"
               >
-                Sign Up First
+                {t('frontend.home.actions.sign_up_first', 'Sign Up First')}
               </Link>
             </div>
 
@@ -198,13 +144,13 @@ function GuestCheckoutModal({
               onClick={onClose}
               className="mt-4 w-full rounded-xl border border-[#eadfd4] px-5 py-3 text-sm font-bold text-[#241816]"
             >
-              Cancel
+              {t('frontend.home.actions.cancel', 'Cancel')}
             </button>
           </div>
 
           <div className="bg-[#2f1d19] p-6 text-white sm:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#e8d6cf]">Order Summary</p>
-            <h3 className="mt-2 text-2xl font-black">Cart items</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#e8d6cf]">{t('frontend.home.guest_checkout.summary_eyebrow', 'Order Summary')}</p>
+            <h3 className="mt-2 text-2xl font-black">{t('frontend.home.guest_checkout.cart_items_title', 'Cart items')}</h3>
 
             <div className="mt-6 space-y-4">
               {cart?.items?.length ? cart.items.map((item) => (
@@ -212,25 +158,30 @@ function GuestCheckoutModal({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-black">{item.name}</p>
-                      <p className="mt-1 text-sm text-[#e8d6cf]">{item.category} • Qty {item.quantity}</p>
+                      <p className="mt-1 text-sm text-[#e8d6cf]">
+                        {tp('frontend.home.guest_checkout.item_meta', ':category - Qty :quantity', {
+                          category: item.category || t('frontend.common.product', 'Product'),
+                          quantity: item.quantity,
+                        })}
+                      </p>
                     </div>
                     <span className="text-sm font-bold">{formatCurrency(item.subtotal)}</span>
                   </div>
                 </div>
               )) : (
                 <div className="rounded-[1.4rem] border border-dashed border-white/20 p-5 text-sm text-[#f2e6e0]">
-                  Add products to your cart first before confirming the order.
+                  {t('frontend.home.guest_checkout.empty', 'Add products to your cart first before confirming the order.')}
                 </div>
               )}
             </div>
 
             <div className="mt-6 border-t border-white/10 pt-5">
               <div className="flex items-center justify-between text-sm text-[#e8d6cf]">
-                <span>Total Items</span>
+                <span>{t('frontend.home.guest_checkout.total_items', 'Total Items')}</span>
                 <span>{cart?.count || 0}</span>
               </div>
               <div className="mt-3 flex items-center justify-between text-xl font-black">
-                <span>Subtotal</span>
+                <span>{t('frontend.home.guest_checkout.subtotal', 'Subtotal')}</span>
                 <span>{formatCurrency(cart?.subtotal || 0)}</span>
               </div>
             </div>
@@ -245,6 +196,75 @@ export default function Home({ categories = [], products = [], cart, activeCateg
   const [menuOpen, setMenuOpen] = useState(false);
   const [guestCheckoutOpen, setGuestCheckoutOpen] = useState(false);
   const { flash, auth } = usePage().props;
+  const { t, tp } = useI18n();
+
+  const navLinks = [
+    { label: t('frontend.home.nav.products', 'Products'), href: '/products' },
+    { label: t('frontend.home.nav.cart', 'Cart'), href: '/cart' },
+    { label: t('frontend.home.nav.how_it_works', 'How It Works'), href: '#how-it-works' },
+    { label: t('frontend.home.nav.track_order', 'Track Order'), href: '/track-orders' },
+    { label: t('frontend.home.nav.sign_in', 'Sign in'), href: '/login' },
+  ];
+
+  const trustPoints = [
+    { title: t('frontend.home.trust_points.fresh_daily_stock', 'Fresh Daily Stock'), icon: Sparkles },
+    { title: t('frontend.home.trust_points.fast_local_delivery', 'Fast Local Delivery'), icon: Truck },
+    { title: t('frontend.home.trust_points.clean_safe_packaging', 'Clean & Safe Packaging'), icon: ShieldCheck },
+    { title: t('frontend.home.trust_points.pickup_available', 'Pickup Available'), icon: Store },
+  ];
+
+  const orderSteps = [
+    {
+      title: t('frontend.home.how_it_works.steps.browse_products.title', 'Browse Products'),
+      description: t('frontend.home.how_it_works.steps.browse_products.description', 'Customers can browse live products and categories loaded directly from your database.'),
+      icon: ShoppingBasket,
+    },
+    {
+      title: t('frontend.home.how_it_works.steps.add_to_cart.title', 'Add to Cart'),
+      description: t('frontend.home.how_it_works.steps.add_to_cart.description', 'Anyone can add items to the cart before creating an account.'),
+      icon: CheckCircle2,
+    },
+    {
+      title: t('frontend.home.how_it_works.steps.create_account.title', 'Create Account To Confirm'),
+      description: t('frontend.home.how_it_works.steps.create_account.description', 'At checkout we collect full name, phone, email, region or city, district or area, address, delivery or pickup, pickup time, and password.'),
+      icon: ShieldCheck,
+    },
+    {
+      title: t('frontend.home.how_it_works.steps.receive_order.title', 'Receive Your Order'),
+      description: t('frontend.home.how_it_works.steps.receive_order.description', 'Orders are saved to the system after account creation and checkout confirmation.'),
+      icon: Clock3,
+    },
+  ];
+
+  const reasons = [
+    {
+      title: t('frontend.home.why_flow.reasons.inventory_categories.title', 'Live Inventory Categories'),
+      description: t('frontend.home.why_flow.reasons.inventory_categories.description', 'The homepage now reads categories from the database instead of hardcoded sample content.'),
+      icon: Sparkles,
+    },
+    {
+      title: t('frontend.home.why_flow.reasons.product_listings.title', 'Real Product Listings'),
+      description: t('frontend.home.why_flow.reasons.product_listings.description', 'Featured products on the landing page come from the products and product_prices tables.'),
+      icon: ShoppingBasket,
+    },
+    {
+      title: t('frontend.home.why_flow.reasons.guest_cart.title', 'Guest Cart Support'),
+      description: t('frontend.home.why_flow.reasons.guest_cart.description', 'Visitors can browse and add items to cart before signup, making ordering feel easier.'),
+      icon: Store,
+    },
+    {
+      title: t('frontend.home.why_flow.reasons.delivery_pickup.title', 'Checkout With Delivery Or Pickup'),
+      description: t('frontend.home.why_flow.reasons.delivery_pickup.description', 'Customers choose delivery or pickup during confirmation and can set a pickup time when needed.'),
+      icon: Truck,
+    },
+  ];
+
+  const footerLinks = [
+    { label: t('frontend.home.footer.products', 'Products'), href: '/products' },
+    { label: t('frontend.home.footer.categories', 'Categories'), href: '#categories' },
+    { label: t('frontend.home.footer.cart', 'Cart'), href: '/cart' },
+    { label: t('frontend.home.footer.promotions', 'Promotions'), href: '/promotions' },
+  ];
 
   const openGuestCheckout = () => {
     if ((cart?.count || 0) === 0) {
@@ -258,59 +278,66 @@ export default function Home({ categories = [], products = [], cart, activeCateg
     setGuestCheckoutOpen(false);
   };
 
-  const showCartPanel = false;
-
   return (
     <div className="min-h-screen bg-[#f7f2ea] text-[#241816]">
       <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top_left,_rgba(122,31,40,0.16),_transparent_42%),radial-gradient(circle_at_top_right,_rgba(143,91,58,0.22),_transparent_35%),linear-gradient(180deg,_#fffaf4_0%,_#f7f2ea_100%)]" />
 
       <nav className="sticky top-0 z-50 border-b border-[#e8ddd2]/80 bg-[#fffaf4]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <a href="/" className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-4">
+          <a href="/" className="flex min-w-0 items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#3b241d] shadow-[0_14px_30px_rgba(36,24,22,0.18)]">
               <img src="/images/amani_brew_mark.png" alt="Amani Brew logo" className="h-9 w-9 object-contain" />
             </div>
             <div>
               <p className="text-lg font-black tracking-wide text-[#241816]">AmaniBrew</p>
-              <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#7a1f28]">Fresh Meat Store</p>
+              <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#7a1f28]">
+                {t('frontend.home.brand_tagline', 'Fresh Meat Store')}
+              </p>
             </div>
           </a>
 
-          <div className="hidden items-center gap-8 lg:flex">
-            {NAV_LINKS.map((link) => (
+          <div className="hidden flex-1 items-center justify-center gap-8 lg:flex">
+            {navLinks.map((link) => (
               <SmartLink key={link.label} href={link.href} className="text-sm font-semibold text-[#4d3a35] transition hover:text-[#7a1f28]">
                 {link.label}
               </SmartLink>
             ))}
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            <LanguageSwitcher variant="dropdown" className="shrink-0" />
+
             {auth?.user ? (
-              <Link href="/checkout" className="rounded-full bg-[#7a1f28] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(122,31,40,0.18)] transition hover:bg-[#651820]">
-                Order now
+              <Link href="/checkout" className="hidden rounded-full bg-[#7a1f28] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(122,31,40,0.18)] transition hover:bg-[#651820] lg:inline-flex">
+                {t('frontend.home.actions.order_now', 'Order now')}
               </Link>
             ) : (
               <button
                 type="button"
                 onClick={openGuestCheckout}
-                className="rounded-full bg-[#7a1f28] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(122,31,40,0.18)] transition hover:bg-[#651820]"
+                className="hidden rounded-full bg-[#7a1f28] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(122,31,40,0.18)] transition hover:bg-[#651820] lg:inline-flex"
               >
-                Order now
+                {t('frontend.home.actions.order_now', 'Order now')}
               </button>
             )}
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            className="inline-flex rounded-full border border-[#3b241d]/10 bg-white p-3 text-[#241816] lg:hidden"
-            aria-label="Toggle menu"
-          >
-            {menuOpen ? <X size={18} /> : <Menu size={18} />}
-          </button>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="inline-flex rounded-full border border-[#3b241d]/10 bg-white p-3 text-[#241816] lg:hidden"
+              aria-label={menuOpen
+                ? t('ui.store.mobile.close_navigation_menu', 'Close navigation menu')
+                : t('ui.store.mobile.open_navigation_menu', 'Open navigation menu')}
+            >
+              {menuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
 
         {menuOpen && (
           <div className="border-t border-[#e8ddd2] bg-[#fffaf4] px-6 py-4 lg:hidden">
             <div className="space-y-3">
-              {NAV_LINKS.map((link) => (
+              {navLinks.map((link) => (
                 <SmartLink
                   key={link.label}
                   href={link.href}
@@ -326,7 +353,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                   onClick={() => setMenuOpen(false)}
                   className="block rounded-2xl bg-[#7a1f28] px-4 py-3 text-center text-sm font-semibold text-white"
                 >
-                  Order now
+                  {t('frontend.home.actions.order_now', 'Order now')}
                 </Link>
               ) : (
                 <button
@@ -337,7 +364,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                   }}
                   className="block w-full rounded-2xl bg-[#7a1f28] px-4 py-3 text-center text-sm font-semibold text-white"
                 >
-                  Order now
+                  {t('frontend.home.actions.order_now', 'Order now')}
                 </button>
               )}
             </div>
@@ -352,17 +379,17 @@ export default function Home({ categories = [], products = [], cart, activeCateg
         cart={cart}
       />
 
-      <main className={showCartPanel ? 'xl:pr-[22rem]' : ''}>
+      <main>
         <section className="mx-auto max-w-7xl px-6 pt-8">
           <div className="overflow-hidden rounded-[2.5rem] bg-[linear-gradient(135deg,#7a1f28_0%,#3b241d_100%)] p-8 text-white shadow-[0_28px_70px_rgba(59,36,29,0.24)] sm:p-12">
             <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#f1d3c6]">Ready to order</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#f1d3c6]">{t('frontend.home.hero_banner.eyebrow', 'Ready to order')}</p>
                 <h2 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">
-                  Browse products, build your cart, then create your account to confirm the order.
+                  {t('frontend.home.hero_banner.title', 'Browse products, build your cart, then create your account to confirm the order.')}
                 </h2>
                 <p className="mt-5 max-w-2xl text-base leading-8 text-[#f5ded5]">
-                  Customers can add items to cart first. During checkout we collect full name, phone, email, region or city, district or area, address, delivery or pickup, pickup time, and password before the order is confirmed.
+                  {t('frontend.home.hero_banner.description', 'Customers can add items to cart first. During checkout we collect full name, phone, email, region or city, district or area, address, delivery or pickup, pickup time, and password before the order is confirmed.')}
                 </p>
               </div>
 
@@ -371,14 +398,14 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                   href="#products"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-4 text-sm font-bold text-[#7a1f28] transition hover:bg-[#fff1ea]"
                 >
-                  Browse Products
+                  {t('frontend.home.actions.browse_products', 'Browse Products')}
                 </a>
                 {auth?.user ? (
                   <Link
                     href="/checkout"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 px-7 py-4 text-sm font-bold text-white transition hover:bg-white/10"
                   >
-                    Order now
+                    {t('frontend.home.actions.order_now', 'Order now')}
                   </Link>
                 ) : (
                   <button
@@ -386,7 +413,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                     onClick={openGuestCheckout}
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 px-7 py-4 text-sm font-bold text-white transition hover:bg-white/10"
                   >
-                    Order now
+                    {t('frontend.home.actions.order_now', 'Order now')}
                   </button>
                 )}
               </div>
@@ -399,13 +426,13 @@ export default function Home({ categories = [], products = [], cart, activeCateg
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-[#7a1f28]/15 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#7a1f28] shadow-sm">
                 <ShieldCheck size={14} />
-                Live products from your database
+                {t('frontend.home.intro.eyebrow', 'Live products from your database')}
               </span>
               <h1 className="mt-6 max-w-3xl text-5xl font-black leading-[1.02] tracking-tight text-[#241816] sm:text-6xl">
-                Fresh premium meat delivered to your door or prepared for pickup.
+                {t('frontend.home.intro.title', 'Fresh premium meat delivered to your door or prepared for pickup.')}
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-[#6f5d57]">
-                Browse real categories and products from the system, add items to cart, and confirm your order through a guided account-creation checkout flow.
+                {t('frontend.home.intro.description', 'Browse real categories and products from the system, add items to cart, and confirm your order through a guided account-creation checkout flow.')}
               </p>
 
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
@@ -413,23 +440,23 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                   href="#products"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#7a1f28] px-7 py-4 text-sm font-bold text-white shadow-[0_18px_35px_rgba(122,31,40,0.25)] transition hover:bg-[#651820]"
                 >
-                  Shop Products
+                  {t('frontend.home.actions.shop_products', 'Shop Products')}
                   <ArrowRight size={16} />
                 </a>
                 <a
                   href="#categories"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-[#3b241d]/15 bg-white px-7 py-4 text-sm font-bold text-[#241816] transition hover:border-[#7a1f28]/25 hover:text-[#7a1f28]"
                 >
-                  View Categories
+                  {t('frontend.home.actions.view_categories', 'View Categories')}
                   <ChevronRight size={16} />
                 </a>
               </div>
 
               <div className="mt-10 grid gap-4 sm:grid-cols-3">
                 {[
-                  { value: `${categories.length}`, label: 'Live categories' },
-                  { value: `${products.length}`, label: 'Live products' },
-                  { value: `${cart?.count || 0}`, label: 'Items in cart' },
+                  { value: `${categories.length}`, label: t('frontend.home.intro.stats.categories', 'Live categories') },
+                  { value: `${products.length}`, label: t('frontend.home.intro.stats.products', 'Live products') },
+                  { value: `${cart?.count || 0}`, label: t('frontend.home.intro.stats.cart_items', 'Items in cart') },
                 ].map((item) => (
                   <div key={item.label} className="rounded-3xl border border-[#eadfd4] bg-white/90 p-5 shadow-sm">
                     <p className="text-2xl font-black text-[#241816]">{item.value}</p>
@@ -442,12 +469,12 @@ export default function Home({ categories = [], products = [], cart, activeCateg
             <div id="cart" className="rounded-[2rem] border border-[#eadfd4] bg-white p-6 shadow-[0_30px_80px_rgba(59,36,29,0.12)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7a1f28]">Cart Summary</p>
-                  <h3 className="mt-2 text-2xl font-black text-[#241816]">Your order cart</h3>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7a1f28]">{t('frontend.home.cart_summary.eyebrow', 'Cart Summary')}</p>
+                  <h3 className="mt-2 text-2xl font-black text-[#241816]">{t('frontend.home.cart_summary.title', 'Your order cart')}</h3>
                 </div>
                 <div className="rounded-2xl bg-[#f8efe7] px-4 py-3 text-center">
                   <p className="text-sm font-bold text-[#7a1f28]">{cart?.count || 0}</p>
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-[#8d746b]">Items</p>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-[#8d746b]">{t('frontend.home.cart_summary.items', 'Items')}</p>
                 </div>
               </div>
 
@@ -457,14 +484,19 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-lg font-black text-[#241816]">{item.name}</p>
-                        <p className="mt-1 text-sm text-[#6f5d57]">{item.category} • Qty {item.quantity}</p>
+                        <p className="mt-1 text-sm text-[#6f5d57]">
+                          {tp('frontend.home.cart_summary.item_meta', ':category - Qty :quantity', {
+                            category: item.category || t('frontend.common.product', 'Product'),
+                            quantity: item.quantity,
+                          })}
+                        </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => window.location.href = '#products'}
                         className="rounded-full border border-[#e4d6ca] px-3 py-1 text-xs font-bold text-[#7a1f28]"
                       >
-                        View
+                        {t('frontend.home.actions.view', 'View')}
                       </button>
                     </div>
                     <div className="mt-4 flex items-center justify-between gap-3">
@@ -475,15 +507,15 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                         as="button"
                         className="text-sm font-bold text-[#7a1f28] hover:underline"
                       >
-                        Remove
+                        {t('frontend.home.actions.remove', 'Remove')}
                       </Link>
                     </div>
                   </div>
                 )) : (
                   <div className="rounded-[1.5rem] border border-dashed border-[#e4d6ca] bg-[#fbf6f1] p-6 text-center">
-                    <p className="text-lg font-black text-[#241816]">Your cart is empty</p>
+                    <p className="text-lg font-black text-[#241816]">{t('frontend.home.cart_summary.empty_title', 'Your cart is empty')}</p>
                     <p className="mt-2 text-sm leading-7 text-[#6f5d57]">
-                      Browse the live products below and add items to cart before you continue to checkout.
+                      {t('frontend.home.cart_summary.empty_description', 'Browse the live products below and add items to cart before you continue to checkout.')}
                     </p>
                   </div>
                 )}
@@ -491,18 +523,18 @@ export default function Home({ categories = [], products = [], cart, activeCateg
 
               <div className="mt-6 rounded-[1.5rem] bg-[#2f1d19] p-5 text-white">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-[#e6d4ce]">Subtotal</span>
+                  <span className="text-sm text-[#e6d4ce]">{t('frontend.common.labels.subtotal', 'Subtotal')}</span>
                   <span className="text-xl font-black">{formatCurrency(cart?.subtotal || 0)}</span>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-[#f0dfd8]">
-                  Guests can build a cart now. Order confirmation happens at checkout after customer account creation.
+                  {t('frontend.home.cart_summary.guest_note', 'Guests can build a cart now. Order confirmation happens at checkout after customer account creation.')}
                 </p>
                 {auth?.user ? (
                   <Link
                     href="/checkout"
                     className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-white px-6 py-3.5 text-sm font-bold text-[#7a1f28] transition hover:bg-[#fff1ea]"
                   >
-                    Continue To Checkout
+                    {t('frontend.home.actions.view_cart_checkout', 'View Cart & Checkout')}
                   </Link>
                 ) : (
                   <button
@@ -510,7 +542,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                     onClick={openGuestCheckout}
                     className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-white px-6 py-3.5 text-sm font-bold text-[#7a1f28] transition hover:bg-[#fff1ea]"
                   >
-                    Create Account To Confirm
+                    {t('frontend.home.actions.create_account_confirm', 'Create Account To Confirm')}
                   </button>
                 )}
               </div>
@@ -520,7 +552,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
 
         <section className="mx-auto max-w-7xl px-6 pb-8">
           <div className="grid gap-4 rounded-[2rem] border border-[#eadfd4] bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-4 lg:p-6">
-            {TRUST_POINTS.map((point) => {
+            {trustPoints.map((point) => {
               const Icon = point.icon;
 
               return (
@@ -537,9 +569,9 @@ export default function Home({ categories = [], products = [], cart, activeCateg
 
         <section id="categories" className="mx-auto max-w-7xl px-6 py-16 lg:py-20">
           <SectionHeading
-            eyebrow="Shop By Category"
-            title="Categories shown here now come directly from the database."
-            description="Category cards are image-free as requested, making the storefront cleaner and aligned with your actual category records."
+            eyebrow={t('frontend.home.categories.eyebrow', 'Shop By Category')}
+            title={t('frontend.home.categories.title', 'Categories shown here now come directly from the database.')}
+            description={t('frontend.home.categories.description', 'Category cards are image-free as requested, making the storefront cleaner and aligned with your actual category records.')}
           />
 
           <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -547,16 +579,16 @@ export default function Home({ categories = [], products = [], cart, activeCateg
               <article key={category.id} className="rounded-[1.8rem] border border-[#e9ddd1] bg-[#f4efea] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(59,36,29,0.1)]">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9b867f]">Category</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9b867f]">{t('frontend.home.categories.label', 'Category')}</p>
                     <h3 className="mt-3 text-2xl font-black text-[#241816]">{category.name}</h3>
                   </div>
                   <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#7a1f28]">
-                    {category.products_count} items
+                    {tp('frontend.home.categories.items_count', ':count items', { count: category.products_count })}
                   </span>
                 </div>
                 <p className="mt-4 text-sm leading-7 text-[#7a6660]">{category.description}</p>
                 <Link href={`/?category=${category.slug}#products`} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#7a1f28]">
-                  View Products
+                  {t('frontend.home.actions.view_products', 'View Products')}
                   <ArrowRight size={15} />
                 </Link>
               </article>
@@ -569,13 +601,13 @@ export default function Home({ categories = [], products = [], cart, activeCateg
             <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl">
                 <SectionHeading
-                  eyebrow={activeCategory ? 'Filtered Products' : 'Featured Products'}
+                  eyebrow={activeCategory ? t('frontend.home.products.eyebrow_filtered', 'Filtered Products') : t('frontend.home.products.eyebrow_featured', 'Featured Products')}
                   title={activeCategory
-                    ? `Showing only ${activeCategory.name} products.`
-                    : 'Products on the front page now load from the products table.'}
+                    ? tp('frontend.home.products.title_filtered', 'Showing only :category products.', { category: activeCategory.name })
+                    : t('frontend.home.products.title_default', 'Products on the front page now load from the products table.')}
                   description={activeCategory
-                    ? 'Use the category cards to narrow the storefront to the selected category, or clear the filter to see everything again.'
-                    : 'These cards are image-free, show real pricing, and let customers add items to cart immediately.'}
+                    ? t('frontend.home.products.description_filtered', 'Use the category cards to narrow the storefront to the selected category, or clear the filter to see everything again.')
+                    : t('frontend.home.products.description_default', 'These cards are image-free, show real pricing, and let customers add items to cart immediately.')}
                 />
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -584,7 +616,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                     href="/#products"
                     className="inline-flex items-center justify-center rounded-full border border-[#3b241d]/15 bg-white px-5 py-3 text-sm font-bold text-[#241816] transition hover:border-[#7a1f28]/25 hover:text-[#7a1f28]"
                   >
-                    Clear Filter
+                    {t('frontend.home.actions.clear_filter', 'Clear Filter')}
                   </Link>
                 )}
                 {auth?.user ? (
@@ -592,7 +624,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                     href="/checkout"
                     className="inline-flex items-center justify-center rounded-full bg-[#7a1f28] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#651820]"
                   >
-                    View Cart & Checkout
+                    {t('frontend.home.actions.view_cart_checkout', 'View Cart & Checkout')}
                   </Link>
                 ) : (
                   <button
@@ -600,7 +632,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                     onClick={openGuestCheckout}
                     className="inline-flex items-center justify-center rounded-full bg-[#7a1f28] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#651820]"
                   >
-                    Create Account To Confirm
+                    {t('frontend.home.actions.create_account_confirm', 'Create Account To Confirm')}
                   </button>
                 )}
               </div>
@@ -614,13 +646,13 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                   >
                     <div className="p-7">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9d8175]">
-                        {product.category || product.sku || 'Product'}
+                        {product.category || product.sku || t('frontend.common.product', 'Product')}
                       </p>
                       <h3 className="mt-5 text-[2.1rem] font-black leading-none tracking-[-0.03em] sm:text-[2rem]">
                         {product.name}
                       </h3>
                       <p className="mt-5 min-h-[3.5rem] text-[15px] leading-8 text-[#7a6660]">
-                        {product.description || 'Fresh stock ready for your next order.'}
+                        {product.description || t('frontend.home.products.fallback_description', 'Fresh stock ready for your next order.')}
                       </p>
                       <div className="mt-8 flex items-center justify-between gap-3">
                         <span className={`rounded-full px-4 py-1.5 text-sm font-bold ${
@@ -630,12 +662,14 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                               ? 'bg-[#fff1d6] text-[#9a5b00]'
                               : 'bg-[#fff0f0] text-[#df1d1d]'
                         }`}>
-                          {product.status}
+                          {translateProductStatus(product.status, t)}
                         </span>
                         <p className="text-[2rem] font-black leading-none text-[#7a1f28]">{formatCurrency(product.price)}</p>
                       </div>
                       <p className="mt-6 text-[11px] uppercase tracking-[0.24em] text-[#9d8175]">
-                        Unit: {product.unit || 'item'}
+                        {tp('frontend.common.labels.unit_value', 'Unit: :unit', {
+                          unit: product.unit || t('frontend.common.item', 'item'),
+                        })}
                       </p>
                       <Link
                         href="/cart/items"
@@ -647,16 +681,16 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                         className="mt-7 inline-flex w-full items-center justify-center rounded-[0.85rem] bg-[#563b2a] px-5 py-4 text-[15px] font-bold text-white transition hover:bg-[#472f22] disabled:cursor-not-allowed disabled:bg-[#d8c9c2] disabled:text-[#f6f0eb]"
                       >
                           <ShoppingCart size={16} className="mr-2" />
-                          Add To Cart
+                          {t('frontend.common.add_to_cart', 'Add To Cart')}
                       </Link>
                   </div>
                 </article>
               ))}
               {!products.length && (
                 <div className="md:col-span-2 xl:col-span-4 rounded-[1.8rem] border border-dashed border-[#e9ddd1] bg-[#f4efea] p-10 text-center">
-                  <p className="text-2xl font-black text-[#241816]">No products found for this category.</p>
+                  <p className="text-2xl font-black text-[#241816]">{t('frontend.home.products.empty_title', 'No products found for this category.')}</p>
                   <p className="mt-3 text-sm leading-7 text-[#7a6660]">
-                    Try another category or clear the filter to view all available products.
+                    {t('frontend.home.products.empty_description', 'Try another category or clear the filter to view all available products.')}
                   </p>
                 </div>
               )}
@@ -667,14 +701,14 @@ export default function Home({ categories = [], products = [], cart, activeCateg
         <section id="how-it-works" className="bg-[#fffaf4] py-16 lg:py-20">
           <div className="mx-auto max-w-7xl px-6">
             <SectionHeading
-              eyebrow="How Ordering Works"
-              title="Guests can shop first, but checkout confirmation requires a customer account."
-              description="This flow lets customers explore freely while still collecting the right details before an order is saved."
+              eyebrow={t('frontend.home.how_it_works.eyebrow', 'How Ordering Works')}
+              title={t('frontend.home.how_it_works.title', 'Guests can shop first, but checkout confirmation requires a customer account.')}
+              description={t('frontend.home.how_it_works.description', 'This flow lets customers explore freely while still collecting the right details before an order is saved.')}
               center
             />
 
             <div className="mt-12 grid gap-6 lg:grid-cols-4">
-              {ORDER_STEPS.map((step, index) => {
+              {orderSteps.map((step, index) => {
                 const Icon = step.icon;
 
                 return (
@@ -700,14 +734,14 @@ export default function Home({ categories = [], products = [], cart, activeCateg
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
                 <Truck size={24} />
               </div>
-              <h3 className="mt-6 text-3xl font-black">Delivery</h3>
+              <h3 className="mt-6 text-3xl font-black">{t('frontend.home.delivery_pickup.delivery_title', 'Delivery')}</h3>
               <p className="mt-4 text-sm leading-7 text-[#e8d6cf]">
-                Customers entering delivery during checkout provide their location so the order can be prepared for dispatch.
+                {t('frontend.home.delivery_pickup.delivery_description', 'Customers entering delivery during checkout provide their location so the order can be prepared for dispatch.')}
               </p>
               <ul className="mt-6 space-y-3 text-sm text-[#f3e7e1]">
-                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#d8b08e]" /> Delivery location is collected during checkout</li>
-                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#d8b08e]" /> Cart stays available before signup</li>
-                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#d8b08e]" /> Order is confirmed only after account creation</li>
+                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#d8b08e]" /> {t('frontend.home.delivery_pickup.delivery_points.location', 'Delivery location is collected during checkout')}</li>
+                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#d8b08e]" /> {t('frontend.home.delivery_pickup.delivery_points.cart', 'Cart stays available before signup')}</li>
+                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#d8b08e]" /> {t('frontend.home.delivery_pickup.delivery_points.account', 'Order is confirmed only after account creation')}</li>
               </ul>
             </article>
 
@@ -715,14 +749,14 @@ export default function Home({ categories = [], products = [], cart, activeCateg
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#7a1f28] text-white">
                 <Store size={24} />
               </div>
-              <h3 className="mt-6 text-3xl font-black text-[#241816]">Pickup</h3>
+              <h3 className="mt-6 text-3xl font-black text-[#241816]">{t('frontend.home.delivery_pickup.pickup_title', 'Pickup')}</h3>
               <p className="mt-4 text-sm leading-7 text-[#6f5d57]">
-                Customers choosing pickup select their preferred pickup time at checkout before the order is submitted.
+                {t('frontend.home.delivery_pickup.pickup_description', 'Customers choosing pickup select their preferred pickup time at checkout before the order is submitted.')}
               </p>
               <ul className="mt-6 space-y-3 text-sm text-[#4d3a35]">
-                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#7a1f28]" /> Pickup time becomes required when pickup is selected</li>
-                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#7a1f28]" /> Full customer details are stored with the account</li>
-                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#7a1f28]" /> Branch fulfillment is attached to the saved order</li>
+                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#7a1f28]" /> {t('frontend.home.delivery_pickup.pickup_points.time', 'Pickup time becomes required when pickup is selected')}</li>
+                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#7a1f28]" /> {t('frontend.home.delivery_pickup.pickup_points.details', 'Full customer details are stored with the account')}</li>
+                <li className="flex items-center gap-3"><CheckCircle2 size={16} className="text-[#7a1f28]" /> {t('frontend.home.delivery_pickup.pickup_points.branch', 'Branch fulfillment is attached to the saved order')}</li>
               </ul>
             </article>
           </div>
@@ -731,14 +765,14 @@ export default function Home({ categories = [], products = [], cart, activeCateg
         <section className="bg-[#f2e7dc] py-16 lg:py-20">
           <div className="mx-auto max-w-7xl px-6">
             <SectionHeading
-              eyebrow="Why This Flow"
-              title="The public storefront is now tied to your database and your real checkout rules."
-              description="The homepage focuses on useful actions, and checkout captures exactly the information you asked for."
+              eyebrow={t('frontend.home.why_flow.eyebrow', 'Why This Flow')}
+              title={t('frontend.home.why_flow.title', 'The public storefront is now tied to your database and your real checkout rules.')}
+              description={t('frontend.home.why_flow.description', 'The homepage focuses on useful actions, and checkout captures exactly the information you asked for.')}
               center
             />
 
             <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-              {REASONS.map((reason) => {
+              {reasons.map((reason) => {
                 const Icon = reason.icon;
 
                 return (
@@ -765,18 +799,18 @@ export default function Home({ categories = [], products = [], cart, activeCateg
               </div>
               <div>
                 <p className="text-lg font-black text-[#241816]">AmaniBrew</p>
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#7a1f28]">Premium meat ordering</p>
+                <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#7a1f28]">{t('frontend.home.footer.brand_tagline', 'Premium meat ordering')}</p>
               </div>
             </div>
             <p className="mt-5 max-w-md text-sm leading-7 text-[#6f5d57]">
-              Browse live categories and products, add items to a guest cart, and confirm the order through customer account creation.
+              {t('frontend.home.footer.description', 'Browse live categories and products, add items to a guest cart, and confirm the order through customer account creation.')}
             </p>
           </div>
 
           <div>
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#241816]">Quick Links</p>
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#241816]">{t('frontend.home.footer.quick_links', 'Quick Links')}</p>
             <div className="mt-5 space-y-3">
-              {FOOTER_LINKS.map((link) => (
+              {footerLinks.map((link) => (
                 <SmartLink key={link.label} href={link.href} className="block text-sm font-medium text-[#6f5d57] transition hover:text-[#7a1f28]">
                   {link.label}
                 </SmartLink>
@@ -785,40 +819,40 @@ export default function Home({ categories = [], products = [], cart, activeCateg
           </div>
 
           <div>
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#241816]">Account</p>
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#241816]">{t('frontend.home.footer.account', 'Account')}</p>
             <div className="mt-5 space-y-3 text-sm text-[#6f5d57]">
-              <Link href="/login" className="block font-medium transition hover:text-[#7a1f28]">Staff Login</Link>
+              <Link href="/login" className="block font-medium transition hover:text-[#7a1f28]">{t('frontend.home.footer.staff_login', 'Staff Login')}</Link>
               {!auth?.user && (
-                <Link href="/register" className="block font-medium transition hover:text-[#7a1f28]">Customer Signup</Link>
+                <Link href="/register" className="block font-medium transition hover:text-[#7a1f28]">{t('frontend.home.footer.customer_signup', 'Customer Signup')}</Link>
               )}
               {auth?.user ? (
-                <Link href="/checkout" className="block font-medium transition hover:text-[#7a1f28]">Order now</Link>
+                <Link href="/checkout" className="block font-medium transition hover:text-[#7a1f28]">{t('frontend.home.actions.order_now', 'Order now')}</Link>
               ) : (
                 <button
                   type="button"
                   onClick={openGuestCheckout}
                   className="block text-left font-medium transition hover:text-[#7a1f28]"
                 >
-                  Order now
+                  {t('frontend.home.actions.order_now', 'Order now')}
                 </button>
               )}
             </div>
           </div>
 
           <div>
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#241816]">Contact & Hours</p>
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#241816]">{t('frontend.home.footer.contact_hours', 'Contact & Hours')}</p>
             <div className="mt-5 space-y-4 text-sm text-[#6f5d57]">
               <p className="flex items-start gap-3">
                 <MapPin size={16} className="mt-1 shrink-0 text-[#7a1f28]" />
-                Dar es Salaam, Tanzania
+                {t('frontend.home.footer.location', 'Dar es Salaam, Tanzania')}
               </p>
               <p className="flex items-start gap-3">
                 <Clock3 size={16} className="mt-1 shrink-0 text-[#7a1f28]" />
-                Mon - Sat, 7:00 AM - 7:00 PM
+                {t('frontend.home.footer.hours', 'Mon - Sat, 7:00 AM - 7:00 PM')}
               </p>
               <p className="flex items-start gap-3">
                 <Truck size={16} className="mt-1 shrink-0 text-[#7a1f28]" />
-                Delivery and pickup available
+                {t('frontend.home.footer.delivery_pickup_available', 'Delivery and pickup available')}
               </p>
             </div>
           </div>

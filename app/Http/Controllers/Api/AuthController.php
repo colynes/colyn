@@ -21,7 +21,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed.',
+                'message' => __('messages.api.validation_failed'),
                 'data' => [
                     'errors' => $validator->errors(),
                 ],
@@ -39,7 +39,7 @@ class AuthController extends Controller
             if (! $user || ! Hash::check($credentials['password'], $user->password)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid credentials.',
+                    'message' => __('messages.api.invalid_credentials'),
                     'data' => null,
                 ], 401);
             }
@@ -49,7 +49,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Login successful.',
+                'message' => __('messages.api.login_successful'),
                 'data' => [
                     'token' => $token,
                     'token_type' => 'Bearer',
@@ -58,6 +58,7 @@ class AuthController extends Controller
                         'name' => $user->name,
                         'email' => $user->email,
                         'phone' => $user->phone ?: $user->customer?->phone,
+                        'preferred_language' => $user->preferred_language,
                         'roles' => $roles,
                         'primary_role' => $roles->first(),
                         'customer' => $user->customer ? [
@@ -76,7 +77,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Unable to log in right now.',
+                'message' => __('messages.api.login_unavailable'),
                 'data' => null,
             ], 500);
         }

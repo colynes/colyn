@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { ShoppingCart, X } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 const CART_POSITION_KEY = 'customer-cart-floating-position';
 
@@ -13,6 +14,7 @@ function formatCurrency(value) {
 }
 
 export default function CustomerCartPanel() {
+  const { t } = useI18n();
   const { auth, cart = { items: [], subtotal: 0, line_count: 0 } } = usePage().props;
   const wrapperRef = useRef(null);
   const buttonRef = useRef(null);
@@ -202,8 +204,8 @@ export default function CustomerCartPanel() {
           <div className="absolute bottom-[calc(100%+12px)] right-0 w-[17rem] rounded-[1.75rem] border border-[var(--color-sys-border)] bg-white/95 p-5 shadow-[0_18px_50px_rgba(44,30,22,0.12)] backdrop-blur sm:w-80">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-sys-text-secondary)]">Your Cart</p>
-                <h3 className="mt-2 text-xl font-black text-[var(--color-sys-text-primary)]">Cart details</h3>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-sys-text-secondary)]">{t('frontend.customer_cart_panel.title', 'Your Cart')}</p>
+                <h3 className="mt-2 text-xl font-black text-[var(--color-sys-text-primary)]">{t('frontend.customer_cart_panel.subtitle', 'Cart details')}</h3>
               </div>
               <button
                 type="button"
@@ -221,7 +223,7 @@ export default function CustomerCartPanel() {
                     <div>
                       <p className="font-semibold text-[var(--color-sys-text-primary)]">{item.name}</p>
                       <p className="mt-1 text-xs text-[var(--color-sys-text-secondary)]">
-                        Qty {item.quantity} • {item.unit}
+                        {`${t('frontend.common.labels.qty_unit', 'Qty :quantity • :unit').replace(':quantity', item.quantity).replace(':unit', item.unit)}`}
                       </p>
                     </div>
                     <p className="text-sm font-black text-[var(--color-sys-text-primary)]">
@@ -234,15 +236,15 @@ export default function CustomerCartPanel() {
 
             <div className="mt-5 border-t border-[var(--color-sys-border)] pt-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-[var(--color-sys-text-secondary)]">Subtotal</span>
+                <span className="text-sm text-[var(--color-sys-text-secondary)]">{t('frontend.common.labels.subtotal', 'Subtotal')}</span>
                 <span className="text-lg font-black text-[var(--color-sys-text-primary)]">{formatCurrency(cart?.subtotal || 0)}</span>
               </div>
               <div className="mt-4 grid gap-3">
                 <Link href="/cart" className="inline-flex items-center justify-center rounded-2xl border border-[var(--color-sys-border)] px-4 py-3 text-sm font-semibold text-[var(--color-sys-text-primary)]">
-                  Open cart
+                  {t('frontend.common.open_cart', 'Open cart')}
                 </Link>
                 <Link href="/checkout" className="inline-flex items-center justify-center rounded-2xl bg-[var(--color-brand-dark)] px-4 py-3 text-sm font-semibold text-white">
-                  Confirm order
+                  {t('frontend.common.confirm_order', 'Confirm order')}
                 </Link>
               </div>
             </div>
@@ -255,7 +257,7 @@ export default function CustomerCartPanel() {
           onPointerDown={startDragging}
           onClick={handleButtonClick}
           className="relative flex h-13 w-13 cursor-grab items-center justify-center rounded-full bg-[var(--color-brand-dark)] text-white shadow-[0_18px_50px_rgba(44,30,22,0.22)] select-none transition hover:bg-[#4a3527] active:cursor-grabbing sm:h-16 sm:w-16"
-          aria-label="Open live cart"
+          aria-label={t('frontend.customer_cart_panel.open_live_cart', 'Open live cart')}
           style={{ touchAction: 'none' }}
         >
           <ShoppingCart size={20} />
