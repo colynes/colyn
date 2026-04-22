@@ -50,6 +50,7 @@ AmaniBrew supports two major experiences:
 
 1. Home page (`/`)
 - Active categories preview.
+- *Available in English and Swahili (switch via user profile).*.
 - Featured active products with availability status (`In Stock`, `Low Stock`, `Out of Stock`).
 - Cart summary integration.
 
@@ -462,7 +463,9 @@ Command: `orders:send-pickup-reminders`
 5. Spatie Laravel Permission
 6. Laravel Notifications
 7. Pusher PHP server
-8. DomPDF
+8. DomPDF (`barryvdh/laravel-dompdf`)
+9. spatie/laravel-permission (roles/permissions)
+10. spatie/browsershot (PDF enhancements)
 
 ## 10.2 Frontend
 
@@ -643,6 +646,13 @@ php artisan test
 ```powershell
 npm run build
 ```
+
+## 10.3 Multilingual Support
+
+1. Backend translations in `lang/en/` and `lang/sw/` for all UI strings.
+2. Frontend supports locale switching via user `preferred_language`.
+3. Configured `supported_locales`: English (en), Swahili (sw).
+4. Automatic locale fallback and customer profile persistence.
 
 ## 16. Operational Notes
 
