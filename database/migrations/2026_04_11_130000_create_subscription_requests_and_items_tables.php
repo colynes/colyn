@@ -34,8 +34,8 @@ return new class extends Migration
                 $table->unsignedBigInteger('subscription_id')->nullable();
                 $table->timestamps();
 
-                $table->index(['customer_id', 'status']);
-                $table->index(['user_id', 'status']);
+                $table->index(['customer_id', 'status'], 'sub_requests_customer_status_idx');
+                $table->index(['user_id', 'status'], 'sub_requests_user_status_idx');
             });
         }
 
@@ -53,7 +53,7 @@ return new class extends Migration
                 $table->decimal('line_total', 12, 2)->default(0);
                 $table->timestamps();
 
-                $table->index(['subscription_request_id', 'item_type']);
+                $table->index(['subscription_request_id', 'item_type'], 'sub_req_items_req_type_idx');
             });
         }
 
@@ -71,7 +71,7 @@ return new class extends Migration
                 $table->decimal('line_total', 12, 2)->default(0);
                 $table->timestamps();
 
-                $table->index(['subscription_id', 'item_type']);
+                $table->index(['subscription_id', 'item_type'], 'sub_items_sub_type_idx');
             });
         }
 

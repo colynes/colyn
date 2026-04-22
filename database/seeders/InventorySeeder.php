@@ -17,14 +17,46 @@ class InventorySeeder extends Seeder
     private const DEFAULT_MIN_STOCK = 10;
     private const DEFAULT_REORDER_LEVEL = 15;
     private const CATALOG_PRICE_EFFECTIVE_FROM = '2026-01-01 00:00:00';
+    private const PRODUCT_STOCK_LEVELS = [
+        'HS-SAU-VIENNA' => 48,
+        'HS-SAU-VIENNA-MINI' => 0,
+        'HS-SAU-BBQ-BEEF' => 36,
+        'HS-SAU-BBQ-BEEF-MINI' => 28,
+        'HS-SAU-CHICKEN' => 34,
+        'HS-SAU-PORK' => 26,
+        'HS-SAU-COCKTAIL' => 6,
+        'HS-BEEF-FILLET' => 24,
+        'HS-BEEF-TBONE' => 22,
+        'HS-BEEF-RUMP' => 30,
+        'HS-BEEF-SIRLOIN' => 27,
+        'HS-BEEF-MINCE' => 44,
+        'HS-BEEF-STEW' => 38,
+        'HS-BEEF-TOPSIDE' => 0,
+        'HS-BEEF-SILVERSIDE' => 8,
+        'HS-LG-LEG' => 19,
+        'HS-LG-CHOPS' => 21,
+        'HS-LG-RIBS' => 18,
+        'HS-LAMB-ROAST-ROLLED' => 17,
+        'HS-LAMB-SHANK' => 0,
+        'HS-LAMB-STEW' => 20,
+        'HS-POULTRY-BROILER' => 40,
+        'HS-POULTRY-KROILER' => 24,
+        'HS-POULTRY-BREAST' => 26,
+        'HS-POULTRY-FILLET' => 22,
+        'HS-POULTRY-DRUMSTICKS' => 32,
+        'HS-POULTRY-WINGS' => 10,
+        'HS-PORK-BACON-BACK' => 18,
+        'HS-PORK-BACON-STREAKY' => 16,
+        'HS-PORK-HAM-COOKED' => 20,
+        'HS-PORK-HAM-SMOKED' => 12,
+        'HS-PORK-CHOPS' => 25,
+    ];
 
     public function run(): void
     {
         DB::transaction(function (): void {
             $catalog = $this->catalog();
-            $activeBranches = Branch::query()
-                ->where('is_active', true)
-                ->get(['id']);
+            $activeBranches = $this->activeBranchesForStockSeeding();
 
             $catalogCategorySlugs = [];
             $catalogProductSkus = [];
@@ -81,8 +113,8 @@ class InventorySeeder extends Seeder
                         ]
                     );
 
-                    // Stock is branch-scoped in this schema, so seed the default
-                    // quantity for every active branch that already exists.
+                    $quantity = $this->stockQuantityForSku($productData['sku']);
+
                     foreach ($activeBranches as $branch) {
                         Stock::updateOrCreate(
                             [
@@ -90,7 +122,7 @@ class InventorySeeder extends Seeder
                                 'branch_id' => $branch->id,
                             ],
                             [
-                                'quantity' => self::DEFAULT_STOCK_QUANTITY,
+                                'quantity' => $quantity,
                                 'min_stock' => self::DEFAULT_MIN_STOCK,
                                 'reorder_level' => self::DEFAULT_REORDER_LEVEL,
                             ]
@@ -116,6 +148,39 @@ class InventorySeeder extends Seeder
                     $product->delete();
                 }
             });
+    }
+
+    protected function stockQuantityForSku(string $sku): int
+    {
+        return self::PRODUCT_STOCK_LEVELS[$sku] ?? self::DEFAULT_STOCK_QUANTITY;
+    }
+
+    protected function activeBranchesForStockSeeding()
+    {
+        $activeBranches = Branch::query()
+            ->where('is_active', true)
+            ->get(['id']);
+
+        if ($activeBranches->isNotEmpty()) {
+            return $activeBranches;
+        }
+
+        $branch = Branch::query()->firstOrCreate(
+            ['name' => 'Amani Brew Main Branch'],
+            [
+                'address' => 'Changanyikeni, Dar es Salaam',
+                'phone' => '+255 712 345 678',
+                'is_active' => true,
+            ]
+        );
+
+        if (!$branch->is_active) {
+            $branch->forceFill(['is_active' => true])->save();
+        }
+
+        return Branch::query()
+            ->where('is_active', true)
+            ->get(['id']);
     }
 
     protected function retireLegacyCategories(array $catalogCategorySlugs): void

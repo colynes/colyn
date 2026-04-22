@@ -6,6 +6,7 @@ import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageC
 import { Card } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import AutoDismissAlert from '@/components/ui/AutoDismissAlert';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 
@@ -127,15 +128,11 @@ export default function Products({ auth, products, categories, filters = {}, per
         type="danger"
       />
 
-      {(flash?.success || flash?.error) && (
-        <div className={`mb-5 rounded-2xl border px-5 py-4 text-sm font-medium ${
-          flash.error
-            ? 'border-red-200 bg-red-50 text-red-700'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-        }`}>
-          {flash.error || flash.success}
-        </div>
-      )}
+      <AutoDismissAlert
+        message={flash?.error || flash?.success}
+        type={flash?.error ? 'error' : 'success'}
+        className="mb-5"
+      />
 
       <form method="get" action="/inventory/products" className="mb-5 flex flex-col gap-3 lg:flex-row">
         <div className="relative flex-1">

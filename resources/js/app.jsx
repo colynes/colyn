@@ -5,12 +5,9 @@ import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { Toaster } from 'sonner';
-import { startEcho } from './lib/echo';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Amani Brew';
 const TOAST_DURATION_MS = 5000;
-
-void startEcho();
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AppSetting;
 use App\Support\FrontendTranslations;
 use App\Support\CartManager;
 use Illuminate\Http\Request;
@@ -93,6 +94,22 @@ class HandleInertiaRequests extends Middleware
                 'error'   => $request->session()->get('error'),
             ],
             'cart' => fn () => CartManager::summary(),
+            'pickupHours' => fn () => $this->pickupHours(),
+        ];
+    }
+
+    protected function pickupHours(): array
+    {
+        if (!Schema::hasTable('app_settings')) {
+            return [
+                'open_time' => '08:00',
+                'close_time' => '20:00',
+            ];
+        }
+
+        return [
+            'open_time' => AppSetting::getValue('pickup_open_time', '08:00'),
+            'close_time' => AppSetting::getValue('pickup_close_time', '20:00'),
         ];
     }
 

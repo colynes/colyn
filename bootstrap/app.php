@@ -14,6 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
+            'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
             'backoffice' => \App\Http\Middleware\EnsureBackofficeAccess::class,
             'customer' => \App\Http\Middleware\EnsureCustomerAccess::class,
         ]);

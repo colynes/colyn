@@ -47,7 +47,9 @@ return [
     |
     */
 
-    'expiration' => null,
+    'expiration' => (int) env('SANCTUM_TOKEN_EXPIRATION', 60 * 24 * 30),
+
+    'mobile_token_lifetime_days' => (int) env('SANCTUM_MOBILE_TOKEN_LIFETIME_DAYS', 30),
 
     /*
     |--------------------------------------------------------------------------
@@ -62,7 +64,7 @@ return [
     |
     */
 
-    'token_prefix' => env('SANCTUM_TOKEN_PREFIX', ''),
+    'token_prefix' => env('SANCTUM_TOKEN_PREFIX', 'colyn_'),
 
     /*
     |--------------------------------------------------------------------------

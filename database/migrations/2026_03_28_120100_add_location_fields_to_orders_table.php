@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('orders')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
             if (!Schema::hasColumn('orders', 'delivery_region')) {
                 $table->string('delivery_region')->nullable()->after('payment_method');
@@ -41,6 +45,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('orders')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
             foreach ([
                 'pickup_time',

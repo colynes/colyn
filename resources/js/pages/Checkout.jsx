@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
 import DeliveryLocationSelector from '@/components/customer/DeliveryLocationSelector';
+import StoreLayout from '@/components/StoreLayout';
+import AutoDismissAlert from '@/components/ui/AutoDismissAlert';
 import { useI18n } from '@/lib/i18n';
 
 function formatCurrency(value) {
@@ -18,6 +20,8 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const isGuest = !auth?.user;
+  const isAuthenticatedCustomer = auth?.user?.role_key === 'customer';
+  const storeHref = isAuthenticatedCustomer ? '/customer/home' : '/';
   const pickupAvailable = pickupHours?.available ?? false;
   const pickupMinTime = pickupHours?.min_time || null;
   const pickupCloseTime = pickupHours?.close_time || null;
@@ -131,7 +135,6 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
     : !processing;
 
   const hasTopLevelError = Boolean(
-    flash?.error ||
     errors.pickup_time ||
     errors.delivery_address ||
     errors.delivery_latitude ||
@@ -153,8 +156,7 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
       close: pickupHours?.close_time,
     });
 
-  return (
-    <div className="min-h-screen bg-[#f7f2ea] px-6 py-10">
+  const checkoutContent = (
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -166,27 +168,29 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
                 : t('frontend.checkout.customer_description', 'Review your details below and confirm the order. Delivery orders require a confirmed location before submission.')}
             </p>
           </div>
-          <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[#3b241d]/15 bg-white px-5 py-3 text-sm font-bold text-[#241816]">
+          <Link href={storeHref} className="inline-flex items-center justify-center rounded-full border border-[#3b241d]/15 bg-white px-5 py-3 text-sm font-bold text-[#241816]">
             {t('frontend.checkout.back_to_store', 'Back To Store')}
           </Link>
         </div>
 
-        {(flash?.success || flash?.error || hasTopLevelError) && (
-          <div className={`mt-6 rounded-2xl border px-5 py-4 text-sm font-medium ${
-            flash.error || hasTopLevelError
-              ? 'border-red-200 bg-red-50 text-red-700'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-          }`}>
-            {flash.error
-              || errors.pickup_time
+        {!isAuthenticatedCustomer && (
+          <AutoDismissAlert
+            message={flash?.error || flash?.success}
+            type={flash?.error ? 'error' : 'success'}
+            className="mt-6"
+          />
+        )}
+
+        {hasTopLevelError && (
+          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
+            {errors.pickup_time
               || errors.delivery_address
               || errors.delivery_latitude
               || errors.delivery_longitude
               || errors.full_name
               || errors.phone
               || errors.email
-              || errors.password
-              || flash.success}
+              || errors.password}
           </div>
         )}
 
@@ -436,6 +440,21 @@ export default function Checkout({ cart, customer, pickupHours, formData, delive
           </div>
         </div>
       </div>
+  );
+
+  if (isAuthenticatedCustomer) {
+    return (
+      <StoreLayout showLiveCart={false}>
+        <div className="rounded-[2.25rem] border border-[var(--color-sys-border)] bg-[#fcf7f0] p-6 shadow-sm sm:p-8 lg:p-10">
+          {checkoutContent}
+        </div>
+      </StoreLayout>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f7f2ea] px-6 py-10">
+      {checkoutContent}
     </div>
   );
 }

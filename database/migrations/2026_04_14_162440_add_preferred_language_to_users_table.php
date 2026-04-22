@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        if (!Schema::hasTable('users') || Schema::hasColumn('users', 'preferred_language')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->string('preferred_language', 5)->default('en')->after('email');
         });
@@ -14,6 +18,10 @@ return new class extends Migration {
 
     public function down(): void
     {
+        if (!Schema::hasTable('users') || !Schema::hasColumn('users', 'preferred_language')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('preferred_language');
         });

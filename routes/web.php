@@ -16,15 +16,16 @@ use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\SubscriptionRequestController;
+use App\Http\Controllers\SupportPageController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 // Public storefront
 Route::get('/', [StorefrontController::class, 'index'])->name('home');
-Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
-Route::post('/cart/items', [CartController::class, 'store'])->name('cart.store');
-Route::patch('/cart/items/{productId}', [CartController::class, 'update'])->name('cart.update');
-Route::delete('/cart/items/{productId}', [CartController::class, 'destroy'])->name('cart.destroy');
+Route::post('/locale', [LocaleController::class, 'update'])->middleware('throttle:30,1')->name('locale.update');
+Route::post('/cart/items', [CartController::class, 'store'])->middleware('throttle:60,1')->name('cart.store');
+Route::patch('/cart/items/{productId}', [CartController::class, 'update'])->middleware('throttle:60,1')->name('cart.update');
+Route::delete('/cart/items/{productId}', [CartController::class, 'destroy'])->middleware('throttle:60,1')->name('cart.destroy');
 Route::get('/products', [CommerceController::class, 'products'])->name('products.browse');
 Route::get('/packs', [CommerceController::class, 'packs'])->name('packs.browse');
 Route::get('/cart', [CommerceController::class, 'cart'])->name('cart');
@@ -33,7 +34,13 @@ Route::get('/track-orders', [CommerceController::class, 'tracking'])
     ->middleware('throttle:20,1')
     ->name('tracking');
 Route::get('/checkout', [CheckoutController::class, 'create'])->name('checkout');
-Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+Route::post('/checkout', [CheckoutController::class, 'store'])->middleware('throttle:10,1')->name('checkout.store');
+Route::get('/about-us', [SupportPageController::class, 'show'])->defaults('page', 'about-us')->name('about');
+Route::get('/faqs', [SupportPageController::class, 'show'])->defaults('page', 'faqs')->name('faqs');
+Route::get('/contact-us', [SupportPageController::class, 'show'])->defaults('page', 'contact-us')->name('contact');
+Route::get('/delivery-information', [SupportPageController::class, 'show'])->defaults('page', 'delivery-information')->name('delivery-information');
+Route::get('/privacy-policy', [SupportPageController::class, 'show'])->defaults('page', 'privacy-policy')->name('privacy-policy');
+Route::get('/terms-of-service', [SupportPageController::class, 'show'])->defaults('page', 'terms-of-service')->name('terms-of-service');
 
 // Guest-only authentication
 Route::middleware('guest')->group(function () {
@@ -60,9 +67,9 @@ Route::middleware('auth')->group(function () {
         ->middleware('throttle:20,1')
         ->name('push.token.remove');
 
-    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
-    Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
+    Route::get('/notifications', [NotificationController::class, 'index'])->middleware('throttle:120,1')->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->middleware('throttle:120,1')->name('notifications.read-all');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->middleware('throttle:120,1')->name('notifications.read');
 
     Route::middleware('customer')->group(function () {
         Route::get('/customer/home', [CustomerHomeController::class, 'index'])->name('customer.home');

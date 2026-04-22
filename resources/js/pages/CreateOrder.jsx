@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { ChevronDown, Plus, Search, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 
 const money = (value) => `Tsh ${new Intl.NumberFormat('en-TZ', {
   maximumFractionDigits: 0,
@@ -15,23 +15,23 @@ const paymentOptions = [
   { value: 'bank', label: 'Bank' },
 ];
 
-function blankItem(products) {
-  const firstProduct = products[0];
-
+function blankItem() {
   return {
-    product_id: firstProduct?.id ? String(firstProduct.id) : '',
-    product_search: firstProduct?.name || '',
+    product_id: '',
     quantity: 1,
   };
 }
 
-export default function CreateOrder({ auth, products = [], nextOrderNumber = '' }) {
-  const [openProductIndex, setOpenProductIndex] = useState(null);
+export default function CreateOrder({ auth, products = [], branch = null, nextOrderNumber = '' }) {
+  const [submitError, setSubmitError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm({
     full_name: '',
     phone: '',
+    branch_id: branch?.id ? String(branch.id) : '',
+    fulfillment_method: 'delivery',
     payment_method: 'cash',
-    items: [blankItem(products)],
+    items: [blankItem()],
   });
 
   const updateItem = (index, field, value) => {
@@ -44,12 +44,12 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
   };
 
   const addItemRow = () => {
-    form.setData('items', [...form.data.items, blankItem(products)]);
+    form.setData('items', [...form.data.items, blankItem()]);
   };
 
   const removeItemRow = (index) => {
     if (form.data.items.length === 1) {
-      form.setData('items', [blankItem(products)]);
+      form.setData('items', [blankItem()]);
       return;
     }
 
@@ -58,37 +58,6 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
 
   const resolveProduct = (productId) => products.find((product) => String(product.id) === String(productId));
 
-  const productLookup = products.reduce((carry, product) => {
-    carry[product.name] = String(product.id);
-    return carry;
-  }, {});
-
-  const updateProductSearch = (index, searchValue) => {
-    const matchedProductId = productLookup[searchValue] || '';
-    const nextItems = [...form.data.items];
-
-    nextItems[index] = {
-      ...nextItems[index],
-      product_search: searchValue,
-      product_id: matchedProductId,
-    };
-
-    form.setData('items', nextItems);
-  };
-
-  const selectProduct = (index, productOption) => {
-    const nextItems = [...form.data.items];
-
-    nextItems[index] = {
-      ...nextItems[index],
-      product_id: String(productOption.id),
-      product_search: productOption.name,
-    };
-
-    form.setData('items', nextItems);
-    setOpenProductIndex(null);
-  };
-
   const total = form.data.items.reduce((sum, item) => {
     const product = resolveProduct(item.product_id);
     return sum + ((Number(item.quantity) || 0) * (Number(product?.price) || 0));
@@ -96,25 +65,54 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
 
   const submit = (event) => {
     event.preventDefault();
+    setSubmitError('');
 
     const cleanedItems = form.data.items
       .map((item) => ({
-        product_id: item.product_id || productLookup[item.product_search] || '',
+        product_id: item.product_id || '',
         quantity: Number(item.quantity),
       }))
       .filter((item) => item.product_id && Number(item.quantity) > 0);
 
     if (cleanedItems.length === 0) {
-      form.setError('items', 'Select at least one valid product before creating the order.');
+      const message = 'Select at least one valid in-stock product before creating the order.';
+      form.setError('items', message);
+      setSubmitError(message);
       return;
     }
 
     form.clearErrors('items');
 
-    form.transform((data) => ({
-      ...data,
+    setIsSubmitting(true);
+
+    router.post('/create-order', {
+      full_name: form.data.full_name,
+      phone: form.data.phone,
+      branch_id: form.data.branch_id,
+      fulfillment_method: form.data.fulfillment_method,
+      payment_method: form.data.payment_method,
       items: cleanedItems,
-    })).post('/create-order');
+    }, {
+      preserveScroll: true,
+      onError: (errors) => {
+        form.setError(errors);
+        setSubmitError(
+          errors.items
+          || errors['items.0.product_id']
+          || errors['items.0.quantity']
+          || errors.fulfillment_method
+          || errors.full_name
+          || errors.phone
+          || 'Please check the highlighted fields and try again.',
+        );
+      },
+      onSuccess: () => {
+        setSubmitError('');
+      },
+      onFinish: () => {
+        setIsSubmitting(false);
+      },
+    });
   };
 
   return (
@@ -137,6 +135,7 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
                   value={form.data.full_name}
                   onChange={(e) => form.setData('full_name', e.target.value)}
                   placeholder="Enter client name"
+                  required
                   className="h-16 w-full rounded-xl border border-[#dac8b1] bg-white px-5 text-lg text-[#352314] outline-none transition focus:border-[#b69066]"
                 />
                 {form.errors.full_name ? <p className="mt-2 text-xs text-red-500">{form.errors.full_name}</p> : null}
@@ -151,6 +150,7 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
                   value={form.data.phone}
                   onChange={(e) => form.setData('phone', e.target.value)}
                   placeholder="Enter client phone number"
+                  required
                   className="h-16 w-full rounded-xl border border-[#dac8b1] bg-white px-5 text-lg text-[#352314] outline-none transition focus:border-[#b69066]"
                 />
                 {form.errors.phone ? <p className="mt-2 text-xs text-red-500">{form.errors.phone}</p> : null}
@@ -169,6 +169,22 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#4f3118]">
+                  Order Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={form.data.fulfillment_method}
+                  onChange={(e) => form.setData('fulfillment_method', e.target.value)}
+                  required
+                  className="h-16 w-full rounded-xl border border-[#dac8b1] bg-white px-5 text-lg text-[#352314] outline-none transition focus:border-[#b69066]"
+                >
+                  <option value="delivery">Delivery</option>
+                  <option value="pickup">Pickup</option>
+                </select>
+                {form.errors.fulfillment_method ? <p className="mt-2 text-xs text-red-500">{form.errors.fulfillment_method}</p> : null}
               </div>
 
               <div>
@@ -240,64 +256,25 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
                   return (
                     <div
                       key={`${index}-${item.product_id}`}
-                      className={`relative grid grid-cols-[1.7fr_1fr_1fr_0.9fr_52px] items-center gap-4 rounded-[1.1rem] border border-[#eadcca] bg-[#fffdfa] px-4 py-4 ${openProductIndex === index ? 'z-30 overflow-visible' : ''}`}
+                      className="relative grid grid-cols-[1.7fr_1fr_1fr_0.9fr_52px] items-center gap-4 rounded-[1.1rem] border border-[#eadcca] bg-[#fffdfa] px-4 py-4"
                     >
                       <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setOpenProductIndex(openProductIndex === index ? null : index)}
-                          className="flex h-12 w-full items-center justify-between rounded-xl border border-[#dac8b1] bg-white px-4 text-left text-sm text-[#352314] outline-none transition hover:border-[#b69066]"
+                        <select
+                          value={item.product_id || ''}
+                          onChange={(event) => updateItem(index, 'product_id', event.target.value)}
+                          required
+                          className="h-12 w-full rounded-xl border border-[#dac8b1] bg-white px-4 text-sm text-[#352314] outline-none transition hover:border-[#b69066] focus:border-[#b69066]"
                         >
-                          <span className={product ? 'text-[#352314]' : 'text-[#8b735d]'}>
-                            {product?.name || 'Select product'}
-                          </span>
-                          <ChevronDown className="h-4 w-4 text-[#72563a]" />
-                        </button>
+                          <option value="">Select product</option>
+                          {products.map((productOption) => (
+                            <option key={productOption.id} value={String(productOption.id)}>
+                              {productOption.name} - {money(productOption.price)}
+                            </option>
+                          ))}
+                        </select>
 
-                        {openProductIndex === index ? (
-                          <div className="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-40 rounded-xl border border-[#dac8b1] bg-white shadow-[0_18px_40px_rgba(53,35,20,0.14)]">
-                            <div className="border-b border-[#eadcca] p-3">
-                              <div className="relative">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b735d]" />
-                                <input
-                                  type="text"
-                                  value={item.product_search || ''}
-                                  onChange={(e) => updateProductSearch(index, e.target.value)}
-                                  placeholder="Search products"
-                                  className="h-11 w-full rounded-lg border border-[#dac8b1] bg-white pl-10 pr-3 text-sm text-[#352314] outline-none transition focus:border-[#b69066]"
-                                  autoFocus
-                                />
-                              </div>
-                            </div>
-
-                            <div className="max-h-64 overflow-y-auto py-2">
-                              {products
-                                .filter((productOption) => (
-                                  !item.product_search
-                                  || productOption.name.toLowerCase().includes(item.product_search.toLowerCase())
-                                ))
-                                .map((productOption) => (
-                                  <button
-                                    key={productOption.id}
-                                    type="button"
-                                    onClick={() => selectProduct(index, productOption)}
-                                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-[#352314] transition hover:bg-[#f7f1e8]"
-                                  >
-                                    <span>{productOption.name}</span>
-                                    <span className="text-xs font-semibold text-[#8b735d]">{money(productOption.price)}</span>
-                                  </button>
-                                ))}
-
-                              {products.filter((productOption) => (
-                                !item.product_search
-                                || productOption.name.toLowerCase().includes(item.product_search.toLowerCase())
-                              )).length === 0 ? (
-                                <div className="px-4 py-4 text-sm text-[#8b735d]">
-                                  No products found.
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
+                        {products.length === 0 ? (
+                          <p className="mt-2 text-xs text-[#8b735d]">No in-stock products found.</p>
                         ) : null}
 
                         {productError ? (
@@ -311,6 +288,7 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
                           min="1"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                          required
                           className="h-12 w-full rounded-xl border border-[#dac8b1] bg-white px-4 text-sm text-[#352314] outline-none transition focus:border-[#b69066]"
                         />
                         {quantityError ? (
@@ -349,12 +327,17 @@ export default function CreateOrder({ auth, products = [], nextOrderNumber = '' 
               <div className="w-full max-w-[360px] rounded-[1.2rem] bg-[#f7f1e8] p-5">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#72563a]">Order Total</p>
                 <p className="mt-3 text-3xl font-black text-[#352314]">{money(total)}</p>
+                {submitError ? (
+                  <p className="mt-4 rounded-xl bg-[#fff4f4] px-4 py-3 text-sm font-medium text-red-600">
+                    {submitError}
+                  </p>
+                ) : null}
                 <Button
                   type="submit"
-                  disabled={form.processing || form.data.items.length === 0}
+                  disabled={isSubmitting || form.processing || form.data.items.length === 0}
                   className="mt-6 h-12 w-full rounded-xl bg-[#4f3118] text-base font-bold text-white hover:bg-[#402612]"
                 >
-                  {form.processing ? 'Saving...' : 'Create Order'}
+                  {isSubmitting || form.processing ? 'Saving...' : 'Create Order'}
                 </Button>
               </div>
             </div>

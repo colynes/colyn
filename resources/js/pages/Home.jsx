@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import AutoDismissAlert from '@/components/ui/AutoDismissAlert';
 import { useI18n } from '@/lib/i18n';
+import { formatWorkingHoursLabel } from '@/lib/storeHours';
 import {
   ArrowRight,
   CheckCircle2,
@@ -51,24 +53,6 @@ function SectionHeading({ eyebrow, title, description, center = false }) {
       <p className="mt-4 text-base leading-7 text-[#6f5d57]">
         {description}
       </p>
-    </div>
-  );
-}
-
-function FlashBanner({ flash }) {
-  if (!flash?.success && !flash?.error) {
-    return null;
-  }
-
-  const isError = Boolean(flash.error);
-
-  return (
-    <div className={`mx-auto mt-6 max-w-7xl rounded-2xl border px-5 py-4 text-sm font-medium ${
-      isError
-        ? 'border-red-200 bg-red-50 text-red-700'
-        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-    }`}>
-      {flash.error || flash.success}
     </div>
   );
 }
@@ -195,8 +179,13 @@ function GuestCheckoutModal({
 export default function Home({ categories = [], products = [], cart, activeCategory = null }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [guestCheckoutOpen, setGuestCheckoutOpen] = useState(false);
-  const { flash, auth } = usePage().props;
-  const { t, tp } = useI18n();
+  const { flash, auth, pickupHours } = usePage().props;
+  const { t, tp, localeTag } = useI18n();
+  const workingHoursLabel = formatWorkingHoursLabel({
+    pickupHours,
+    localeTag,
+    daysLabel: t('customer_footer.contact.hours_days', 'Mon - Sat'),
+  }) || t('frontend.home.footer.hours', 'Mon - Sat, 7:00 AM - 7:00 PM');
 
   const navLinks = [
     { label: t('frontend.home.nav.products', 'Products'), href: '/products' },
@@ -372,7 +361,11 @@ export default function Home({ categories = [], products = [], cart, activeCateg
         )}
       </nav>
 
-      <FlashBanner flash={flash} />
+      <AutoDismissAlert
+        message={flash?.error || flash?.success}
+        type={flash?.error ? 'error' : 'success'}
+        className="mx-auto mt-6 max-w-7xl"
+      />
       <GuestCheckoutModal
         open={guestCheckoutOpen}
         onClose={closeGuestCheckout}
@@ -795,7 +788,11 @@ export default function Home({ categories = [], products = [], cart, activeCateg
           <div>
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#3b241d]">
-                <img src="/images/amani_brew_mark.png" alt="Amani Brew logo" className="h-9 w-9 object-contain" />
+                <img
+                  src="/images/amani_brew_mark.png"
+                  alt={t('frontend.home.footer.logo_alt', 'Amani Brew logo')}
+                  className="h-9 w-9 object-contain"
+                />
               </div>
               <div>
                 <p className="text-lg font-black text-[#241816]">AmaniBrew</p>
@@ -846,10 +843,10 @@ export default function Home({ categories = [], products = [], cart, activeCateg
                 <MapPin size={16} className="mt-1 shrink-0 text-[#7a1f28]" />
                 {t('frontend.home.footer.location', 'Dar es Salaam, Tanzania')}
               </p>
-              <p className="flex items-start gap-3">
-                <Clock3 size={16} className="mt-1 shrink-0 text-[#7a1f28]" />
-                {t('frontend.home.footer.hours', 'Mon - Sat, 7:00 AM - 7:00 PM')}
-              </p>
+                <p className="flex items-start gap-3">
+                  <Clock3 size={16} className="mt-1 shrink-0 text-[#7a1f28]" />
+                  {workingHoursLabel}
+                </p>
               <p className="flex items-start gap-3">
                 <Truck size={16} className="mt-1 shrink-0 text-[#7a1f28]" />
                 {t('frontend.home.footer.delivery_pickup_available', 'Delivery and pickup available')}

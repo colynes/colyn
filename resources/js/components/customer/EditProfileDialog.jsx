@@ -16,30 +16,38 @@ export default function EditProfileDialog({ open, onOpenChange, user, address = 
     address: address || '',
   });
 
+  const profileData = {
+    full_name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    city: user?.city || '',
+    country: user?.country || '',
+    address: address || '',
+  };
+
+  const closeDialog = () => {
+    form.cancel();
+    form.clearErrors();
+    onOpenChange(false);
+  };
+
   useEffect(() => {
     if (!open) {
+      form.cancel();
+      form.clearErrors();
       return;
     }
 
-    form.setData({
-      full_name: user?.name || '',
-      email: user?.email || '',
-      phone: user?.phone || '',
-      city: user?.city || '',
-      country: user?.country || '',
-      address: address || '',
-    });
-  }, [open, user, address]);
+    form.clearErrors();
+    form.setData(profileData);
+    form.setDefaults(profileData);
+  }, [open, user?.name, user?.email, user?.phone, user?.city, user?.country, address]);
 
   const submit = (event) => {
     event.preventDefault();
-    form.transform((data) => ({
-      ...data,
-      _method: 'put',
-    })).post('/profile/update', {
-      forceFormData: true,
+    form.put('/profile', {
       preserveScroll: true,
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => closeDialog(),
     });
   };
 
@@ -57,7 +65,7 @@ export default function EditProfileDialog({ open, onOpenChange, user, address = 
           </div>
           <button
             type="button"
-            onClick={() => onOpenChange(false)}
+            onClick={closeDialog}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
             aria-label={t('frontend.edit_profile.close', 'Close edit profile dialog')}
           >
@@ -78,7 +86,7 @@ export default function EditProfileDialog({ open, onOpenChange, user, address = 
           </div>
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" className="w-full rounded-xl sm:w-auto" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" className="w-full rounded-xl sm:w-auto" onClick={closeDialog}>
               {t('frontend.common.cancel', 'Cancel')}
             </Button>
             <Button type="submit" className="w-full rounded-xl sm:w-auto" disabled={form.processing}>

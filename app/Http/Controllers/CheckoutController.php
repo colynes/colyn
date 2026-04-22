@@ -14,6 +14,7 @@ use App\Notifications\NewOrderPlacedNotification;
 use App\Support\BackofficeAccess;
 use App\Support\CartManager;
 use App\Support\PackAvailability;
+use App\Support\RoleRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,12 @@ class CheckoutController extends Controller
 
         if ($cart['line_count'] === 0) {
             return redirect()->route('home')->with('error', 'Add items to your cart before checkout.');
+        }
+
+        [$branch, $insufficientStockMessage] = $this->resolveFulfillmentBranch($cart['items']);
+
+        if (!$branch || $insufficientStockMessage) {
+            return redirect()->route('cart')->with('error', $insufficientStockMessage);
         }
 
         $user = $request->user();
@@ -195,7 +202,8 @@ class CheckoutController extends Controller
                     'password' => $validated['password'],
                 ]);
 
-                $user->assignRole('Customer');
+                RoleRegistry::ensureCustomerRole();
+                $user->assignRole(RoleRegistry::CUSTOMER);
             } else {
                 $user->update([
                     'name'  => $validated['full_name'],
@@ -203,15 +211,20 @@ class CheckoutController extends Controller
                 ]);
             }
 
+            $customerAttributes = [
+                'full_name' => $validated['full_name'],
+                'phone'     => $validated['phone'],
+                'email'     => $validated['email'],
+                'status'    => 'Active',
+            ];
+
+            if (Schema::hasColumn('customers', 'address')) {
+                $customerAttributes['address'] = $validated['delivery_address'] ?? $user->customer?->address;
+            }
+
             $customer = Customer::updateOrCreate(
                 ['user_id' => $user->id],
-                [
-                    'full_name' => $validated['full_name'],
-                    'phone'     => $validated['phone'],
-                    'email'     => $validated['email'],
-                    'address'   => $validated['delivery_address'] ?? $user->customer?->address,
-                    'status'    => 'Active',
-                ]
+                $customerAttributes
             );
 
             if (!empty($validated['delivery_address'])) {
@@ -553,8 +566,9 @@ class CheckoutController extends Controller
             if ($requestedQuantity > $availableQuantity) {
                 $productName = $product?->name ?? $requestedProductNames->get((int) $productId, 'This product');
                 $formattedAvailable = rtrim(rtrim(number_format($availableQuantity, 2, '.', ''), '0'), '.');
+                $unit = $product?->unit ?: 'unit';
 
-                return "{$productName} only has {$formattedAvailable} item(s) available right now.";
+                return "Only {$formattedAvailable} {$unit} of {$productName} is available right now. Please adjust your quantity to continue your order.";
             }
         }
 

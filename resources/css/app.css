@@ -34,6 +34,10 @@
 
   html {
     font-size: 14px;
+    min-height: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    background: #261812;
   }
 
   svg {
@@ -41,10 +45,18 @@
     flex-shrink: 0;
   }
 
+  body,
+  #app {
+    min-height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+    background: #261812;
+  }
+
   body {
     font-size: 1rem;
     line-height: 1.5;
-    @apply bg-[var(--color-sys-bg)] text-[var(--color-sys-text-primary)] antialiased;
+    @apply text-[var(--color-sys-text-primary)] antialiased;
   }
 
   input[type="number"] {

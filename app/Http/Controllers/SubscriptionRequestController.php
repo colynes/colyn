@@ -347,8 +347,9 @@ class SubscriptionRequestController extends Controller
             'full_name' => $user->name,
             'phone' => '',
             'email' => $user->email,
-            'address' => '',
             'status' => 'Active',
-        ]);
+        ] + (Schema::hasColumn('customers', 'address') ? [
+            'address' => '',
+        ] : []));
     }
 }

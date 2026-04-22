@@ -30,11 +30,12 @@ function translateProductStatus(status, t) {
 
 export default function Products({ categories = [], products, filters = {}, activeCategory, featuredPromotions = [], packs = [] }) {
   const { t, tp } = useI18n();
-  const rows = products?.data || [];
-  const visibleSection = filters.section || null;
-  const showPromotions = !visibleSection || visibleSection === 'promotions';
-  const showPacks = !visibleSection || visibleSection === 'packs';
-  const showProducts = !visibleSection || visibleSection === 'products';
+  const rows = Array.isArray(products) ? products : (products?.data || []);
+  const hasProductFilters = Boolean((filters.search || '').trim() || (filters.category || '').trim() || activeCategory);
+  const visibleSection = hasProductFilters ? 'products' : (filters.section || null);
+  const showPromotions = !hasProductFilters && (!visibleSection || visibleSection === 'promotions');
+  const showPacks = !hasProductFilters && (!visibleSection || visibleSection === 'packs');
+  const showProducts = hasProductFilters || !visibleSection || visibleSection === 'products';
   const productCartButtonClass = 'bg-[#922330] text-white transition hover:bg-[#7d1e29]';
 
   const submitSearch = (event) => {

@@ -1,6 +1,7 @@
 <?php
 
-return [
+/** @var array<string, mixed> $translations */
+$translations = [
     'common' => [
         'product' => 'Product',
         'pack' => 'Pack',
@@ -294,8 +295,8 @@ return [
         ],
         'categories' => [
             'eyebrow' => 'Shop By Category',
-            'title' => 'Categories shown here now come directly from the database.',
-            'description' => 'Category cards are image-free as requested, making the storefront cleaner and aligned with your actual category records.',
+            'title' => 'Categories shown here now come directly from the Store.',
+            'description' => 'Browse categories effortlessly with clarity and easy product discovery.',
             'label' => 'Category',
             'items_count' => ':count items',
         ],
@@ -374,6 +375,7 @@ return [
         ],
         'footer' => [
             'brand_tagline' => 'Premium meat ordering',
+            'logo_alt' => 'Amani Brew logo',
             'description' => 'Browse live categories and products, add items to a guest cart, and confirm the order through customer account creation.',
             'quick_links' => 'Quick Links',
             'account' => 'Account',
@@ -539,3 +541,5 @@ return [
         'open_live_cart' => 'Open live cart',
     ],
 ];
+
+return $translations;

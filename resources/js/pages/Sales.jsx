@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
+import AutoDismissAlert from '@/components/ui/AutoDismissAlert';
 import {
   Bar,
   BarChart,
@@ -64,20 +65,6 @@ const targetTypeOptions = [
   { value: 'weekly', label: 'Weekly Target' },
   { value: 'monthly', label: 'Monthly Target' },
 ];
-
-function InlineBanner({ notice }) {
-  if (!notice?.text) {
-    return null;
-  }
-
-  const isError = notice.type === 'error';
-
-  return (
-    <div className={`rounded-[1.35rem] border px-5 py-4 text-sm font-medium ${isError ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-      {notice.text}
-    </div>
-  );
-}
 
 function buildDefaultTarget(filters = {}) {
   const referenceDate = filters.focus_date || filters.start_date || new Date().toISOString().slice(0, 10);
@@ -600,7 +587,7 @@ export default function Sales({
       />
 
       <div className="space-y-8">
-        <InlineBanner notice={activeNotice} />
+        <AutoDismissAlert message={activeNotice?.text} type={activeNotice?.type || 'success'} className="rounded-[1.35rem]" />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-[2.45rem] font-semibold tracking-[-0.04em] text-[#3a2513]">Sales Analytics</h1>

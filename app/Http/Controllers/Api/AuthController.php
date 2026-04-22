@@ -7,13 +7,19 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
     public function login(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email'))),
+        ]);
+
+        $validator = Validator::make($request->only(['email', 'password']), [
             'email' => ['required', 'email', 'max:255'],
             'password' => ['required', 'string'],
         ]);
@@ -44,7 +50,25 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            $token = $user->createToken('flutter-mobile')->plainTextToken;
+            if (Hash::needsRehash($user->password)) {
+                $user->forceFill([
+                    'password' => Hash::make($credentials['password']),
+                ])->save();
+            }
+
+            if (Schema::hasColumn('users', 'last_login_at')) {
+                $user->forceFill([
+                    'last_login_at' => now(),
+                ])->save();
+            }
+
+            $user->tokens()
+                ->whereNotNull('expires_at')
+                ->where('expires_at', '<=', now())
+                ->delete();
+
+            $tokenExpiresAt = now()->addDays((int) config('sanctum.mobile_token_lifetime_days', 30));
+            $token = $user->createToken('flutter-mobile', ['products:read'], $tokenExpiresAt)->plainTextToken;
             $roles = $user->getRoleNames()->values();
 
             return response()->json([
@@ -53,6 +77,7 @@ class AuthController extends Controller
                 'data' => [
                     'token' => $token,
                     'token_type' => 'Bearer',
+                    'expires_at' => $tokenExpiresAt->toIso8601String(),
                     'user' => [
                         'id' => $user->id,
                         'name' => $user->name,

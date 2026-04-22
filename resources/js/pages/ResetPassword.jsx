@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
+import AutoDismissAlert from '@/components/ui/AutoDismissAlert';
 import { useI18n } from '@/lib/i18n';
 
 export default function ResetPassword() {
@@ -78,15 +79,11 @@ export default function ResetPassword() {
               </p>
             </div>
 
-            {(flash?.success || flash?.error) && (
-              <div className={`mb-6 rounded-2xl border px-4 py-3 text-sm font-medium ${
-                flash.error
-                  ? 'border-red-200 bg-red-50 text-red-700'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              }`}>
-                {flash.error || flash.success}
-              </div>
-            )}
+            <AutoDismissAlert
+              message={flash?.error || flash?.success}
+              type={flash?.error ? 'error' : 'success'}
+              className="mb-6 px-4 py-3"
+            />
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <input type="hidden" value={data.token} readOnly />

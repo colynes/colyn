@@ -31,8 +31,9 @@ class ProductController extends Controller
         $perPage = max(1, min((int) $request->integer('per_page', 15), 100));
 
         $products = Product::query()
-            ->with(['category', 'currentPrice', 'stocks'])
+            ->with(['category', 'currentPrice'])
             ->withSum('stocks as stock_quantity', 'quantity')
+            ->withMax('stocks as low_stock_alert', 'reorder_level')
             ->when($request->search, fn($q) =>
                 $q->where('name', 'like', "%{$request->search}%")
                   ->orWhere('sku', 'like', "%{$request->search}%"))
@@ -44,7 +45,7 @@ class ProductController extends Controller
             ->withQueryString()
             ->through(function (Product $product) {
                 $stockQuantity = (float) ($product->stock_quantity ?? 0);
-                $lowStockAlert = (float) ($product->stocks->max('reorder_level') ?? 0);
+                $lowStockAlert = (float) ($product->low_stock_alert ?? 0);
                 $status = $stockQuantity <= 0
                     ? 'Out of Stock'
                     : ($lowStockAlert > 0 && $stockQuantity <= $lowStockAlert ? 'Low Stock' : 'In Stock');

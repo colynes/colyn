@@ -15,6 +15,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -429,8 +430,9 @@ class CustomerSubscriptionController extends Controller
             'full_name' => $user->name,
             'phone' => '',
             'email' => $user->email,
-            'address' => '',
             'status' => 'Active',
-        ]);
+        ] + (Schema::hasColumn('customers', 'address') ? [
+            'address' => '',
+        ] : []));
     }
 }

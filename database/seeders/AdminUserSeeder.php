@@ -12,7 +12,7 @@ class AdminUserSeeder extends Seeder
     {
         $admin = User::firstOrCreate(
             ['email' => 'admin@amanibrew.com'],
-            ['name' => 'Amani Brew Admin', 'password' => Hash::make('password')]
+            ['name' => 'Amani Brew Admin', 'password' => Hash::make('mmanager123')]
         );
         $admin->syncRoles(['Administrator']);
 

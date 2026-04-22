@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CustomerProfileReconciler;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -15,6 +16,11 @@ class UpdateProfileRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if ($user = $this->user()) {
+            app(CustomerProfileReconciler::class)->reconcile($user);
+            $user->unsetRelation('customer');
+        }
+
         $this->merge([
             'full_name' => preg_replace('/\s+/', ' ', trim((string) $this->input('full_name'))),
             'email' => Str::lower(trim((string) $this->input('email'))),

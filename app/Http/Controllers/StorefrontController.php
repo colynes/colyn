@@ -55,16 +55,17 @@ class StorefrontController extends Controller
 
         $products = Product::query()
             ->active()
-            ->with(['category', 'currentPrice', 'stocks'])
+            ->with(['category:id,name', 'currentPrice'])
             ->withSum('stocks as stock_quantity', 'quantity')
+            ->withMax('stocks as low_stock_alert', 'reorder_level')
             ->when($activeCategory, fn($query) => $query->where('category_id', $activeCategory->id))
             ->orderBy('name')
             ->take(8)
-            ->get()
+            ->get(['id', 'category_id', 'name', 'description', 'unit'])
             ->filter(fn(Product $product) => $product->currentPrice !== null)
             ->map(function (Product $product) {
                 $stockQuantity = (float) ($product->stock_quantity ?? 0);
-                $lowStockAlert = (float) ($product->stocks->max('reorder_level') ?? 0);
+                $lowStockAlert = (float) ($product->low_stock_alert ?? 0);
                 $status = $stockQuantity <= 0
                     ? 'Out of Stock'
                     : ($lowStockAlert > 0 && $stockQuantity <= $lowStockAlert ? 'Low Stock' : 'In Stock');

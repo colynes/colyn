@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
             InventorySeeder::class,
             PromotionSeeder::class,
             PackSeeder::class,
+            CustomerDemoSeeder::class,
+            FatClientDemoSeeder::class,
         ]);
     }
 }

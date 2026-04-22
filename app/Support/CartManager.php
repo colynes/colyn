@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Schema;
 class CartManager
 {
     protected const SESSION_KEY = 'cart.items';
+    protected const MAX_LINE_QUANTITY = 500;
 
     public static function raw(): array
     {
@@ -36,7 +37,7 @@ class CartManager
         $items[$lineId] = [
             'type' => $type,
             'source_id' => $sourceId,
-            'quantity' => max(1, $currentQuantity + $quantity),
+            'quantity' => min(self::MAX_LINE_QUANTITY, max(1, $currentQuantity + $quantity)),
         ];
 
         session()->put(self::SESSION_KEY, $items);
@@ -49,7 +50,7 @@ class CartManager
         if ($quantity <= 0) {
             unset($items[$lineId]);
         } elseif (isset($items[$lineId])) {
-            $items[$lineId]['quantity'] = $quantity;
+            $items[$lineId]['quantity'] = min(self::MAX_LINE_QUANTITY, $quantity);
         }
 
         session()->put(self::SESSION_KEY, $items);
@@ -114,7 +115,7 @@ class CartManager
             ->map(function (array $item, string $lineId) use ($products, $packs, $promotions) {
                 $type = $item['type'] ?? 'product';
                 $sourceId = (int) ($item['source_id'] ?? 0);
-                $quantity = max(1, (int) ($item['quantity'] ?? 1));
+                $quantity = min(self::MAX_LINE_QUANTITY, max(1, (int) ($item['quantity'] ?? 1)));
 
                 return match ($type) {
                     'product' => self::mapProductItem($products->get($sourceId), $lineId, $quantity),
@@ -218,7 +219,7 @@ class CartManager
                 $normalized[(string) $key] = [
                     'type' => (string) $value['type'],
                     'source_id' => (int) $value['source_id'],
-                    'quantity' => max(1, (int) ($value['quantity'] ?? 1)),
+                    'quantity' => min(self::MAX_LINE_QUANTITY, max(1, (int) ($value['quantity'] ?? 1))),
                 ];
                 continue;
             }
@@ -228,7 +229,7 @@ class CartManager
                 $normalized[$lineId] = [
                     'type' => 'product',
                     'source_id' => (int) $key,
-                    'quantity' => max(1, (int) $value),
+                    'quantity' => min(self::MAX_LINE_QUANTITY, max(1, (int) $value)),
                 ];
             }
         }
@@ -241,4 +242,3 @@ class CartManager
         return $type . '-' . $sourceId;
     }
 }
-

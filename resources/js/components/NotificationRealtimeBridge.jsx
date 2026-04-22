@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { usePage } from '@inertiajs/react';
 import { dispatchNotificationEvent, normalizeIncomingNotification } from '@/lib/notificationEvents';
+import { startEcho } from '@/lib/echo';
 
 export default function NotificationRealtimeBridge() {
   const { auth } = usePage().props;
@@ -8,28 +9,41 @@ export default function NotificationRealtimeBridge() {
   const recentIdsRef = useRef(new Set());
 
   useEffect(() => {
-    if (!userId || !window.Echo) {
+    if (!userId) {
       return undefined;
     }
 
-    const channelName = `App.Models.User.${userId}`;
-    const channel = window.Echo.private(channelName);
+    let active = true;
+    let channelName = null;
 
-    channel.notification((notification) => {
-      const incoming = normalizeIncomingNotification(notification);
-      const id = incoming.id || `${incoming.kind || 'notification'}-${incoming.created_at || Date.now()}`;
-
-      if (recentIdsRef.current.has(id)) {
+    startEcho().then((echo) => {
+      if (!active || !echo) {
         return;
       }
 
-      recentIdsRef.current.add(id);
-      window.setTimeout(() => recentIdsRef.current.delete(id), 10000);
-      dispatchNotificationEvent(incoming);
+      channelName = `App.Models.User.${userId}`;
+      const channel = echo.private(channelName);
+
+      channel.notification((notification) => {
+        const incoming = normalizeIncomingNotification(notification);
+        const id = incoming.id || `${incoming.kind || 'notification'}-${incoming.created_at || Date.now()}`;
+
+        if (recentIdsRef.current.has(id)) {
+          return;
+        }
+
+        recentIdsRef.current.add(id);
+        window.setTimeout(() => recentIdsRef.current.delete(id), 10000);
+        dispatchNotificationEvent(incoming);
+      });
     });
 
     return () => {
-      window.Echo.leave(channelName);
+      active = false;
+
+      if (channelName && window.Echo) {
+        window.Echo.leave(channelName);
+      }
     };
   }, [userId]);
 

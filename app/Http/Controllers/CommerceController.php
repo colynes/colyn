@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Notifications\SystemAlertNotification;
 use App\Support\BackofficeAccess;
 use App\Support\CartManager;
+use App\Support\CustomerProfileReconciler;
 use App\Support\PackAvailability;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,7 @@ class CommerceController extends Controller
     public function products(Request $request)
     {
         $activeCategory = null;
+        $hasProductFilters = $request->filled('category') || $request->filled('search');
 
         if ($request->filled('category')) {
             $activeCategory = Category::query()
@@ -45,9 +47,16 @@ class CommerceController extends Controller
 
         $products = Product::query()
             ->active()
-            ->with(['category', 'currentPrice', 'stocks'])
+            ->with(['category:id,name,slug', 'currentPrice'])
             ->withSum('stocks as stock_quantity', 'quantity')
-            ->when($activeCategory, fn ($query) => $query->where('category_id', $activeCategory->id))
+            ->withMax('stocks as low_stock_alert', 'reorder_level')
+            ->when($request->filled('category'), function ($query) use ($activeCategory) {
+                if ($activeCategory) {
+                    return $query->where('category_id', $activeCategory->id);
+                }
+
+                return $query->whereRaw('1 = 0');
+            })
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search');
                 $query->where(function ($builder) use ($search) {
@@ -58,11 +67,10 @@ class CommerceController extends Controller
                 });
             })
             ->orderBy('name')
-            ->paginate(12)
-            ->withQueryString()
-            ->through(function (Product $product) {
+            ->get(['id', 'category_id', 'name', 'description', 'unit', 'sku'])
+            ->map(function (Product $product) {
                 $stockQuantity = (float) ($product->stock_quantity ?? 0);
-                $lowStockAlert = (float) ($product->stocks->max('reorder_level') ?? 0);
+                $lowStockAlert = (float) ($product->low_stock_alert ?? 0);
                 $status = $stockQuantity <= 0
                     ? 'Out of Stock'
                     : ($lowStockAlert > 0 && $stockQuantity <= $lowStockAlert ? 'Low Stock' : 'In Stock');
@@ -79,39 +87,14 @@ class CommerceController extends Controller
                     'stock_quantity' => $stockQuantity,
                     'status' => $status,
                 ];
-            });
+            })
+            ->values();
 
-        $hasPackItemsTable = Schema::hasTable('pack_items');
-        $hasComesWithColumn = Schema::hasColumn('packs', 'comes_with');
+        $featuredPromotions = collect();
+        $packs = collect();
 
-        $packsQuery = Pack::query()
-            ->active();
-
-        if ($hasPackItemsTable) {
-            $packsQuery->with(['items.product:id,name,unit']);
-        }
-
-        $activeBranchId = (int) (optional(\App\Models\Branch::query()->where('is_active', true)->orderBy('id')->first())->id ?? 0);
-        $packCollection = $packsQuery
-            ->orderBy('name')
-            ->get();
-        $packAvailability = $activeBranchId > 0
-            ? PackAvailability::forCollection($packCollection, $activeBranchId)
-            : $packCollection->mapWithKeys(fn (Pack $pack) => [
-                $pack->id => [
-                    'is_available' => false,
-                    'availability_label' => 'Out of Stock',
-                    'availability_message' => 'This pack is not available for ordering right now.',
-                ],
-            ]);
-
-        return Inertia::render('Products', [
-            'categories' => $categories,
-            'products' => $products,
-            'filters' => $request->only(['search', 'category', 'section']),
-            'activeCategory' => $activeCategory,
-            'cart' => CartManager::summary(),
-            'featuredPromotions' => Promotion::query()
+        if (! $hasProductFilters) {
+            $featuredPromotions = Promotion::query()
                 ->active()
                 ->latest('starts_at')
                 ->take(3)
@@ -123,8 +106,33 @@ class CommerceController extends Controller
                     'discount_label' => $promotion->discount_label,
                     'cta_text' => $promotion->cta_text ?: 'Order now',
                     'expires_at' => optional($promotion->ends_at)->toDateString(),
-                ]),
-            'packs' => $packCollection
+                ]);
+
+            $hasPackItemsTable = Schema::hasTable('pack_items');
+            $hasComesWithColumn = Schema::hasColumn('packs', 'comes_with');
+
+            $packsQuery = Pack::query()
+                ->active();
+
+            if ($hasPackItemsTable) {
+                $packsQuery->with(['items.product:id,name,unit']);
+            }
+
+            $activeBranchId = (int) (optional(\App\Models\Branch::query()->where('is_active', true)->orderBy('id')->first())->id ?? 0);
+            $packCollection = $packsQuery
+                ->orderBy('name')
+                ->get();
+            $packAvailability = $activeBranchId > 0
+                ? PackAvailability::forCollection($packCollection, $activeBranchId)
+                : $packCollection->mapWithKeys(fn (Pack $pack) => [
+                    $pack->id => [
+                        'is_available' => false,
+                        'availability_label' => 'Out of Stock',
+                        'availability_message' => 'This pack is not available for ordering right now.',
+                    ],
+                ]);
+
+            $packs = $packCollection
                 ->map(function (Pack $pack) use ($hasPackItemsTable, $hasComesWithColumn, $packAvailability) {
                     $comesWith = $hasComesWithColumn ? $pack->comes_with : null;
                     $availability = $packAvailability->get($pack->id, [
@@ -151,7 +159,22 @@ class CommerceController extends Controller
                         'availability_label' => $availability['availability_label'] ?? 'Out of Stock',
                         'availability_message' => $availability['availability_message'] ?? null,
                     ];
-                }),
+                })
+                ->values();
+        }
+
+        return Inertia::render('Products', [
+            'categories' => $categories,
+            'products' => $products,
+            'filters' => [
+                'search' => $request->input('search'),
+                'category' => $request->input('category'),
+                'section' => $hasProductFilters ? 'products' : $request->input('section'),
+            ],
+            'activeCategory' => $activeCategory,
+            'cart' => CartManager::summary(),
+            'featuredPromotions' => $featuredPromotions,
+            'packs' => $packs,
         ]);
     }
 
@@ -249,6 +272,11 @@ class CommerceController extends Controller
     public function profile(Request $request)
     {
         $user = $request->user();
+        if ($user) {
+            app(CustomerProfileReconciler::class)->reconcile($user);
+            $user->unsetRelation('customer');
+            $user->load('customer.defaultAddress');
+        }
         $customer = $this->resolveCustomer($user);
         abort_unless($customer, 403);
 
@@ -303,8 +331,9 @@ class CommerceController extends Controller
             'full_name' => $validated['full_name'],
             'phone' => $validated['phone'],
             'email' => $validated['email'],
+        ] + (Schema::hasColumn('customers', 'address') ? [
             'address' => $validated['address'],
-        ]);
+        ] : []));
 
         CustomerAddress::updateOrCreate(
             ['customer_id' => $customer->id, 'is_default' => true],
@@ -558,9 +587,10 @@ class CommerceController extends Controller
             'full_name' => $user->name,
             'phone' => '',
             'email' => $user->email,
-            'address' => '',
             'status' => 'Active',
-        ]);
+        ] + (Schema::hasColumn('customers', 'address') ? [
+            'address' => '',
+        ] : []));
     }
 
     protected function notifyBackofficeAboutCustomerOrderEvent(Order $order, string $title, string $message, string $kind): void

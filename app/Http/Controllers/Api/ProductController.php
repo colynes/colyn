@@ -13,8 +13,9 @@ class ProductController extends Controller
         try {
             $products = Product::query()
                 ->with(['category:id,name', 'currentPrice'])
+                ->active()
                 ->orderBy('name')
-                ->get()
+                ->get(['id', 'category_id', 'name', 'slug', 'description', 'sku', 'unit', 'weight', 'is_active'])
                 ->map(function (Product $product) {
                     $currentPrice = $product->currentPrice;
                     $effectivePrice = $currentPrice?->effective_price;
@@ -27,7 +28,6 @@ class ProductController extends Controller
                         'slug' => $product->slug,
                         'description' => $product->description,
                         'sku' => $product->sku,
-                        'barcode' => $product->barcode,
                         'unit' => $product->unit,
                         'weight' => $product->weight !== null ? (float) $product->weight : null,
                         'is_active' => (bool) $product->is_active,
@@ -36,8 +36,6 @@ class ProductController extends Controller
                         'promo_price' => $currentPrice?->promo_price !== null ? (float) $currentPrice->promo_price : null,
                         'price_effective_from' => optional($currentPrice?->effective_from)->toIso8601String(),
                         'price_effective_to' => optional($currentPrice?->effective_to)->toIso8601String(),
-                        'created_at' => optional($product->created_at)->toIso8601String(),
-                        'updated_at' => optional($product->updated_at)->toIso8601String(),
                     ];
                 })
                 ->values();

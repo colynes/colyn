@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
 import {
@@ -33,13 +33,55 @@ const money = (value) => new Intl.NumberFormat('en-TZ', {
   maximumFractionDigits: 0,
 }).format(value || 0);
 
-const formatPayment = (value) => String(value || 'N/A')
-  .replaceAll('_', ' ')
-  .replace(/\b\w/g, (letter) => letter.toUpperCase());
+const formatPrintedAt = (date = new Date()) => new Intl.DateTimeFormat('en-TZ', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+}).format(date);
+
+const formatPaymentReportLabel = (row) => {
+  const rawPayment = String(row.payment || '').toLowerCase();
+  const rawStatus = String(row.status || '').toLowerCase();
+
+  if (rawStatus === 'pending' || rawPayment.includes('pending')) {
+    return 'Pending';
+  }
+
+  return 'Paid';
+};
 
 const statusTone = {
   Paid: 'bg-emerald-100 text-emerald-700',
   Pending: 'bg-amber-100 text-amber-700',
+};
+
+const paymentTone = {
+  Paid: 'bg-emerald-100 text-emerald-700',
+  Pending: 'bg-amber-100 text-amber-700',
+};
+
+const orderTypeTone = {
+  Pickup: 'bg-[#efe6d8] text-[#4f3118]',
+  Delivery: 'bg-[#eadfce] text-[#4f3118]',
+};
+
+const formatCustomerTypeBadge = (type) => {
+  const normalized = String(type || '').toLowerCase();
+
+  if (normalized === 'member') {
+    return 'Mbr';
+  }
+
+  if (normalized === 'subscriber') {
+    return 'Sub';
+  }
+
+  return 'Walk';
+};
+
+const customerTypeTone = {
+  'Walk-in': 'bg-[#efebe6] text-[#73563a]',
+  Member: 'bg-[#e9ddca] text-[#4f3118]',
+  Subscriber: 'bg-[#efe6d8] text-[#4f3118]',
 };
 
 function MetricCard({ icon: Icon, value, label, footer, footerClassName = '' }) {
@@ -88,8 +130,41 @@ export default function Reports({
   monthlyPerformance = [],
   performanceSummary = {},
 }) {
-  const printPage = () => window.print();
   const [period, setPeriod] = useState(filters.period || 'monthly');
+  const [printedAt, setPrintedAt] = useState(() => formatPrintedAt());
+  const previousTitleRef = useRef(null);
+  const printedBy = auth?.user?.name || auth?.user?.full_name || auth?.user?.email || 'Current user';
+
+  const refreshPrintedAt = () => setPrintedAt(formatPrintedAt());
+  const preparePrint = () => {
+    refreshPrintedAt();
+
+    if (previousTitleRef.current === null) {
+      previousTitleRef.current = document.title;
+      document.title = ' ';
+    }
+  };
+  const finishPrint = () => {
+    if (previousTitleRef.current !== null) {
+      document.title = previousTitleRef.current;
+      previousTitleRef.current = null;
+    }
+  };
+  const printPage = () => {
+    preparePrint();
+    window.setTimeout(() => window.print(), 0);
+  };
+
+  useEffect(() => {
+    window.addEventListener('beforeprint', preparePrint);
+    window.addEventListener('afterprint', finishPrint);
+
+    return () => {
+      window.removeEventListener('beforeprint', preparePrint);
+      window.removeEventListener('afterprint', finishPrint);
+      finishPrint();
+    };
+  }, []);
 
   const params = new URLSearchParams();
 
@@ -105,7 +180,258 @@ export default function Reports({
 
   return (
     <AppLayout user={auth?.user}>
-      <div className="space-y-8">
+      <style>{`
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 0;
+          }
+
+          html,
+          body {
+            width: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            background: #ffffff !important;
+            color: #2f2115 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          body:has(.reports-print-area) [class~="lg:pl-64"] {
+            min-height: 0 !important;
+            padding-left: 0 !important;
+          }
+
+          body:has(.reports-print-area) [class~="lg:pl-64"] > :not(main),
+          body:has(.reports-print-area) aside,
+          body:has(.reports-print-area) nav,
+          body:has(.reports-print-area) header {
+            display: none !important;
+          }
+
+          body:has(.reports-print-area) main {
+            display: block !important;
+            padding: 1cm !important;
+            box-sizing: border-box !important;
+          }
+
+          body:has(.reports-print-area) main > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+          }
+
+          .reports-page {
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: visible !important;
+          }
+
+          .reports-page > :not(.reports-print-area) {
+            display: none !important;
+          }
+
+          .reports-print-area,
+          .reports-print-area * {
+            visibility: visible !important;
+          }
+
+          .reports-print-area {
+            position: static !important;
+            width: 100% !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            border: 1px solid #d8c8b6 !important;
+            border-radius: 0 !important;
+            background: #ffffff !important;
+            box-shadow: none !important;
+          }
+
+          .reports-print-header {
+            position: relative !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-sizing: border-box !important;
+            height: calc(68px + 1.6cm) !important;
+            padding: 0.8cm 28px !important;
+            border-bottom: 1px solid #cdbda9 !important;
+            background: #f7f1e8 !important;
+            text-align: center !important;
+          }
+
+          .reports-print-logo {
+            position: absolute !important;
+            left: 28px !important;
+            top: 0.8cm !important;
+            width: 68px !important;
+            height: 68px !important;
+            transform: none !important;
+            object-fit: contain !important;
+            box-sizing: border-box !important;
+            padding: 6px !important;
+            border: 1px solid #d8c8b6 !important;
+            border-radius: 16px !important;
+            background: #ffffff !important;
+          }
+
+          .reports-print-title-block {
+            max-width: 70% !important;
+            margin: 0 auto !important;
+          }
+
+          .reports-print-header h2 {
+            font-size: 27px !important;
+            line-height: 1.1 !important;
+            color: #2f2115 !important;
+          }
+
+          .reports-print-header p {
+            margin-top: 8px !important;
+            font-size: 14px !important;
+            color: #5f4328 !important;
+          }
+
+          .reports-print-meta strong,
+          .reports-print-date,
+          .reports-print-by {
+            font-weight: 700 !important;
+            white-space: nowrap !important;
+          }
+
+          .reports-print-by-line {
+            margin-top: 6px !important;
+            display: block !important;
+            font-size: 12px !important;
+            color: #73563a !important;
+          }
+
+          .reports-print-content,
+          .reports-print-table-wrap {
+            overflow: visible !important;
+          }
+
+          .reports-print-area table {
+            width: 100% !important;
+            min-width: 0 !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+          }
+
+          .reports-print-area col:nth-child(1) { width: 11% !important; }
+          .reports-print-area col:nth-child(2) { width: 9% !important; }
+          .reports-print-area col:nth-child(3) { width: 18% !important; }
+          .reports-print-area col:nth-child(4) { width: 26% !important; }
+          .reports-print-area col:nth-child(5) { width: 10% !important; }
+          .reports-print-area col:nth-child(6) { width: 8% !important; }
+          .reports-print-area col:nth-child(7) { width: 8% !important; }
+          .reports-print-area col:nth-child(8) { width: 9% !important; }
+
+          .reports-print-area thead {
+            display: table-header-group !important;
+            background: #efe4d3 !important;
+          }
+
+          .reports-print-area tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .reports-print-area th,
+          .reports-print-area td {
+            padding: 14px 10px !important;
+            border-top: 1px solid #eadcca !important;
+            color: #2f2115 !important;
+            font-size: 12px !important;
+            line-height: 1.45 !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            overflow-wrap: normal !important;
+            word-break: normal !important;
+          }
+
+          .reports-print-area th {
+            padding-top: 13px !important;
+            padding-bottom: 13px !important;
+            font-size: 12px !important;
+            font-weight: 800 !important;
+            letter-spacing: 0 !important;
+            text-transform: none !important;
+            background: #efe4d3 !important;
+          }
+
+          .reports-print-area .line-clamp-2 {
+            display: block !important;
+            overflow: visible !important;
+            -webkit-line-clamp: unset !important;
+            -webkit-box-orient: initial !important;
+          }
+
+          .reports-print-area .truncate {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: nowrap !important;
+          }
+
+          .reports-print-area .reports-customer-cell {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            min-width: 0 !important;
+          }
+
+          .reports-print-area .reports-customer-name {
+            min-width: 0 !important;
+            font-size: 12px !important;
+            font-weight: 800 !important;
+            color: #2f2115 !important;
+          }
+
+          .reports-print-area .report-badge {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border: 0 !important;
+            border-radius: 999px !important;
+            color: #2f2115 !important;
+            padding: 6px 10px !important;
+            font-size: 10px !important;
+            font-weight: 800 !important;
+            line-height: 1 !important;
+            letter-spacing: 0.02em !important;
+            white-space: nowrap !important;
+          }
+
+          .reports-print-area .report-badge-customer,
+          .reports-print-area .report-badge-order {
+            background: #eadfce !important;
+            color: #2f2115 !important;
+          }
+
+          .reports-print-area .report-badge-pending {
+            background: #fff1bf !important;
+            color: #b45309 !important;
+          }
+
+          .reports-print-area .report-badge-paid {
+            background: #dff3e7 !important;
+            color: #047857 !important;
+          }
+        }
+      `}</style>
+      <div className="reports-page space-y-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-[2.45rem] font-semibold tracking-[-0.04em] text-[#3a2513]">Reports &amp; Analytics</h1>
@@ -360,50 +686,93 @@ export default function Reports({
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
-          <div className="border-b border-[#dccbb8] bg-[#efe4d3] px-8 py-6">
-            <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Report Results</h2>
-            <p className="mt-2 text-[1rem] text-[#73563a]">
-              Showing {results.length} transactions from {filters.date_from || 'N/A'} to {filters.date_to || 'N/A'}
-            </p>
+        <Card className="reports-print-area overflow-hidden rounded-[1.45rem] border border-[#e0d1bf] bg-white shadow-none">
+          <div className="reports-print-header relative border-b border-[#dccbb8] bg-[#efe4d3] px-8 py-6 text-center">
+            <img
+              src="/images/amani_brew_mark.png"
+              alt="Amani Brew"
+              className="reports-print-logo absolute left-7 top-1/2 h-[68px] w-[68px] -translate-y-1/2 rounded-2xl border border-[#d8c8b6] bg-white p-1.5 object-contain"
+            />
+            <div className="reports-print-title-block mx-auto max-w-[70%]">
+              <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Report Results</h2>
+              <p className="reports-print-meta mt-2 text-[1rem] text-[#73563a]">
+                Showing <strong>{results.length}</strong> transactions from <span className="reports-print-date">{filters.date_from || 'N/A'}</span> to <span className="reports-print-date">{filters.date_to || 'N/A'}</span>
+              </p>
+              <p className="reports-print-by-line mt-2 hidden text-sm text-[#73563a]">
+                Printed by <span className="reports-print-by">{printedBy}</span> at <span className="reports-print-date">{printedAt}</span>
+              </p>
+            </div>
           </div>
 
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left">
+          <CardContent className="reports-print-content p-0">
+            <div className="reports-print-table-wrap overflow-x-auto lg:overflow-visible">
+              <table className="w-full min-w-[760px] table-fixed text-left lg:min-w-0">
+                <colgroup>
+                  <col className="w-[11%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[27%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[8%]" />
+                </colgroup>
                 <thead className="bg-white">
                   <tr>
-                    {['Order ID', 'Date', 'Customer', 'Type', 'Order Type', 'Items', 'Amount', 'Status', 'Payment'].map((header) => (
-                      <th key={header} className="px-8 py-5 text-[1rem] font-semibold text-[#2f2115]">
+                    {['Order ID', 'Date', 'Customer', 'Description', 'Amount', 'Status', 'Payment', 'Order Type'].map((header) => (
+                      <th
+                        key={header}
+                        className={`px-4 py-4 text-sm font-semibold text-[#2f2115] ${header === 'Amount' ? 'text-right' : ''}`}
+                      >
                         {header}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {results.length > 0 ? results.map((row, index) => (
-                    <tr key={row.id} className={`${index !== results.length - 1 ? 'border-t border-[#eadcca]' : ''} bg-white`}>
-                      <td className="px-8 py-6 text-[1.05rem] font-medium text-[#352314]">{row.order_number}</td>
-                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{row.date}</td>
-                      <td className="px-8 py-6 text-[1.05rem] text-[#352314]">{row.customer}</td>
-                      <td className="px-8 py-6">
-                        <span className="inline-flex rounded-full bg-[#efebe6] px-4 py-2 text-[0.95rem] font-medium text-[#5f4328]">
-                          {row.type}
-                        </span>
-                      </td>
-                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{row.order_type}</td>
-                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{row.items}</td>
-                      <td className="px-8 py-6 text-[1.05rem] font-medium text-[#352314]">{money(row.amount)}</td>
-                      <td className="px-8 py-6">
-                        <span className={`inline-flex rounded-full px-4 py-2 text-[0.95rem] font-medium ${statusTone[row.status] || 'bg-slate-100 text-slate-700'}`}>
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="px-8 py-6 text-[1.05rem] text-[#5f4328]">{formatPayment(row.payment)}</td>
-                    </tr>
-                  )) : (
+                  {results.length > 0 ? results.map((row, index) => {
+                    const paymentLabel = formatPaymentReportLabel(row);
+                    const statusPrintClass = row.status === 'Paid' ? 'report-badge-paid' : 'report-badge-pending';
+                    const paymentPrintClass = paymentLabel === 'Paid' ? 'report-badge-paid' : 'report-badge-pending';
+
+                    return (
+                      <tr key={row.id} className={`${index !== results.length - 1 ? 'border-t border-[#eadcca]' : ''} bg-white`}>
+                        <td className="px-4 py-5 text-sm font-semibold text-[#352314]">{row.order_number}</td>
+                        <td className="px-4 py-5 text-sm text-[#5f4328]">{row.date}</td>
+                        <td className="px-4 py-5">
+                          <div className="reports-customer-cell flex min-w-0 items-center gap-2">
+                            <p className="reports-customer-name truncate text-sm font-semibold text-[#352314]" title={row.customer}>{row.customer}</p>
+                            <span className={`report-badge report-badge-customer inline-flex shrink-0 rounded-full px-2.5 py-1 text-[0.72rem] font-bold uppercase tracking-[0.08em] ${customerTypeTone[row.customer_type] || 'bg-[#efebe6] text-[#73563a]'}`}>
+                              {formatCustomerTypeBadge(row.customer_type)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-5">
+                          <p className="line-clamp-2 text-sm leading-6 text-[#5f4328]" title={row.description || ''}>
+                            {row.description || 'No items listed'}
+                          </p>
+                        </td>
+                        <td className="px-4 py-5 text-right text-sm font-semibold tabular-nums text-[#352314]">{money(row.amount)}</td>
+                        <td className="px-4 py-5">
+                          <span className={`report-badge ${statusPrintClass} inline-flex rounded-full px-3 py-1.5 text-[0.78rem] font-bold ${statusTone[row.status] || 'bg-[#efebe6] text-[#73563a]'}`}>
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-5">
+                          <span className={`report-badge ${paymentPrintClass} inline-flex max-w-full rounded-full px-3 py-1.5 text-[0.78rem] font-bold ${paymentTone[paymentLabel] || 'bg-[#f5efe7] text-[#5f4328]'}`}>
+                            {paymentLabel}
+                          </span>
+                        </td>
+                        <td className="px-4 py-5">
+                          <span className={`report-badge report-badge-order inline-flex rounded-full px-3 py-1.5 text-[0.78rem] font-bold ${orderTypeTone[row.order_type] || 'bg-[#efe6d8] text-[#4f3118]'}`}>
+                            {row.order_type}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }) : (
                     <tr>
-                      <td colSpan={9} className="px-8 py-12 text-center">
+                      <td colSpan={8} className="px-8 py-12 text-center">
                         <p className="text-lg font-medium text-[#4d3218]">No report results found.</p>
                         <p className="mt-2 text-sm text-[#7a5c3e]">Try another date range or filter combination.</p>
                       </td>

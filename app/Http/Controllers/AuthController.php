@@ -7,7 +7,10 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterCustomerRequest;
 use App\Http\Requests\ResetPasswordRequest;
 use App\Models\Customer;
+use App\Models\CustomerAddress;
 use App\Models\User;
+use App\Support\BackofficeAccess;
+use App\Support\RoleRegistry;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -142,8 +145,16 @@ class AuthController extends Controller
         if (Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']], (bool) $request->boolean('remember'))) {
             $user = $request->user()?->loadMissing('customer');
 
-            if ($user && $user->customer && !$user->hasAnyRole(['Customer', 'Administrator', 'Admin', 'Manager', 'Staff'])) {
-                $user->assignRole('Customer');
+            if ($user && $user->customer && !BackofficeAccess::hasBackofficeAccess($user)) {
+                RoleRegistry::ensureCustomerRole();
+
+                $hasCustomerRole = $user->getRoleNames()
+                    ->map(fn ($role) => strtolower((string) $role))
+                    ->contains(strtolower(RoleRegistry::CUSTOMER));
+
+                if (!$hasCustomerRole) {
+                    $user->assignRole(RoleRegistry::CUSTOMER);
+                }
             }
 
             $request->session()->regenerate();
@@ -192,23 +203,44 @@ class AuthController extends Controller
         $validated = $request->validated();
 
         $user = DB::transaction(function () use ($validated) {
-            $user = User::create([
+            $userData = [
                 'name'     => $validated['full_name'],
                 'email'    => $validated['email'],
-                'preferred_language' => app()->getLocale(),
                 'password' => $validated['password'],
-            ]);
+            ];
 
-            $user->assignRole('Customer');
+            if (Schema::hasColumn('users', 'preferred_language')) {
+                $userData['preferred_language'] = app()->getLocale();
+            }
 
-            Customer::create([
+            $user = User::create($userData);
+
+            RoleRegistry::ensureCustomerRole();
+            $user->assignRole(RoleRegistry::CUSTOMER);
+
+            $customerData = [
                 'user_id'   => $user->id,
                 'full_name' => $validated['full_name'],
                 'phone'     => $validated['phone'],
                 'email'     => $validated['email'],
-                'address'   => $validated['address'],
                 'status'    => 'Active',
-            ]);
+            ];
+
+            if (Schema::hasColumn('customers', 'address')) {
+                $customerData['address'] = $validated['address'];
+            }
+
+            $customer = Customer::create($customerData);
+
+            if (Schema::hasTable('customer_addresses') && filled($validated['address'])) {
+                CustomerAddress::updateOrCreate(
+                    ['customer_id' => $customer->id, 'is_default' => true],
+                    [
+                        'address_line1' => $validated['address'],
+                        'phone' => $validated['phone'],
+                    ]
+                );
+            }
 
             return $user;
         });

@@ -278,7 +278,7 @@
         }
     </style>
     @if(!empty($printMode))
-        <script>
+        <script @if(!empty($cspNonce)) nonce="{{ $cspNonce }}" @endif>
             window.onload = function () {
                 window.print();
             };

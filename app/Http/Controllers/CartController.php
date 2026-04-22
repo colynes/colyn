@@ -18,7 +18,7 @@ class CartController extends Controller
             'item_type' => ['nullable', 'in:product,pack,promotion'],
             'item_id' => ['nullable', 'integer'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
-            'quantity'   => ['nullable', 'integer', 'min:1'],
+            'quantity'   => ['nullable', 'integer', 'min:1', 'max:500'],
         ]);
 
         $itemType = $validated['item_type'] ?? 'product';
@@ -40,7 +40,7 @@ class CartController extends Controller
             $requestedQuantity = $currentLineQuantity + $quantity;
 
             if (!$this->productCanBeFulfilled($product->id, $requestedQuantity)) {
-                return back()->with('error', 'Only ' . rtrim(rtrim(number_format((float) ($product->stock_quantity ?? 0), 2, '.', ''), '0'), '.') . ' unit(s) of ' . $product->name . ' are available right now.');
+                return back()->with('error', $this->limitedStockMessage($product));
             }
 
             CartManager::addProduct($product->id, $quantity);
@@ -72,7 +72,7 @@ class CartController extends Controller
     public function update(Request $request, string $lineId)
     {
         $validated = $request->validate([
-            'quantity' => ['required', 'integer', 'min:0'],
+            'quantity' => ['required', 'integer', 'min:0', 'max:500'],
         ]);
 
         if (str_starts_with($lineId, 'product-') && $validated['quantity'] > 0) {
@@ -88,7 +88,7 @@ class CartController extends Controller
             }
 
             if (!$this->productCanBeFulfilled($product->id, (int) $validated['quantity'])) {
-                return back()->with('error', 'Only ' . rtrim(rtrim(number_format((float) ($product->stock_quantity ?? 0), 2, '.', ''), '0'), '.') . ' unit(s) of ' . $product->name . ' are available right now.');
+                return back()->with('error', $this->limitedStockMessage($product));
             }
         }
 
@@ -145,6 +145,24 @@ class CartController extends Controller
         }
 
         return false;
+    }
+
+    protected function limitedStockMessage(Product $product): string
+    {
+        $availableQuantity = rtrim(rtrim(number_format($this->availableProductQuantityForCart($product->id), 2, '.', ''), '0'), '.');
+        $unit = $product->unit ?: 'unit';
+
+        return "Only {$availableQuantity} {$unit} of {$product->name} is available right now. Please adjust your quantity to continue your order.";
+    }
+
+    protected function availableProductQuantityForCart(int $productId): float
+    {
+        return $this->activeBranches()
+            ->map(fn (Branch $branch) => (float) (Product::query()
+                ->withSum(['stocks as branch_stock_quantity' => fn ($query) => $query->where('branch_id', $branch->id)], 'quantity')
+                ->whereKey($productId)
+                ->value('branch_stock_quantity') ?? 0))
+            ->max() ?? 0.0;
     }
 
     protected function resolvePackStockMessage(Pack $pack, float $requestedQuantity): ?string

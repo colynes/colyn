@@ -3,6 +3,7 @@ import { router, usePage } from '@inertiajs/react';
 import StoreLayout from '@/components/StoreLayout';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { Card, CardContent } from '@/components/ui/Card';
+import AutoDismissAlert from '@/components/ui/AutoDismissAlert';
 import ProfileCard from '@/components/customer/ProfileCard';
 import EditProfileDialog from '@/components/customer/EditProfileDialog';
 import { useI18n } from '@/lib/i18n';
@@ -31,6 +32,7 @@ export default function Profile({ profileMeta, orders = [] }) {
     <StoreLayout
       title={t('frontend.profile.title', 'Your Profile')}
       subtitle={t('frontend.profile.subtitle', 'View your personal details, update them anytime, and quickly jump back into your order activity.')}
+      showFlashAlert={false}
     >
       <EditProfileDialog
         open={dialogOpen}
@@ -40,11 +42,7 @@ export default function Profile({ profileMeta, orders = [] }) {
       />
 
       <div className="space-y-8">
-        {flash?.success && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-            {flash.success}
-          </div>
-        )}
+        <AutoDismissAlert message={flash?.error || flash?.success} type={flash?.error ? 'error' : 'success'} />
 
         <div className="flex justify-end">
           <LanguageSwitcher />

@@ -1,0 +1,261 @@
+<?php
+
+return [
+    'shared' => [
+        'support_card_eyebrow' => 'Customer care',
+        'support_card_title' => 'Need help with an order or account?',
+        'support_card_description' => 'Our team can guide you on delivery windows, pickup timing, account access, and general customer support.',
+        'related_links_title' => 'Helpful links',
+        'browse_products' => 'Browse products',
+        'go_home' => 'Return to customer home',
+    ],
+    'about' => [
+        'eyebrow' => 'About Amani Brew',
+        'title' => 'Fresh ordering built for trust, clarity, and dependable service.',
+        'subtitle' => 'Amani Brew is designed for households and hospitality teams that want a smoother way to order premium meat with clear pricing, reliable fulfillment, and customer-first support.',
+        'intro' => 'We focus on practical quality: live product visibility, thoughtful pack offers, flexible pickup scheduling, and delivery support that feels professional from cart to doorstep.',
+        'highlights' => [
+            [
+                'title' => 'Clear pricing in TZS',
+                'description' => 'Customers can review pack pricing, product details, and order totals without guesswork before confirming an order.',
+            ],
+            [
+                'title' => 'Delivery and pickup options',
+                'description' => 'Amani Brew supports both doorstep delivery and scheduled pickup to fit different household and business routines.',
+            ],
+            [
+                'title' => 'Customer-centered account flow',
+                'description' => 'Profiles, order tracking, saved details, and subscription requests are built to make repeat ordering easier over time.',
+            ],
+        ],
+        'sections' => [
+            [
+                'title' => 'What Amani Brew offers',
+                'description' => 'Our customer platform brings together premium products, curated packs, promotions, account management, and order tracking in one place so customers can move from discovery to confirmation with confidence.',
+            ],
+            [
+                'title' => 'How we approach service',
+                'description' => 'We prioritize freshness, accurate order handling, professional communication, and a straightforward checkout experience that respects customer time and expectations.',
+            ],
+            [
+                'title' => 'Who the platform supports',
+                'description' => 'Amani Brew serves everyday households, event planners, and hospitality teams that need a reliable way to browse, price, and order meat products in Dar es Salaam.',
+            ],
+        ],
+    ],
+    'faqs' => [
+        'eyebrow' => 'Frequently asked questions',
+        'title' => 'Answers to common customer questions.',
+        'subtitle' => 'These quick answers cover the most common topics around ordering, fulfillment, account access, and support.',
+        'intro' => 'If you still need help after checking these answers, our customer care details are listed on this page and in the authenticated customer footer.',
+        'highlights' => [
+            [
+                'title' => 'Order visibility',
+                'description' => 'Customers can review order status updates from the My Orders area after logging in.',
+            ],
+            [
+                'title' => 'Pickup scheduling',
+                'description' => 'Available pickup times are shown during checkout based on configured working hours.',
+            ],
+            [
+                'title' => 'Delivery support',
+                'description' => 'Delivery orders can include location details and delivery notes to make fulfillment smoother.',
+            ],
+        ],
+        'sections' => [
+            [
+                'title' => 'How do I place an order?',
+                'description' => 'Browse products, packs, or promotions, add items to the cart, then complete checkout with your account details and preferred fulfillment method.',
+            ],
+            [
+                'title' => 'Can I choose delivery or pickup?',
+                'description' => 'Yes. During checkout you can choose delivery or pickup. Pickup times are shown when pickup is available, while delivery orders require a valid address.',
+            ],
+            [
+                'title' => 'Where can I check my order status?',
+                'description' => 'After login, visit My Orders to review open and completed orders, track updates, and confirm delivery where applicable.',
+            ],
+            [
+                'title' => 'What if I already have an account?',
+                'description' => 'If your email or phone number is already linked to an account, sign in first, then continue from checkout or the customer area.',
+            ],
+        ],
+    ],
+    'contact' => [
+        'eyebrow' => 'Contact Amani Brew',
+        'title' => 'Talk to the team behind your orders.',
+        'subtitle' => 'Reach out for order help, account support, delivery coordination, or general platform questions.',
+        'intro' => 'We aim to keep communication direct, respectful, and useful so customers can resolve issues quickly and continue ordering with confidence.',
+        'highlights' => [
+            [
+                'title' => 'Order support',
+                'description' => 'Questions about cart items, fulfillment status, or scheduling can be handled through our customer care channels.',
+            ],
+            [
+                'title' => 'Account assistance',
+                'description' => 'If you need help with login, profile information, or subscription requests, contact the team using the details on this page.',
+            ],
+            [
+                'title' => 'Business coordination',
+                'description' => 'Hospitality teams and recurring customers can also use these channels when they need guidance before placing larger or repeat orders.',
+            ],
+        ],
+        'sections' => [
+            [
+                'title' => 'Best ways to reach us',
+                'description' => 'For the fastest response, use the listed phone number or email address. Include your order details where possible so the team can help quickly.',
+            ],
+            [
+                'title' => 'When to contact support',
+                'description' => 'You can contact us for order clarification, delivery updates, pickup timing, account access questions, or general feedback about the customer experience.',
+            ],
+            [
+                'title' => 'Response expectations',
+                'description' => 'Support is handled during business hours, and we aim to respond with clear next steps rather than generic status messages.',
+            ],
+        ],
+    ],
+    'delivery' => [
+        'eyebrow' => 'Delivery information',
+        'title' => 'How delivery and pickup work at Amani Brew.',
+        'subtitle' => 'This page outlines the practical expectations around fulfillment, timing, delivery details, and pickup scheduling.',
+        'intro' => 'Amani Brew gives customers the flexibility to choose how orders are received while keeping the process structured enough for reliable fulfillment.',
+        'highlights' => [
+            [
+                'title' => 'Address-first delivery flow',
+                'description' => 'Delivery orders require a valid address, and customers can add notes to help the team prepare and dispatch accurately.',
+            ],
+            [
+                'title' => 'Pickup hour selection',
+                'description' => 'Pickup orders can be scheduled within configured working hours when pickup is available for the selected day.',
+            ],
+            [
+                'title' => 'Order tracking support',
+                'description' => 'Customers can review fulfillment progress from their order area once an order has been confirmed and updated.',
+            ],
+        ],
+        'sections' => [
+            [
+                'title' => 'Delivery expectations',
+                'description' => 'Customers placing delivery orders should provide accurate location details and be reachable using the phone number attached to the order.',
+            ],
+            [
+                'title' => 'Pickup expectations',
+                'description' => 'Pickup customers should select an available time during checkout and plan to collect within the scheduled window shown on the order.',
+            ],
+            [
+                'title' => 'Changes and issues',
+                'description' => 'If you need clarification about delivery or pickup after placing an order, contact customer care as early as possible so the team can advise on next steps.',
+            ],
+        ],
+    ],
+    'privacy' => [
+        'eyebrow' => 'Privacy Policy',
+        'title' => 'Privacy Policy',
+        'effective_date' => 'Effective Date: April 17, 2026',
+        'intro' => 'Your privacy matters to us at Amani Brew. Amani Brew is committed to protecting your personal information and respecting your privacy in accordance with the laws of the United Republic of Tanzania, including the Personal Data Protection Act, 2023. This Privacy Policy explains how we collect, use, store, and protect your information when you use our website, mobile application, and delivery services. By using our platform, you agree to the collection and use of your information as described in this Policy.',
+        'highlights' => [
+            [
+                'title' => 'Information Collection',
+                'description' => 'We collect personal information you provide (name, phone, email, delivery address), payment confirmations, location data, and technical info like IP address.',
+            ],
+            [
+                'title' => 'Secure Usage',
+                'description' => 'Data used for orders, support, personalization, fraud detection. No selling data; shared only with delivery/payment providers.',
+            ],
+            [
+                'title' => 'Your Rights',
+                'description' => 'Access, correct, delete data per Tanzanian law. Contact us for requests.',
+            ],
+        ],
+        'sections' => [
+            [
+                'title' => '2. Information We Collect',
+                'description' => 'We collect personal information that you provide directly when you create an account, place an order, or communicate with us. This includes your name, phone number, email address, and delivery address. We may also collect payment-related information such as transaction confirmations from mobile money providers. In addition, we may collect location data when you enable location services on your device to improve delivery accuracy. Technical information such as your device type, IP address, browser type, and usage activity may also be collected automatically to improve system performance and security.',
+            ],
+            [
+                'title' => '3. How We Use Your Information',
+                'description' => 'Your information is used to process and deliver your orders, confirm payments, communicate updates, and provide customer support. We may also use your information to improve our services, personalize your experience, and send you promotional messages or offers where permitted by law. In addition, your data helps us detect fraud, maintain platform security, and ensure efficient operations.',
+            ],
+            [
+                'title' => '4. Sharing of Information',
+                'description' => 'Amani Brew does not sell your personal information. However, your information may be shared with trusted third parties where necessary to provide our services. This includes delivery personnel to complete your orders, mobile money providers to process payments, and technical service providers that support our platform. All such parties are required to handle your information securely and only for the intended purpose.',
+            ],
+            [
+                'title' => '5. Mobile Money and Payments',
+                'description' => 'When you make payments using mobile money services such as M-Pesa, Tigo Pesa, or Airtel Money, the transaction is processed by the respective provider. Amani Brew does not store sensitive financial details such as PINs. We only receive confirmation that payment has been completed in order to process your order.',
+            ],
+            [
+                'title' => '6. Data Retention',
+                'description' => 'We retain your personal data only for as long as necessary to provide our services, comply with legal obligations, resolve disputes, and enforce our agreements. Once your data is no longer required, it will be securely deleted or anonymized in accordance with applicable laws.',
+            ],
+            [
+                'title' => '7. Data Security',
+                'description' => 'We implement appropriate technical and organizational measures to protect your personal data from unauthorized access, loss, misuse, or alteration. While we take reasonable steps to safeguard your information, no system is completely secure, and we cannot guarantee absolute security at all times.',
+            ],
+            [
+                'title' => '8. Your Rights (Tanzania)',
+                'description' => 'Under Tanzanian law, you have the right to access, correct, or request deletion of your personal data. You also have the right to object to certain processing activities and to withdraw consent where applicable. Requests can be made by contacting us directly, and we will respond in accordance with legal requirements.',
+            ],
+            [
+                'title' => '9. Cookies and Tracking Technologies',
+                'description' => 'Our platform may use cookies and similar technologies to enhance user experience, remember preferences, and analyze usage patterns. These technologies help us improve functionality and performance. You may control cookie settings through your browser.',
+            ],
+            [
+                'title' => '10. Third-Party Services',
+                'description' => 'Our platform may integrate with third-party services such as payment providers, analytics tools, or notification systems. These services operate independently and have their own privacy policies. Amani Brew is not responsible for the privacy practices of these third parties.',
+            ],
+            [
+                'title' => '11. Children's Privacy',
+                'description' => 'Amani Brew does not knowingly collect personal information from individuals under the age of 18 without parental or guardian consent. If such data is identified, we will take immediate steps to delete it.',
+            ],
+            [
+                'title' => '12. Changes to This Policy',
+                'description' => 'We may update this Privacy Policy from time to time to reflect changes in our services or legal requirements. Updates will be posted on this page with a revised effective date. Continued use of the platform constitutes acceptance of the updated Policy.',
+            ],
+            [
+                'title' => '13. Contact Us',
+                'description' => 'If you have any questions, concerns, or requests regarding this Privacy Policy, you may contact us via email at amanibrew@gmail.com or by phone or WhatsApp at +255 718 744 415. Customers are also welcome to visit our physical office address where necessary for support, inquiries, or issue resolution during official working hours.',
+            ],
+            [
+                'title' => '14. Acceptance',
+                'description' => 'By using Amani Brew, you confirm that you have read, understood, and agreed to this Privacy Policy.',
+            ],
+        ],
+    ],
+    'terms' => [
+        'eyebrow' => 'Terms of Service',
+        'title' => 'The customer terms that support fair use of Amani Brew.',
+        'subtitle' => 'These terms outline the basic expectations for using the platform, placing orders, and interacting with the service responsibly.',
+        'intro' => 'By using the Amani Brew customer platform, you agree to use the service in good faith, provide accurate information, and follow platform rules designed to support reliable order handling.',
+        'highlights' => [
+            [
+                'title' => 'Accurate order information',
+                'description' => 'Customers are expected to provide correct contact and fulfillment details so orders can be prepared and delivered properly.',
+            ],
+            [
+                'title' => 'Responsible account use',
+                'description' => 'You are responsible for maintaining the confidentiality of your login details and for activity that takes place under your account.',
+            ],
+            [
+                'title' => 'Operational fairness',
+                'description' => 'Amani Brew may limit, refuse, or review orders or access where necessary to protect service integrity, security, or operational reliability.',
+            ],
+        ],
+        'sections' => [
+            [
+                'title' => 'Using the platform',
+                'description' => 'Customers should use the application only for legitimate browsing, account management, ordering, and support-related activity connected to Amani Brew services.',
+            ],
+            [
+                'title' => 'Orders, pricing, and fulfillment',
+                'description' => 'Displayed prices, packs, promotions, and availability are managed through the platform, but order handling still depends on current operational readiness, stock, scheduling, and fulfillment conditions.',
+            ],
+            [
+                'title' => 'Changes to service or terms',
+                'description' => 'Amani Brew may update the platform, its customer workflows, or these terms when required for legal, operational, or service improvement reasons.',
+            ],
+        ],
+    ],
+];
+

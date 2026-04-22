@@ -1,6 +1,7 @@
 <?php
 
-return [
+/** @var array<string, mixed> $translations */
+$translations = [
     'common' => [
         'product' => 'Bidhaa',
         'pack' => 'Kifurushi',
@@ -294,8 +295,8 @@ return [
         ],
         'categories' => [
             'eyebrow' => 'Nunua kwa kategori',
-            'title' => 'Kategori zinazoonekana hapa zinatoka moja kwa moja kwenye database.',
-            'description' => 'Kadi za kategori hazina picha kama ulivyoomba, hivyo storefront inaonekana safi na inaendana na rekodi zako halisi.',
+            'title' => 'Kategori zinazoonekana hapa zinatoka moja kwa moja kwenye Store.',
+            'description' => 'Tambua kategori kwa urahisi na muundo safi ulitengenezwa kwa uwazi na urahisi wa kutafuta bidhaa.',
             'label' => 'Kategori',
             'items_count' => 'bidhaa :count',
         ],
@@ -374,6 +375,7 @@ return [
         ],
         'footer' => [
             'brand_tagline' => 'Kuagiza nyama bora',
+            'logo_alt' => 'Nembo ya Amani Brew',
             'description' => 'Tazama kategori na bidhaa halisi, ongeza vitu kwenye kapu la mgeni, na thibitisha oda kupitia kufungua akaunti ya mteja.',
             'quick_links' => 'Viungo vya haraka',
             'account' => 'Akaunti',
@@ -539,3 +541,5 @@ return [
         'open_live_cart' => 'Fungua kapu la moja kwa moja',
     ],
 ];
+
+return $translations;

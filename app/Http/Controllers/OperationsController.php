@@ -347,19 +347,18 @@ class OperationsController extends Controller
         return response()->streamDownload(function () use ($results) {
             $handle = fopen('php://output', 'w');
 
-            fputcsv($handle, ['Order ID', 'Date', 'Customer', 'Type', 'Order Type', 'Items', 'Amount', 'Status', 'Payment']);
+            fputcsv($handle, ['Order ID', 'Date', 'Customer', 'Description', 'Amount', 'Status', 'Payment', 'Order Type']);
 
             foreach ($results as $row) {
                 fputcsv($handle, [
                     $row['order_number'],
                     $row['date'],
-                    $row['customer'],
-                    $row['type'],
-                    $row['order_type'],
-                    $row['items'],
+                    trim($row['customer'] . ' (' . $row['customer_type'] . ')'),
+                    $row['description'],
                     $row['amount'],
                     $row['status'],
-                    str_replace('_', ' ', (string) $row['payment']),
+                    $row['payment'],
+                    $row['order_type'],
                 ]);
             }
 
@@ -394,16 +393,16 @@ class OperationsController extends Controller
 
         foreach ($results as $row) {
             $lines[] = sprintf(
-                '%s | %s | %s | %s | %s | %s items | Tzs %s | %s | %s',
+                '%s | %s | %s (%s) | %s | Tzs %s | %s | %s | %s',
                 $row['order_number'],
                 $row['date'],
                 $row['customer'],
-                $row['type'],
-                $row['order_type'],
-                $row['items'],
+                $row['customer_type'],
+                $row['description'],
                 number_format((float) $row['amount'], 2),
                 $row['status'],
-                str_replace('_', ' ', (string) $row['payment']),
+                $row['payment'],
+                $row['order_type'],
             );
         }
 
@@ -433,7 +432,7 @@ class OperationsController extends Controller
         $statusPlaceholders = implode(',', array_fill(0, count(SalesTargetService::REPORTABLE_ORDER_STATUSES), '?'));
 
         $ordersQuery = Order::query()
-            ->with(['customer', 'items', 'payments'])
+            ->with(['customer', 'items.product', 'payments'])
             ->whereBetween('created_at', [$startDate, $endDate])
             ->whereRaw("LOWER(COALESCE(status, '')) IN ({$statusPlaceholders})", SalesTargetService::REPORTABLE_ORDER_STATUSES)
             ->when($paymentStatus === 'paid', fn ($query) => $query->where('is_paid', true))
@@ -528,14 +527,61 @@ class OperationsController extends Controller
                     'date' => optional($order->created_at)->toDateString(),
                     'customer' => $order->customer?->full_name ?? 'Walk-in customer',
                     'type' => $isSubscriptionOrder ? 'Subscription' : 'Walk-in',
-                    'order_type' => $order->fulfillment_method ? ucfirst((string) $order->fulfillment_method) : 'Standard Order',
+                    'customer_type' => $this->resolveReportCustomerType($order, $isSubscriptionOrder),
+                    'order_type' => $this->resolveReportOrderType($order),
                     'items' => $order->items->count(),
+                    'description' => $this->summarizeReportOrderItems($order),
                     'amount' => (float) $order->total,
                     'status' => $order->is_paid ? 'Paid' : 'Pending',
-                    'payment' => $order->payments->sortByDesc('created_at')->first()?->method ?? $order->payment_method ?? 'N/A',
+                    'payment' => $order->is_paid ? 'Paid' : 'Pending',
                 ];
             }),
         ];
+    }
+
+    protected function resolveReportCustomerType(Order $order, bool $isSubscriptionOrder = false): string
+    {
+        if ($isSubscriptionOrder) {
+            return 'Subscriber';
+        }
+
+        if (!$order->customer) {
+            return 'Walk-in';
+        }
+
+        return $order->customer->user_id ? 'Member' : 'Walk-in';
+    }
+
+    protected function resolveReportOrderType(Order $order): string
+    {
+        $method = strtolower((string) $order->fulfillment_method);
+
+        if ($method === 'pickup') {
+            return 'Pickup';
+        }
+
+        if ($method === 'delivery') {
+            return 'Delivery';
+        }
+
+        return 'N/A';
+    }
+
+    protected function summarizeReportOrderItems(Order $order): string
+    {
+        $itemNames = $order->items
+            ->map(fn ($item) => trim($item->displayName()))
+            ->filter()
+            ->values();
+
+        if ($itemNames->isEmpty()) {
+            return 'No items listed';
+        }
+
+        $visibleItems = $itemNames->take(3)->implode(', ');
+        $moreCount = $itemNames->count() - 3;
+
+        return $moreCount > 0 ? "{$visibleItems} +{$moreCount} more" : $visibleItems;
     }
 
     protected function resolveAnalyticsRange(Request $request, string $defaultPeriod = 'weekly'): array
@@ -2013,7 +2059,20 @@ class OperationsController extends Controller
             'products' => Product::query()
                 ->active()
                 ->with(['category', 'currentPrice'])
-                ->withSum('stocks as stock_quantity', 'quantity')
+                ->when(
+                    $defaultBranch,
+                    fn ($query) => $query->whereHas('stocks', fn ($stockQuery) => $stockQuery
+                        ->where('branch_id', $defaultBranch->id)
+                        ->where('quantity', '>', 0)
+                    ),
+                    fn ($query) => $query->whereRaw('1 = 0')
+                )
+                ->withSum([
+                    'stocks as stock_quantity' => fn ($query) => $query->when(
+                        $defaultBranch,
+                        fn ($stockQuery) => $stockQuery->where('branch_id', $defaultBranch->id)
+                    ),
+                ], 'quantity')
                 ->orderBy('name')
                 ->get()
                 ->map(fn (Product $product) => [
@@ -2036,6 +2095,7 @@ class OperationsController extends Controller
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:255'],
             'branch_id' => ['nullable', 'exists:branches,id'],
+            'fulfillment_method' => ['required', 'in:delivery,pickup'],
             'payment_method' => ['required', 'in:lipa_no,cash,bank'],
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
@@ -2050,7 +2110,9 @@ class OperationsController extends Controller
         $stockError = $this->validateRequestedStock($validated['items'], $branchId);
 
         if ($stockError) {
-            return back()->with('error', $stockError);
+            return back()
+                ->withErrors(['items' => $stockError])
+                ->with('error', $stockError);
         }
 
         $productIds = collect($validated['items'])->pluck('product_id')->all();
@@ -2086,6 +2148,7 @@ class OperationsController extends Controller
                 'tax' => 0,
                 'total' => $subtotal,
                 'payment_method' => $validated['payment_method'],
+                'fulfillment_method' => $validated['fulfillment_method'],
                 'is_paid' => false,
                 'notes' => $validated['notes'] ?? null,
             ]);
@@ -2098,6 +2161,7 @@ class OperationsController extends Controller
                     'product_id' => $product->id,
                     'quantity' => $item['quantity'],
                     'price' => $price,
+                    'unit_price' => $price,
                     'subtotal' => $price * (float) $item['quantity'],
                 ]);
             }

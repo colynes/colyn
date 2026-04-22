@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Link, usePage } from '@inertiajs/react';
-import { MapPin, Menu, ShoppingCart, Tag, UserRound, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { AlertTriangle, MapPin, Menu, ShoppingCart, Tag, UserRound, X } from 'lucide-react';
 import CustomerCartPanel from '@/components/CustomerCartPanel';
+import CustomerFooter from '@/components/customer/CustomerFooter';
 import NotificationBell from '@/components/NotificationBell';
 import PushNotificationBridge from '@/components/PushNotificationBridge';
 import NotificationRealtimeBridge from '@/components/NotificationRealtimeBridge';
+import Button from '@/components/ui/Button';
 import { useI18n } from '@/lib/i18n';
 import { logoutCurrentBrowser } from '@/lib/logout';
 
@@ -30,10 +32,64 @@ function SmartNavLink({ item, onClick }) {
   );
 }
 
-export default function StoreLayout({ children, title, subtitle, showLiveCart = true }) {
-  const { auth, cart = { line_count: 0 } } = usePage().props;
+function StoreFlashModal({ message, onClose }) {
+  if (!message) {
+    return null;
+  }
+
+  const isLimitedStock = String(message).toLowerCase().startsWith('only ');
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto px-4 py-6">
+      <button
+        type="button"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+        aria-label="Close message"
+      />
+
+      <div className="relative my-auto max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-xl transition-all">
+        <div className="absolute right-4 top-4">
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-500 focus:outline-none">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="sm:flex sm:items-start">
+          <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 sm:mx-0 sm:h-10 sm:w-10">
+            <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+            <h3 className="text-lg font-semibold leading-6 text-gray-900">
+              {isLimitedStock ? 'Limited Stock' : 'Action Needed'}
+            </h3>
+            <div className="mt-2">
+              <p className="text-sm leading-6 text-gray-500">
+                {message}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 sm:mt-5 sm:flex sm:flex-row-reverse">
+          <Button
+            variant="primary"
+            onClick={onClose}
+            className="w-full sm:w-auto"
+          >
+            OK
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function StoreLayout({ children, title, subtitle, showLiveCart = true, showFlashAlert = true }) {
+  const { auth, cart = { line_count: 0 }, flash } = usePage().props;
   const currentUrl = usePage().url;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [visibleFlash, setVisibleFlash] = useState(null);
   const { t } = useI18n();
   const isAuthenticated = Boolean(auth?.user);
   const isCustomer = auth?.user?.role_key === 'customer';
@@ -66,20 +122,34 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
           { label: t('ui.store.nav.sign_up', 'Sign up'), href: '/register', active: currentUrl.startsWith('/register') },
         ];
 
+  useEffect(() => {
+    const message = flash?.error || '';
+
+    setVisibleFlash(message ? { message } : null);
+  }, [flash?.error]);
+
+  const closeFlashModal = () => {
+    setVisibleFlash(null);
+    router.reload({
+      preserveScroll: true,
+      preserveState: false,
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-[#f6f1e8] text-[var(--color-sys-text-primary)]">
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-[#f6f1e8] text-[var(--color-sys-text-primary)]">
       <NotificationRealtimeBridge />
       <PushNotificationBridge />
 
-      <header className="sticky top-0 z-[80] border-b border-[var(--color-sys-border)] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[92rem] items-center justify-between gap-4 px-6 py-5 lg:grid lg:grid-cols-[auto_1fr_auto] lg:gap-6 lg:py-6">
-          <Link href={brandHref} className="flex items-center gap-3 self-center">
+      <header className="fixed inset-x-0 top-0 z-[80] border-b border-[var(--color-sys-border)] bg-white/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[92rem] items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:grid lg:grid-cols-[auto_1fr_auto] lg:gap-6 lg:py-6">
+          <Link href={brandHref} className="flex min-w-0 items-center gap-3 self-center">
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-[var(--color-brand-dark)] shadow-sm">
               <img src="/images/amani_brew_mark.png" alt="Amani Brew logo" className="h-9 w-9 object-contain" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[1.05rem] font-black tracking-[-0.02em]">AmaniBrew</p>
-              <p className="mt-1 text-[11px] uppercase tracking-[0.28em] text-[var(--color-sys-text-secondary)]">{t('ui.store.brand_tagline', 'Fresh ordering')}</p>
+              <p className="mt-1 truncate text-[11px] uppercase tracking-[0.24em] text-[var(--color-sys-text-secondary)] sm:tracking-[0.28em]">{t('ui.store.brand_tagline', 'Fresh ordering')}</p>
             </div>
           </Link>
 
@@ -229,12 +299,19 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
 
       {showLiveCart && <CustomerCartPanel />}
 
-      <main className="mx-auto max-w-[92rem] px-6 py-8">
+      {showFlashAlert && visibleFlash && (
+        <StoreFlashModal
+          message={visibleFlash.message}
+          onClose={closeFlashModal}
+        />
+      )}
+
+      <main className="mx-auto flex-1 w-full max-w-[92rem] px-4 pb-8 pt-28 sm:px-6 sm:pb-8 sm:pt-32">
         {(title || subtitle) && (
-          <section className="mb-8 rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-[var(--color-sys-border)]">
+          <section className="mb-8 rounded-[2rem] bg-white p-6 text-center shadow-sm ring-1 ring-[var(--color-sys-border)] sm:p-8 sm:text-left">
             {title && <h1 className="text-3xl font-black tracking-tight">{title}</h1>}
-            {subtitle && <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-sys-text-secondary)]">{subtitle}</p>}
-            <div className="mt-5 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-sys-text-secondary)]">
+            {subtitle && <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-sys-text-secondary)] sm:mx-0">{subtitle}</p>}
+            <div className="mt-5 flex flex-wrap justify-center gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-sys-text-secondary)] sm:justify-start">
               <span className="inline-flex items-center gap-2 rounded-full bg-[#f3ede3] px-4 py-2"><MapPin size={14} /> {t('ui.store.hero.delivery_pickup_ready', 'Delivery and pickup ready')}</span>
               <span className="inline-flex items-center gap-2 rounded-full bg-[#f3ede3] px-4 py-2"><Tag size={14} /> {t('ui.store.hero.fast_ordering', 'Built for fast ordering')}</span>
             </div>
@@ -242,6 +319,8 @@ export default function StoreLayout({ children, title, subtitle, showLiveCart = 
         )}
         {children}
       </main>
+
+      {isCustomer && <CustomerFooter />}
     </div>
   );
 }

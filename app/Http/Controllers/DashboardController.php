@@ -118,14 +118,28 @@ class DashboardController extends Controller
                 'alert_level' => (float) ($product->reorder_level_total ?? 0),
             ]);
 
-        $todaysSales = (float) Order::whereDate('created_at', $today)->sum('total');
-        $yesterdaySales = (float) Order::whereDate('created_at', $yesterday)->sum('total');
+        $reportableOrders = fn () => Order::query()
+            ->whereRaw(
+                "LOWER(COALESCE(status, '')) IN ({$statusPlaceholders})",
+                SalesTargetService::REPORTABLE_ORDER_STATUSES
+            );
+
+        $todaysSales = (float) $reportableOrders()
+            ->whereDate('created_at', $today)
+            ->sum('total');
+        $yesterdaySales = (float) $reportableOrders()
+            ->whereDate('created_at', $yesterday)
+            ->sum('total');
         $todaysOrders = Order::whereDate('created_at', $today)->count();
         $yesterdayOrders = Order::whereDate('created_at', $yesterday)->count();
         $inventoryUnits = (float) DB::table('stocks')->sum('quantity');
         $previousInventoryUnits = (float) DB::table('stocks')->sum('reorder_level');
-        $monthlyRevenue = (float) Order::whereBetween('created_at', [$monthStart, now()])->sum('total');
-        $previousMonthlyRevenue = (float) Order::whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])->sum('total');
+        $monthlyRevenue = (float) $reportableOrders()
+            ->whereBetween('created_at', [$monthStart, now()])
+            ->sum('total');
+        $previousMonthlyRevenue = (float) $reportableOrders()
+            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
+            ->sum('total');
         $pendingStatuses = ['pending', 'confirmed', 'processing', 'preparing', 'ready'];
         $todaysPendingOrders = Order::query()
             ->with(['customer', 'items.product'])

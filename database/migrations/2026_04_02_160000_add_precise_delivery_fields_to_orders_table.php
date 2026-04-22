@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('orders')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
             if (!Schema::hasColumn('orders', 'delivery_latitude')) {
                 $table->decimal('delivery_latitude', 10, 7)->nullable()->after('delivery_address');
@@ -25,6 +29,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('orders')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
             foreach (['delivery_notes', 'delivery_longitude', 'delivery_latitude'] as $column) {
                 if (Schema::hasColumn('orders', $column)) {
