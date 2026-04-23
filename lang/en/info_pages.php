@@ -42,6 +42,14 @@ return [
                 'description' => 'Amani Brew serves everyday households, event planners, and hospitality teams that need a reliable way to browse, price, and order meat products in Dar es Salaam.',
             ],
         ],
+        'image_story' => [
+            'quality_title' => 'Premium cuts',
+            'quality_description' => 'Focused selection, clear product details, and practical pack visibility help customers compare options confidently before checkout.',
+            'delivery_title' => 'Reliable delivery',
+            'delivery_description' => 'Order handling is organized around timing, location accuracy, and customer updates so fulfillment feels dependable from confirmation to arrival.',
+            'cold_chain_title' => 'Fresh handling',
+            'cold_chain_description' => 'A practical preparation and fulfillment flow supports freshness, careful handling, and a more consistent customer experience on every order.',
+        ],
     ],
     'faqs' => [
         'eyebrow' => 'Frequently asked questions',

@@ -34,7 +34,7 @@ return [
         'email_value' => 'info@amanibrew.com',
         'hours_label' => 'Working hours',
         'hours_days' => 'Mon - Sat',
-        'hours_value' => 'Mon - Sat, 7:00 AM - 7:00 PM',
+        'hours_value' => 'Mon - Sat, 07:00 - 19:00',
     ],
     'social' => [
         'instagram' => 'Instagram',

@@ -42,6 +42,14 @@ return [
                 'description' => 'Amani Brew inahudumia familia za kila siku, waandaaji wa hafla, na biashara za hospitality zinazohitaji njia ya kuaminika ya kuagiza bidhaa za nyama Dar es Salaam.',
             ],
         ],
+        'image_story' => [
+            'quality_title' => 'Vipande bora',
+            'quality_description' => 'Uchaguzi ulio makini, maelezo ya bidhaa yaliyo wazi, na mwonekano wa vifurushi vinamsaidia mteja kulinganisha chaguo kwa kujiamini kabla ya checkout.',
+            'delivery_title' => 'Delivery ya kuaminika',
+            'delivery_description' => 'Ushughulikiaji wa oda unapangwa kwa kuzingatia muda, usahihi wa eneo, na taarifa kwa mteja ili utekelezaji uwe wa kuaminika kutoka uthibitisho hadi kupokelewa.',
+            'cold_chain_title' => 'Utunzaji wa ubora',
+            'cold_chain_description' => 'Mtiririko wa maandalizi na utekelezaji ulio wazi unasaidia ubora, ushughulikiaji makini, na uzoefu thabiti zaidi kwa mteja katika kila oda.',
+        ],
     ],
     'faqs' => [
         'eyebrow' => 'Maswali ya mara kwa mara',

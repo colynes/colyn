@@ -21,7 +21,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class CommerceController extends Controller
@@ -310,21 +309,12 @@ class CommerceController extends Controller
 
         $validated = $request->validated();
 
-        if ($request->hasFile('avatar')) {
-            if ($user->avatar) {
-                Storage::disk('public')->delete($user->avatar);
-            }
-
-            $validated['avatar'] = $request->file('avatar')->store('profile', 'public');
-        }
-
         $user->update([
             'name' => $validated['full_name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
             'city' => $validated['city'],
             'country' => $validated['country'],
-            'avatar' => $validated['avatar'] ?? $user->avatar,
         ]);
 
         $customer->update([
@@ -462,7 +452,7 @@ class CommerceController extends Controller
             'display_order_number' => $this->displayOrderNumber($order->order_number),
             'customer' => $includeSensitive ? $order->customer?->full_name : null,
             'status' => $status,
-            'created_at' => optional($order->created_at)->toDayDateTimeString(),
+            'created_at' => optional($order->created_at)->format('D, M j, Y H:i'),
             'total' => (float) $order->total,
             'payment_method' => $includeSensitive ? $order->payment_method : null,
             'is_paid' => $includeSensitive ? (bool) $order->is_paid : null,
@@ -599,9 +589,8 @@ class CommerceController extends Controller
             return;
         }
 
-        User::query()
+        BackofficeAccess::usersQuery()
             ->get()
-            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(fn (User $user) => $user->notify(new SystemAlertNotification([
                 'title' => $title,
                 'message' => $message,

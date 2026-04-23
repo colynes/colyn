@@ -14,12 +14,6 @@ function initialsFor(name) {
 
 export default function ProfileCard({ user, onEdit }) {
   const { t } = useI18n();
-  const avatarContent = user?.avatar_url ? (
-    <img src={user.avatar_url} alt={user.name} className="h-full w-full object-cover" />
-  ) : (
-    <span>{initialsFor(user?.name)}</span>
-  );
-
   const location = [user?.city, user?.country].filter(Boolean).join(', ') || t('frontend.profile_card.no_location', 'No location added');
 
   return (
@@ -36,7 +30,7 @@ export default function ProfileCard({ user, onEdit }) {
 
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-3xl font-black text-gray-700 shadow-sm ring-4 ring-gray-50">
-            {avatarContent}
+            <span>{initialsFor(user?.name)}</span>
           </div>
 
           <div className="min-w-0 flex-1 pr-10">

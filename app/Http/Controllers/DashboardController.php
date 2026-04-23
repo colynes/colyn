@@ -108,7 +108,6 @@ class DashboardController extends Controller
             ->withSum('stocks as reorder_level_total', 'reorder_level')
             ->havingRaw('COALESCE(stock_quantity, 0) <= COALESCE(reorder_level_total, 0)')
             ->orderBy('stock_quantity')
-            ->take(5)
             ->get(['id', 'name', 'unit'])
             ->map(fn (Product $product) => [
                 'id' => $product->id,
@@ -168,7 +167,7 @@ class DashboardController extends Controller
                     'order_number' => $order->order_number,
                     'customer' => $order->customer?->full_name ?: "Customer #{$order->customer_id}",
                     'status' => $this->normalizeOrderStatus($order->status),
-                    'created_at' => optional($order->created_at)->format('h:i A'),
+                    'created_at' => optional($order->created_at)->format('H:i'),
                     'fulfillment_method' => $order->fulfillment_method ?: 'delivery',
                     'is_subscriber_client' => $isSubscriptionOrder,
                     'customer_segment' => $isSubscriptionOrder ? 'Subscriber Client' : 'Regular Client',

@@ -23,6 +23,7 @@ class SubscriptionRequest extends Model
         'frequency',
         'delivery_days',
         'start_date',
+        'end_date',
         'delivery_address',
         'notes',
         'offered_price',
@@ -43,6 +44,7 @@ class SubscriptionRequest extends Model
     protected $casts = [
         'delivery_days' => 'array',
         'start_date' => 'date',
+        'end_date' => 'date',
         'offered_price' => 'decimal:2',
         'quoted_price' => 'decimal:2',
         'quote_valid_until' => 'date',

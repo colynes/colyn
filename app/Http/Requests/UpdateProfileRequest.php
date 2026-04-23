@@ -46,7 +46,6 @@ class UpdateProfileRequest extends FormRequest
             'country' => ['required', 'string', 'max:255'],
             'address' => ['required', 'string', 'max:1000'],
             'postal_code' => ['nullable', 'string', 'max:40'],
-            'avatar' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ];
     }
 }

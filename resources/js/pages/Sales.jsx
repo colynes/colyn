@@ -19,6 +19,7 @@ import {
   YAxis,
 } from 'recharts';
 import { ArrowUpRight, DollarSign, Goal, ShoppingCart, Target, X } from 'lucide-react';
+import { formatCompactAxisValue } from '@/lib/chartFormatters';
 
 const money = (value) => `Tzs ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 0 }).format(value || 0)}`;
 const categoryColors = ['#4d3218', '#d1af77', '#c29b61', '#9e7e4d', '#dfc193'];
@@ -169,9 +170,32 @@ function formatUpdatedAt(value) {
   }
 
   return new Intl.DateTimeFormat('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
   }).format(parsed);
+}
+
+function diffInInclusiveDays(start, end) {
+  if (!start || !end) {
+    return null;
+  }
+
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const difference = Math.floor((endDate.getTime() - startDate.getTime()) / millisecondsPerDay) + 1;
+
+  return difference > 0 ? difference : null;
 }
 
 function FieldError({ message }) {
@@ -447,6 +471,14 @@ export default function Sales({
     setPeriod(filters.period || 'weekly');
   }, [filters.period]);
 
+  const appliedPeriod = filters.period || 'weekly';
+  const customRangeDays = useMemo(
+    () => diffInInclusiveDays(filters.start_date, filters.end_date),
+    [filters.end_date, filters.start_date],
+  );
+  const hideTrendXAxisLabels = appliedPeriod === 'monthly'
+    || (appliedPeriod === 'custom' && customRangeDays !== null && customRangeDays > 7);
+
   const activeNotice = notice || (flash?.error
     ? { type: 'error', text: flash.error }
     : (flash?.success ? { type: 'success', text: flash.success } : null));
@@ -691,8 +723,13 @@ export default function Sales({
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={targetActualTrend} margin={{ top: 10, right: 16, left: -18, bottom: 0 }}>
                     <CartesianGrid stroke="#efe3d4" strokeDasharray="3 5" />
-                    <XAxis dataKey="day" tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
-                    <YAxis tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
+                    <XAxis
+                      dataKey="day"
+                      tick={hideTrendXAxisLabels ? false : { fill: '#74563a', fontSize: 15 }}
+                      axisLine={{ stroke: '#9d7d5f' }}
+                      tickLine={hideTrendXAxisLabels ? false : { stroke: '#9d7d5f' }}
+                    />
+                    <YAxis tickFormatter={formatCompactAxisValue} tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Line type="monotone" dataKey="target" name="Target" stroke="#c5a06a" strokeWidth={3} strokeDasharray="6 6" dot={{ fill: '#c5a06a', strokeWidth: 0, r: 4 }} />
                     <Line type="monotone" dataKey="actual" name="Actual" stroke="#4b311d" strokeWidth={4} dot={{ fill: '#4b311d', strokeWidth: 0, r: 5 }} />
@@ -710,7 +747,7 @@ export default function Sales({
                   <BarChart data={weeklySummary} margin={{ top: 10, right: 16, left: -10, bottom: 0 }}>
                     <CartesianGrid stroke="#efe3d4" strokeDasharray="3 5" />
                     <XAxis dataKey="label" tick={{ fill: '#74563a', fontSize: 12 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
-                    <YAxis tick={{ fill: '#74563a', fontSize: 12 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
+                    <YAxis tickFormatter={formatCompactAxisValue} tick={{ fill: '#74563a', fontSize: 12 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Legend />
                     <Bar dataKey="target" name="Target" fill="#c29b61" radius={[8, 8, 0, 0]} />

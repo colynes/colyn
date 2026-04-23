@@ -5,7 +5,7 @@ import BackofficePagination from '@/components/backoffice/BackofficePagination';
 import BackofficePerPageControl from '@/components/backoffice/BackofficePerPageControl';
 import { Card, CardContent } from '@/components/ui/Card';
 import ConfirmModal from '@/components/ui/ConfirmModal';
-import { Bell, CalendarDays, Eye, Pencil, Plus, Printer, Search, Trash2 } from 'lucide-react';
+import { Bell, CalendarDays, Eye, Pencil, Plus, Printer, Search, Send, Trash2 } from 'lucide-react';
 
 const money = (value) => `Tsh ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 0 }).format(value || 0)}`;
 
@@ -48,6 +48,13 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
 
   const deleteInvoice = (invoice) => {
     router.delete(`/fat-clients/billing/${invoice.id}`, {
+      preserveScroll: true,
+      preserveState: false,
+    });
+  };
+
+  const sendInvoice = (invoice) => {
+    router.patch(`/fat-clients/billing/${invoice.id}/send`, {}, {
       preserveScroll: true,
       preserveState: false,
     });
@@ -191,6 +198,16 @@ export default function Billing({ auth, invoices = [], summary = {}, filters = {
                           >
                             <Printer className="h-5 w-5" strokeWidth={2} />
                           </a>
+                          {['pending', 'draft'].includes(invoice.status) ? (
+                            <button
+                              type="button"
+                              onClick={() => sendInvoice(invoice)}
+                              className="transition hover:text-blue-700"
+                              aria-label={`Mark ${invoice.invoice_number} as sent`}
+                            >
+                              <Send className="h-5 w-5" strokeWidth={2} />
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => setDeletingInvoice(invoice)}

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Customer;
+use App\Models\Invoice;
 use App\Models\Pack;
 use App\Models\Product;
 use App\Models\Subscription;
@@ -17,6 +18,10 @@ use Illuminate\Validation\ValidationException;
 
 class SubscriptionWorkflowService
 {
+    public function __construct(protected SubscriptionPeriodService $periods)
+    {
+    }
+
     public function createRequest(Customer $customer, User $user, array $validated): SubscriptionRequest
     {
         return DB::transaction(function () use ($customer, $user, $validated) {
@@ -24,6 +29,10 @@ class SubscriptionWorkflowService
                 (string) $validated['frequency'],
                 $validated['delivery_days'] ?? [],
                 $validated['start_date'] ?? null,
+            );
+            $period = $this->periods->normalizePeriod(
+                $validated['start_date'] ?? null,
+                $validated['end_date'] ?? null,
             );
 
             $items = $this->buildItemSnapshots($validated['items'] ?? []);
@@ -62,7 +71,8 @@ class SubscriptionWorkflowService
                 'customer_id' => $customer->id,
                 'frequency' => $schedule['frequency'],
                 'delivery_days' => $schedule['delivery_days'],
-                'start_date' => $schedule['start_date']->toDateString(),
+                'start_date' => $period['start_date'],
+                'end_date' => $period['end_date'],
                 'delivery_address' => $validated['delivery_address'],
                 'notes' => $validated['notes'] ?? null,
                 'offered_price' => round((float) $validated['offered_price'], 2),
@@ -137,7 +147,9 @@ class SubscriptionWorkflowService
                 $existing = Subscription::query()->find($request->subscription_id);
 
                 if ($existing) {
-                    return $existing->load(['items.product', 'items.pack']);
+                    $this->ensureInvoiceForSubscription($existing, $request, $customer);
+
+                    return $existing->fresh(['items.product', 'items.pack']);
                 }
             }
 
@@ -148,6 +160,10 @@ class SubscriptionWorkflowService
             }
 
             $startDate = $request->start_date?->copy()->startOfDay() ?? now()->startOfDay();
+            $period = $this->periods->normalizePeriod(
+                $startDate->toDateString(),
+                ($request->end_date?->copy()?->startOfDay() ?? $startDate->copy()->addMonthNoOverflow())->toDateString(),
+            );
             $nextDelivery = SubscriptionScheduler::nextDeliveryDate(
                 (string) $request->frequency,
                 (array) ($request->delivery_days ?? []),
@@ -164,12 +180,15 @@ class SubscriptionWorkflowService
                 'delivery_days' => $request->delivery_days ?? [],
                 'products' => [],
                 'start_date' => $startDate->toDateString(),
+                'end_date' => $period['end_date'],
+                'duration_type' => $period['duration_type'],
+                'duration_days' => $period['duration_days'],
                 'delivery_address' => $request->delivery_address,
                 'notes' => $request->notes,
                 'value' => (float) $request->quoted_price,
                 'agreed_price' => (float) $request->quoted_price,
                 'next_delivery' => $nextDelivery->toDateString(),
-                'status' => Subscription::STATUS_ACTIVE,
+                'status' => Subscription::STATUS_PENDING,
             ]);
 
             $items = $request->items()
@@ -198,13 +217,100 @@ class SubscriptionWorkflowService
                 $this->archiveAncestorRequests($request);
             }
 
+            $this->ensureInvoiceForSubscription($subscription, $request, $customer);
+
             return $subscription->fresh(['items.product', 'items.pack', 'request']);
+        });
+    }
+
+    public function ensureInvoiceForSubscription(Subscription $subscription, ?SubscriptionRequest $request = null, ?Customer $customer = null): Invoice
+    {
+        return DB::transaction(function () use ($subscription, $request, $customer) {
+            $existing = $subscription->invoices()->latest('id')->first();
+
+            if ($existing) {
+                if (strtolower((string) $existing->status) === 'paid'
+                    && $subscription->status !== Subscription::STATUS_CANCELLED) {
+                    $subscription->update(['status' => Subscription::STATUS_ACTIVE]);
+                } elseif (strtolower((string) $existing->status) !== 'paid'
+                    && ! in_array($subscription->status, [Subscription::STATUS_PENDING, Subscription::STATUS_PAUSED, Subscription::STATUS_CANCELLED], true)) {
+                    $subscription->update(['status' => Subscription::STATUS_PENDING]);
+                }
+
+                return $existing->loadMissing(['items.product', 'subscription']);
+            }
+
+            $subscription->loadMissing([
+                'customer.defaultAddress',
+                'items.product',
+                'items.pack',
+                'request.items.product',
+                'request.items.pack',
+            ]);
+
+            $request = $request ?: $subscription->request;
+            $request?->loadMissing(['items.product', 'items.pack']);
+            $customer = $customer ?: $subscription->customer;
+            $customer?->loadMissing('defaultAddress');
+
+            $total = round((float) ($request?->quoted_price ?: $subscription->agreed_price ?: $subscription->value ?: 0), 2);
+            $invoiceItems = $request
+                ? $this->invoiceItemsFromRequest($request, $total)
+                : $this->invoiceItemsFromSubscription($subscription, $total);
+
+            if ($invoiceItems->isEmpty()) {
+                $invoiceItems = collect([$this->summaryInvoiceItem($subscription, $request, $total)]);
+            }
+
+            $subtotal = round((float) $invoiceItems->sum('subtotal'), 2);
+            $total = $total > 0 ? $total : $subtotal;
+            $quoteValidUntil = $request?->quote_valid_until;
+            $dueDate = $quoteValidUntil && $quoteValidUntil->gte(now()->startOfDay())
+                ? $quoteValidUntil->toDateString()
+                : now()->addDays(7)->toDateString();
+            $customerName = $customer?->full_name ?: $subscription->customer_name ?: 'Customer Name';
+            $customerContact = $customer?->phone ?: $subscription->phone ?: $customer?->email ?: $subscription->email ?: 'N/A';
+            $billingAddress = $customer?->address ?: $customer?->defaultAddress?->address_line1 ?: $subscription->delivery_address ?: 'Address';
+            $deliveryAddress = $subscription->delivery_address ?: $billingAddress;
+            $requestLabel = $request?->request_number ? " from {$request->request_number}" : '';
+
+            $invoice = $subscription->invoices()->create([
+                'invoice_number' => $this->generateInvoiceNumber(),
+                'order_id' => null,
+                'invoice_date' => now()->toDateString(),
+                'due_date' => $dueDate,
+                'tin_number' => null,
+                'customer_name' => $customerName,
+                'customer_contact' => $customerContact,
+                'bill_to_address' => $billingAddress,
+                'deliver_to_name' => $customerName,
+                'deliver_to_address' => $deliveryAddress,
+                'customer_city' => $customer?->defaultAddress?->city ?: 'Dar es Salaam, Tanzania',
+                'subtotal' => $subtotal,
+                'tax' => 0,
+                'discount' => 0,
+                'total' => $total,
+                'currency' => 'Tanzanian Shillings',
+                'bank_name' => 'CRDB Bank Tanzania',
+                'account_name' => 'AMANI BREW - Premium Butchery',
+                'account_number' => '0651234567890',
+                'status' => 'pending',
+                'notes' => "Subscription invoice{$requestLabel}. Payment is required before the subscription becomes active.",
+            ]);
+
+            $invoice->items()->createMany($invoiceItems->all());
+
+            if (! in_array($subscription->status, [Subscription::STATUS_PENDING, Subscription::STATUS_PAUSED, Subscription::STATUS_CANCELLED], true)) {
+                $subscription->update(['status' => Subscription::STATUS_PENDING]);
+            }
+
+            return $invoice->fresh(['items.product', 'subscription']);
         });
     }
 
     public function pauseSubscription(Subscription $subscription): Subscription
     {
-        if ($subscription->status !== Subscription::STATUS_ACTIVE) {
+        if ($subscription->status !== Subscription::STATUS_ACTIVE || ! $this->subscriptionHasActivePeriod($subscription)) {
             throw ValidationException::withMessages([
                 'subscription' => ['Only active subscriptions can be paused.'],
             ]);
@@ -223,6 +329,12 @@ class SubscriptionWorkflowService
         if ($subscription->status !== Subscription::STATUS_PAUSED) {
             throw ValidationException::withMessages([
                 'subscription' => ['Only paused subscriptions can be resumed.'],
+            ]);
+        }
+
+        if (! $this->subscriptionHasActivePeriod($subscription)) {
+            throw ValidationException::withMessages([
+                'subscription' => ['This subscription has expired and must be renewed before it can resume.'],
             ]);
         }
 
@@ -262,7 +374,7 @@ class SubscriptionWorkflowService
 
     public function skipNextDelivery(Subscription $subscription): Subscription
     {
-        if ($subscription->status !== Subscription::STATUS_ACTIVE) {
+        if ($subscription->status !== Subscription::STATUS_ACTIVE || ! $this->subscriptionHasActivePeriod($subscription)) {
             throw ValidationException::withMessages([
                 'subscription' => ['Only active subscriptions can skip the next delivery.'],
             ]);
@@ -274,6 +386,12 @@ class SubscriptionWorkflowService
             (array) ($subscription->delivery_days ?? []),
             $anchor->copy()->addDay(),
         );
+
+        if ($subscription->end_date && $next->gt($subscription->end_date->copy()->startOfDay())) {
+            throw ValidationException::withMessages([
+                'subscription' => ['There is no later delivery date within the current subscription period.'],
+            ]);
+        }
 
         $subscription->update([
             'next_delivery' => $next->toDateString(),
@@ -291,11 +409,20 @@ class SubscriptionWorkflowService
             ->update(['status' => SubscriptionRequest::STATUS_EXPIRED]);
     }
 
+    protected function subscriptionHasActivePeriod(Subscription $subscription): bool
+    {
+        $endDate = $subscription->end_date?->copy()?->startOfDay();
+
+        return ! $endDate || $endDate->gte(now()->startOfDay());
+    }
+
     public function previewSubscriptionDates(Subscription $subscription, int $count = 3): Collection
     {
         $status = strtolower((string) $subscription->status);
+        $today = now()->startOfDay();
+        $endDate = $subscription->end_date?->copy()?->startOfDay();
 
-        if ($status === 'cancelled') {
+        if ($status !== 'active' || ($endDate && $endDate->lt($today))) {
             return collect();
         }
 
@@ -303,16 +430,20 @@ class SubscriptionWorkflowService
             ?? $subscription->start_date?->copy()->startOfDay()
             ?? now()->startOfDay();
 
-        if ($anchor->lt(now()->startOfDay())) {
-            $anchor = now()->startOfDay();
+        if ($anchor->lt($today)) {
+            $anchor = $today->copy();
         }
 
-        return $this->previewSchedule(
+        $dates = $this->previewSchedule(
             (string) $subscription->frequency,
             (array) ($subscription->delivery_days ?? []),
             $anchor,
             $count,
         );
+
+        return $endDate
+            ? $dates->filter(fn (Carbon $date) => $date->lte($endDate))->values()
+            : $dates;
     }
 
     public function previewSchedule(string $frequency, array $deliveryDays, mixed $anchor = null, int $count = 3): Collection
@@ -340,8 +471,10 @@ class SubscriptionWorkflowService
     {
         $status = strtolower((string) $subscription->status);
         $price = (float) ($subscription->agreed_price ?: $subscription->value ?: 0);
+        $endDate = $subscription->end_date?->copy()?->startOfDay();
+        $today = now()->startOfDay();
 
-        if ($price <= 0 || $status === 'cancelled' || $status === 'paused') {
+        if ($price <= 0 || $status !== 'active' || ($endDate && $endDate->lt($today))) {
             return [
                 'weekly_deliveries' => 0,
                 'monthly_deliveries' => 0,
@@ -350,7 +483,6 @@ class SubscriptionWorkflowService
             ];
         }
 
-        $today = now()->startOfDay();
         $anchor = $subscription->next_delivery?->copy()->startOfDay()
             ?? $subscription->start_date?->copy()->startOfDay()
             ?? $today->copy();
@@ -359,12 +491,20 @@ class SubscriptionWorkflowService
             $anchor = $today->copy();
         }
 
+        $weeklyEnd = $today->copy()->addDays(6);
+        $monthlyEnd = $today->copy()->addDays(29);
+
+        if ($endDate) {
+            $weeklyEnd = $endDate->lt($weeklyEnd) ? $endDate->copy() : $weeklyEnd;
+            $monthlyEnd = $endDate->lt($monthlyEnd) ? $endDate->copy() : $monthlyEnd;
+        }
+
         $weeklyDeliveries = $this->countOccurrencesWithinWindow(
             (string) $subscription->frequency,
             (array) ($subscription->delivery_days ?? []),
             $anchor->copy(),
             $today->copy(),
-            $today->copy()->addDays(6),
+            $weeklyEnd,
         );
 
         $monthlyDeliveries = $this->countOccurrencesWithinWindow(
@@ -372,7 +512,7 @@ class SubscriptionWorkflowService
             (array) ($subscription->delivery_days ?? []),
             $anchor->copy(),
             $today->copy(),
-            $today->copy()->addDays(29),
+            $monthlyEnd,
         );
 
         return [
@@ -390,6 +530,127 @@ class SubscriptionWorkflowService
         $subscription->update([
             'products' => $this->buildLegacyProductsPayload($items),
         ]);
+    }
+
+    protected function invoiceItemsFromRequest(SubscriptionRequest $request, float $targetTotal): Collection
+    {
+        $items = $request->items
+            ->map(fn (SubscriptionRequestItem $item) => [
+                'product_id' => $item->product_id,
+                'description' => $item->item_name ?: ($item->item_type === 'pack' ? $item->pack?->name : $item->product?->name) ?: 'Subscription item',
+                'quantity' => max(round((float) $item->quantity, 2), 0.01),
+                'unit_price' => round((float) $item->unit_price, 2),
+                'subtotal' => round((float) $item->line_total, 2),
+            ])
+            ->filter(fn (array $item) => filled($item['description']) && $item['quantity'] > 0)
+            ->values();
+
+        return $this->scaleInvoiceItemsToTotal($items, $targetTotal);
+    }
+
+    protected function invoiceItemsFromSubscription(Subscription $subscription, float $targetTotal): Collection
+    {
+        if ($subscription->items->isNotEmpty()) {
+            $items = $subscription->items
+                ->map(fn ($item) => [
+                    'product_id' => $item->product_id,
+                    'description' => $item->item_name ?: ($item->item_type === 'pack' ? $item->pack?->name : $item->product?->name) ?: 'Subscription item',
+                    'quantity' => max(round((float) $item->quantity, 2), 0.01),
+                    'unit_price' => round((float) $item->unit_price, 2),
+                    'subtotal' => round((float) $item->line_total, 2),
+                ])
+                ->filter(fn (array $item) => filled($item['description']) && $item['quantity'] > 0)
+                ->values();
+
+            return $this->scaleInvoiceItemsToTotal($items, $targetTotal);
+        }
+
+        $items = collect($subscription->products ?? [])
+            ->map(function (array $item) {
+                $quantity = max(round((float) ($item['quantity'] ?? 1), 2), 0.01);
+                $unitPrice = round((float) ($item['unit_price'] ?? $item['price'] ?? 0), 2);
+
+                return [
+                    'product_id' => $item['product_id'] ?? null,
+                    'description' => $item['name'] ?? $item['label'] ?? 'Subscription item',
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'subtotal' => round((float) ($item['line_total'] ?? $item['subtotal'] ?? ($quantity * $unitPrice)), 2),
+                ];
+            })
+            ->filter(fn (array $item) => filled($item['description']) && $item['quantity'] > 0)
+            ->values();
+
+        return $this->scaleInvoiceItemsToTotal($items, $targetTotal);
+    }
+
+    protected function scaleInvoiceItemsToTotal(Collection $items, float $targetTotal): Collection
+    {
+        $items = $items->values();
+        $targetTotal = round($targetTotal, 2);
+        $currentTotal = round((float) $items->sum('subtotal'), 2);
+
+        if ($items->isEmpty() || $targetTotal <= 0 || $currentTotal <= 0) {
+            return $currentTotal > 0 ? $items : collect();
+        }
+
+        if (abs($currentTotal - $targetTotal) <= 0.01) {
+            return $items;
+        }
+
+        $remaining = $targetTotal;
+        $lastIndex = $items->count() - 1;
+
+        return $items->map(function (array $item, int $index) use ($currentTotal, $targetTotal, &$remaining, $lastIndex) {
+            $subtotal = $index === $lastIndex
+                ? max(round($remaining, 2), 0)
+                : round($targetTotal * ((float) $item['subtotal'] / $currentTotal), 2);
+            $remaining = round($remaining - $subtotal, 2);
+            $quantity = max(round((float) $item['quantity'], 2), 0.01);
+
+            return [
+                'product_id' => $item['product_id'] ?? null,
+                'description' => $item['description'],
+                'quantity' => $quantity,
+                'unit_price' => round($subtotal / $quantity, 2),
+                'subtotal' => $subtotal,
+            ];
+        })->values();
+    }
+
+    protected function summaryInvoiceItem(Subscription $subscription, ?SubscriptionRequest $request, float $total): array
+    {
+        $description = $request?->request_number
+            ? 'Subscription quote ' . $request->request_number
+            : $this->subscriptionDisplayName($subscription);
+
+        return [
+            'product_id' => null,
+            'description' => $description,
+            'quantity' => 1,
+            'unit_price' => round(max($total, 0), 2),
+            'subtotal' => round(max($total, 0), 2),
+        ];
+    }
+
+    protected function subscriptionDisplayName(Subscription $subscription): string
+    {
+        $subscription->loadMissing('items');
+
+        $names = $subscription->items
+            ->map(fn ($item) => $item->item_name)
+            ->filter()
+            ->values();
+
+        if ($names->isEmpty()) {
+            return 'Subscription #' . $subscription->id;
+        }
+
+        if ($names->count() === 1) {
+            return $names->first();
+        }
+
+        return $names->take(2)->implode(' + ') . ($names->count() > 2 ? ' +' . ($names->count() - 2) . ' more' : '');
     }
 
     protected function countOccurrencesWithinWindow(

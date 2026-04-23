@@ -9,6 +9,7 @@ class Invoice extends Model
     protected $fillable = [
         'invoice_number',
         'order_id',
+        'subscription_id',
         'invoice_date',
         'due_date',
         'tin_number',
@@ -42,6 +43,11 @@ class Invoice extends Model
     public function order()
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function subscription()
+    {
+        return $this->belongsTo(Subscription::class);
     }
 
     public function items()

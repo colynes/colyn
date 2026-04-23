@@ -9,7 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Middleware;
-use Illuminate\Support\Facades\Storage;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -58,8 +57,6 @@ class HandleInertiaRequests extends Middleware
                     'city' => $user->city ?: $defaultAddress?->city,
                     'country' => $user->country ?: 'Tanzania',
                     'address' => $user->customer?->address ?: $defaultAddress?->address_line1,
-                    'avatar' => $user->avatar,
-                    'avatar_url' => $user->avatar ? Storage::disk('public')->url($user->avatar) : null,
                     'role'  => $primaryRole ?: ($user->customer ? 'Customer' : null),
                     'role_key' => $roleKey,
                     'preferred_language' => $user->preferred_language,

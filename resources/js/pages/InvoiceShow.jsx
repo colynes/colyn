@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
-import { Download, Printer } from 'lucide-react';
+import { Printer } from 'lucide-react';
 
 export default function InvoiceShow({ auth, invoice }) {
   return (
@@ -30,13 +30,6 @@ export default function InvoiceShow({ auth, invoice }) {
             >
               <Printer className="h-5 w-5" />
               Print Invoice
-            </a>
-            <a
-              href={invoice.download_url}
-              className="inline-flex items-center gap-3 rounded-[1.05rem] bg-[#4f3118] px-6 py-3.5 text-[1rem] font-semibold text-white transition hover:bg-[#402612]"
-            >
-              <Download className="h-5 w-5" />
-              Download PDF
             </a>
           </div>
         </div>

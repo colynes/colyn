@@ -23,6 +23,7 @@ use App\Notifications\NewOrderPlacedNotification;
 use App\Notifications\OrderStatusUpdatedNotification;
 use App\Notifications\SystemAlertNotification;
 use App\Services\SalesTargetService;
+use App\Services\SubscriptionPeriodService;
 use App\Services\SubscriptionWorkflowService;
 use App\Support\BackofficeAccess;
 use App\Support\SubscriptionScheduler;
@@ -368,56 +369,6 @@ class OperationsController extends Controller
         ]);
     }
 
-    public function exportReportsPdf(Request $request)
-    {
-        $this->ensureBackoffice();
-
-        $report = $this->buildReportPayload($request);
-        $filters = $report['filters'];
-        $results = collect($report['results'] ?? []);
-
-        $lines = [
-            'Amani Brew Reports & Analytics',
-            'Date From: ' . ($filters['date_from'] ?? 'N/A'),
-            'Date To: ' . ($filters['date_to'] ?? 'N/A'),
-            'Customer Type: ' . ($filters['customer_type'] ?: 'All Types'),
-            'Payment Status: ' . ($filters['payment_status'] ?: 'All Status'),
-            'Report Type: ' . ($filters['report_type'] ?: 'All Transactions'),
-            'Total Revenue: Tzs ' . number_format((float) ($report['overview']['total_revenue'] ?? 0), 2),
-            'Total Orders: ' . number_format((int) ($report['overview']['total_orders'] ?? 0)),
-            'Unique Customers: ' . number_format((int) ($report['overview']['unique_customers'] ?? 0)),
-            'Average Order Value: Tzs ' . number_format((float) ($report['overview']['average_order_value'] ?? 0), 2),
-            '',
-            'Report Results',
-        ];
-
-        foreach ($results as $row) {
-            $lines[] = sprintf(
-                '%s | %s | %s (%s) | %s | Tzs %s | %s | %s | %s',
-                $row['order_number'],
-                $row['date'],
-                $row['customer'],
-                $row['customer_type'],
-                $row['description'],
-                number_format((float) $row['amount'], 2),
-                $row['status'],
-                $row['payment'],
-                $row['order_type'],
-            );
-        }
-
-        if ($results->isEmpty()) {
-            $lines[] = 'No report results found for the selected filters.';
-        }
-
-        $pdf = $this->buildSimplePdf($lines);
-
-        return response($pdf, 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="report-' . now()->format('Ymd-His') . '.pdf"',
-        ]);
-    }
-
     protected function buildReportPayload(Request $request): array
     {
         ['period' => $period, 'start' => $startDate, 'end' => $endDate, 'filters' => $periodFilters] = $this->resolveAnalyticsRange($request, 'monthly');
@@ -644,73 +595,6 @@ class OperationsController extends Controller
         return app(SalesTargetService::class)->describeTarget($target);
     }
 
-    protected function buildSimplePdf(array $lines): string
-    {
-        $linesPerPage = 38;
-        $pages = array_chunk($lines, $linesPerPage);
-        $objects = [];
-
-        $objects[] = '<< /Type /Catalog /Pages 2 0 R >>';
-        $objects[] = null;
-        $objects[] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
-
-        $pageObjectNumbers = [];
-        $nextObjectNumber = 4;
-
-        foreach ($pages as $pageLines) {
-            $content = "BT\n/F1 11 Tf\n50 790 Td\n14 TL\n";
-
-            foreach ($pageLines as $lineIndex => $line) {
-                $safeLine = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $line);
-                $content .= sprintf("(%s) Tj\n", $safeLine);
-
-                if ($lineIndex !== count($pageLines) - 1) {
-                    $content .= "T*\n";
-                }
-            }
-
-            $content .= "\nET";
-
-            $contentObjectNumber = $nextObjectNumber++;
-            $pageObjectNumber = $nextObjectNumber++;
-
-            $pageObjectNumbers[] = $pageObjectNumber;
-
-            $objects[] = null;
-            $objects[] = null;
-
-            $objects[$contentObjectNumber - 1] = sprintf("<< /Length %d >>\nstream\n%s\nendstream", strlen($content), $content);
-            $objects[$pageObjectNumber - 1] = sprintf(
-                '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>',
-                $contentObjectNumber
-            );
-        }
-
-        $kids = implode(' ', array_map(fn ($number) => $number . ' 0 R', $pageObjectNumbers));
-        $objects[1] = sprintf('<< /Type /Pages /Kids [ %s ] /Count %d >>', $kids, count($pageObjectNumbers));
-
-        $pdf = "%PDF-1.4\n";
-        $offsets = [0];
-
-        foreach ($objects as $index => $object) {
-            $offsets[$index + 1] = strlen($pdf);
-            $pdf .= ($index + 1) . " 0 obj\n" . $object . "\nendobj\n";
-        }
-
-        $xrefPosition = strlen($pdf);
-        $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
-        $pdf .= "0000000000 65535 f \n";
-
-        for ($i = 1; $i <= count($objects); $i++) {
-            $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
-        }
-
-        $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\n";
-        $pdf .= "startxref\n{$xrefPosition}\n%%EOF";
-
-        return $pdf;
-    }
-
     public function subscriptions()
     {
         $this->ensureBackoffice();
@@ -743,40 +627,51 @@ class OperationsController extends Controller
                 'price' => (float) ($product->currentPrice?->promo_price ?? $product->currentPrice?->price ?? 0),
             ]);
 
+        $periods = app(SubscriptionPeriodService::class);
         $subscriptions = Subscription::query()
+            ->with(['items.product', 'items.pack', 'request'])
             ->latest()
             ->get()
-            ->map(function (Subscription $subscription) {
-                $storedProducts = collect($subscription->products ?? [])
-                    ->map(function ($item, int $index) {
-                        $quantity = (float) ($item['quantity'] ?? 1);
-                        $unit = (string) ($item['unit'] ?? 'pcs');
-                        $name = (string) ($item['name'] ?? 'Product');
+            ->map(function (Subscription $subscription) use ($periods) {
+                $storedProducts = $subscription->items->isNotEmpty()
+                    ? $subscription->items
+                        ->map(function ($item, int $index) {
+                            $quantity = (float) ($item->quantity ?? 1);
+                            $unit = (string) ($item->unit ?? ($item->item_type === 'pack' ? 'pack' : 'pcs'));
+                            $name = (string) ($item->item_name ?: ($item->item_type === 'pack' ? $item->pack?->name : $item->product?->name) ?: 'Product');
 
-                        return [
-                            'id' => $item['id'] ?? ('line-' . $index),
-                            'product_id' => $item['product_id'] ?? null,
-                            'name' => $name,
-                            'quantity' => $quantity,
-                            'unit' => $unit,
-                            'label' => $item['label'] ?? ($name . ' - ' . rtrim(rtrim(number_format($quantity, 2, '.', ''), '0'), '.') . ' ' . $unit),
-                        ];
-                    })
-                    ->values()
-                    ->all();
+                            return [
+                                'id' => $item->id ?? ('item-' . $index),
+                                'product_id' => $item->product_id,
+                                'name' => $name,
+                                'quantity' => $quantity,
+                                'unit' => $unit,
+                                'label' => $name . ' - ' . rtrim(rtrim(number_format($quantity, 2, '.', ''), '0'), '.') . ' ' . $unit,
+                            ];
+                        })
+                        ->values()
+                        ->all()
+                    : collect($subscription->products ?? [])
+                        ->map(function ($item, int $index) {
+                            $quantity = (float) ($item['quantity'] ?? 1);
+                            $unit = (string) ($item['unit'] ?? 'pcs');
+                            $name = (string) ($item['name'] ?? 'Product');
+
+                            return [
+                                'id' => $item['id'] ?? ('line-' . $index),
+                                'product_id' => $item['product_id'] ?? null,
+                                'name' => $name,
+                                'quantity' => $quantity,
+                                'unit' => $unit,
+                                'label' => $item['label'] ?? ($name . ' - ' . rtrim(rtrim(number_format($quantity, 2, '.', ''), '0'), '.') . ' ' . $unit),
+                            ];
+                        })
+                        ->values()
+                        ->all();
 
                 $normalizedDeliveryDays = $this->abbreviateDeliveryDays($subscription->delivery_days ?? []);
-                $nextBaseDate = optional($subscription->next_delivery)?->copy()?->startOfDay() ?? now()->startOfDay();
-
-                if ($nextBaseDate->lt(now()->startOfDay())) {
-                    $nextBaseDate = now()->startOfDay();
-                }
-
-                $nextDeliveryDate = SubscriptionScheduler::nextDeliveryDate(
-                    (string) $subscription->frequency,
-                    $normalizedDeliveryDays,
-                    $nextBaseDate
-                );
+                $status = $periods->displayStatus($subscription);
+                $renewalPreview = $periods->renewalPreview($subscription);
 
                 return [
                     'id' => $subscription->id,
@@ -785,11 +680,21 @@ class OperationsController extends Controller
                     'phone' => $subscription->phone,
                     'email' => $subscription->email,
                     'frequency' => $subscription->frequency,
+                    'start_date' => optional($subscription->start_date)->toDateString(),
+                    'start_date_label' => optional($subscription->start_date)->format('M j, Y') ?: 'N/A',
+                    'end_date' => optional($subscription->end_date)->toDateString(),
+                    'end_date_label' => optional($subscription->end_date)->format('M j, Y') ?: 'N/A',
+                    'duration_type' => $subscription->duration_type,
+                    'duration_days' => $subscription->duration_days,
+                    'duration_label' => $periods->durationLabel($renewalPreview['duration_type'], $renewalPreview['duration_days']),
                     'delivery_days' => $normalizedDeliveryDays,
                     'products' => $storedProducts,
                     'value' => (float) $subscription->value,
-                    'next_delivery' => $nextDeliveryDate->toDateString(),
-                    'status' => $subscription->status,
+                    'next_delivery' => optional($subscription->next_delivery)->toDateString(),
+                    'status' => $status['status'],
+                    'status_tone' => $status['tone'],
+                    'stored_status' => $subscription->status,
+                    'renewal_preview' => $renewalPreview,
                 ];
             });
 
@@ -799,6 +704,7 @@ class OperationsController extends Controller
                 SubscriptionRequest::STATUS_PENDING_REVIEW,
                 SubscriptionRequest::STATUS_QUOTED,
                 SubscriptionRequest::STATUS_REJECTED,
+                SubscriptionRequest::STATUS_EXPIRED,
             ])
             ->latest()
             ->get()
@@ -814,18 +720,19 @@ class OperationsController extends Controller
         ]);
     }
 
-    public function storeSubscription(Request $request)
+    public function storeSubscription(Request $request, SubscriptionWorkflowService $workflow)
     {
         $this->ensureBackoffice();
 
         $validated = $this->validateSubscriptionPayload($request);
 
         $subscription = Subscription::create($validated);
-        $subscription->loadMissing('customer.user');
+        $workflow->ensureInvoiceForSubscription($subscription);
+        $subscription = $subscription->fresh(['customer.user']);
 
         $this->notifyBackofficeAudience([
             'title' => 'New subscription created',
-            'message' => "{$subscription->customer_name} now has a new active subscription.",
+            'message' => "{$subscription->customer_name} now has a new subscription with a pending billing invoice.",
             'kind' => 'subscription_created',
             'status' => strtolower((string) $subscription->status),
             'action_url' => route('fat-clients.subscriptions'),
@@ -837,7 +744,7 @@ class OperationsController extends Controller
         if ($customerUser) {
             $customerUser->notify(new SystemAlertNotification([
                 'title' => 'Subscription created',
-                'message' => 'A new subscription has been created for your account.',
+                'message' => 'A new subscription invoice has been created for your account. Payment is required before activation.',
                 'kind' => 'subscription_created',
                 'status' => strtolower((string) $subscription->status),
                 'action_url' => route('customer.subscriptions.index', ['tab' => 'active']),
@@ -857,6 +764,17 @@ class OperationsController extends Controller
         $subscription->update($validated);
 
         return redirect()->route('fat-clients.subscriptions')->with('success', 'Subscription updated successfully.');
+    }
+
+    public function renewSubscription(Subscription $subscription, SubscriptionPeriodService $periods)
+    {
+        $this->ensureBackoffice();
+
+        $subscription = $periods->renew($subscription);
+
+        return redirect()
+            ->route('fat-clients.subscriptions')
+            ->with('success', "Subscription for {$subscription->customer_name} renewed until " . optional($subscription->end_date)->format('M j, Y') . '.');
     }
 
     public function destroySubscription(Subscription $subscription)
@@ -885,9 +803,9 @@ class OperationsController extends Controller
             'products.*.unit' => ['nullable', 'string', 'max:30'],
             'products.*.label' => ['nullable', 'string', 'max:255'],
             'value' => ['required', 'numeric', 'min:0'],
-            'start_date' => ['nullable', 'date'],
-            'next_delivery' => ['nullable', 'date'],
-            'status' => ['required', 'in:Active,Paused,Inactive'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'status' => ['required', 'in:Pending,Active,Paused,Cancelled,Inactive'],
         ]);
 
         $validated['delivery_days'] = SubscriptionScheduler::normalizeDeliveryDays($validated['delivery_days'] ?? []);
@@ -906,16 +824,21 @@ class OperationsController extends Controller
             ];
         })->values()->all();
 
-        $anchorDate = $validated['start_date'] ?? $validated['next_delivery'] ?? null;
-        $anchor = $anchorDate ? Carbon::parse((string) $anchorDate)->startOfDay() : now()->startOfDay();
+        $period = app(SubscriptionPeriodService::class)->normalizePeriod(
+            $validated['start_date'],
+            $validated['end_date'],
+        );
+        $anchor = Carbon::parse($period['start_date'])->startOfDay();
 
         $validated['next_delivery'] = SubscriptionScheduler::nextDeliveryDate(
             (string) $validated['frequency'],
             $validated['delivery_days'],
             $anchor
         )->toDateString();
-
-        unset($validated['start_date']);
+        $validated['start_date'] = $period['start_date'];
+        $validated['end_date'] = $period['end_date'];
+        $validated['duration_type'] = $period['duration_type'];
+        $validated['duration_days'] = $period['duration_days'];
 
         return $validated;
     }
@@ -946,6 +869,8 @@ class OperationsController extends Controller
             'delivery_days_label' => $this->deliveryDaysLabelForBackoffice($subscriptionRequest->frequency, $subscriptionRequest->delivery_days ?? []),
             'start_date' => optional($subscriptionRequest->start_date)->toDateString(),
             'start_date_label' => optional($subscriptionRequest->start_date)->format('d M Y'),
+            'end_date' => optional($subscriptionRequest->end_date)->toDateString(),
+            'end_date_label' => optional($subscriptionRequest->end_date)->format('d M Y'),
             'delivery_address' => $subscriptionRequest->delivery_address,
             'notes' => $subscriptionRequest->notes,
             'offered_price' => (float) $subscriptionRequest->offered_price,
@@ -1102,13 +1027,15 @@ class OperationsController extends Controller
         $search = trim((string) $request->string('search'));
 
         $invoiceRows = Invoice::query()
-            ->with(['order.customer', 'items.product', 'payments'])
+            ->with(['order.customer', 'subscription.customer', 'subscription.request', 'items.product', 'payments'])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($builder) use ($search) {
                     $builder
                         ->where('invoice_number', 'like', "%{$search}%")
                         ->orWhere('customer_name', 'like', "%{$search}%")
-                        ->orWhereHas('order.customer', fn ($customerQuery) => $customerQuery->where('full_name', 'like', "%{$search}%"));
+                        ->orWhereHas('order.customer', fn ($customerQuery) => $customerQuery->where('full_name', 'like', "%{$search}%"))
+                        ->orWhereHas('subscription.customer', fn ($customerQuery) => $customerQuery->where('full_name', 'like', "%{$search}%"))
+                        ->orWhereHas('subscription.request', fn ($requestQuery) => $requestQuery->where('request_number', 'like', "%{$search}%"));
                 });
             })
             ->orderByDesc('invoices.created_at')
@@ -1120,10 +1047,11 @@ class OperationsController extends Controller
                 return [
                     'id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,
-                    'sub_reference' => $invoice->order?->order_number
-                        ? preg_replace('/^ORD-?/i', 'SUB-', $invoice->order->order_number)
-                        : 'SUB-' . str_pad((string) $invoice->id, 3, '0', STR_PAD_LEFT),
-                    'customer_name' => $invoice->customer_name ?: $invoice->order?->customer?->full_name ?: 'Walk-in customer',
+                    'sub_reference' => $this->invoiceBillingReference($invoice),
+                    'customer_name' => $invoice->customer_name
+                        ?: $invoice->subscription?->customer?->full_name
+                        ?: $invoice->order?->customer?->full_name
+                        ?: 'Walk-in customer',
                     'amount' => (float) $invoice->total,
                     'invoice_date' => optional($invoice->invoice_date)->toDateString(),
                     'due_date' => optional($invoice->due_date)->toDateString(),
@@ -1139,7 +1067,7 @@ class OperationsController extends Controller
 
         $summary = [
             'total_received' => (float) $invoiceRows->where('status', 'paid')->sum('amount'),
-            'pending_payments' => (float) $invoiceRows->where('status', 'pending')->sum('amount'),
+            'pending_payments' => (float) $invoiceRows->whereIn('status', ['pending', 'sent'])->sum('amount'),
             'overdue_payments' => (float) $invoiceRows->where('status', 'overdue')->sum('amount'),
         ];
 
@@ -1153,6 +1081,20 @@ class OperationsController extends Controller
             ],
             'perPageOptions' => $this->allowedPerPageOptions,
         ]);
+    }
+
+    protected function invoiceBillingReference(Invoice $invoice): string
+    {
+        if ($invoice->subscription) {
+            return $invoice->subscription->request?->request_number
+                ?: 'SUB-' . str_pad((string) $invoice->subscription->id, 3, '0', STR_PAD_LEFT);
+        }
+
+        if ($invoice->order?->order_number) {
+            return preg_replace('/^ORD-?/i', 'SUB-', $invoice->order->order_number);
+        }
+
+        return 'SUB-' . str_pad((string) $invoice->id, 3, '0', STR_PAD_LEFT);
     }
 
     public function createInvoice()
@@ -1364,6 +1306,8 @@ class OperationsController extends Controller
                 ]);
             }
 
+            $this->syncSubscriptionStatusFromInvoice($invoice);
+
             return $invoice;
         });
 
@@ -1480,9 +1424,49 @@ class OperationsController extends Controller
             } else {
                 Payment::query()->where('invoice_id', $invoice->id)->delete();
             }
+
+            $this->syncSubscriptionStatusFromInvoice($invoice);
         });
 
         return redirect()->route('fat-clients.billing')->with('success', "Invoice {$invoice->invoice_number} updated successfully.");
+    }
+
+    public function sendInvoice(Invoice $invoice)
+    {
+        $this->ensureBackoffice();
+
+        DB::transaction(function () use ($invoice) {
+            if (strtolower((string) $invoice->status) !== 'paid') {
+                $invoice->update(['status' => 'sent']);
+                $this->syncSubscriptionStatusFromInvoice($invoice);
+            }
+        });
+
+        return redirect()->route('fat-clients.billing')->with('success', "Invoice {$invoice->invoice_number} marked as sent.");
+    }
+
+    protected function syncSubscriptionStatusFromInvoice(Invoice $invoice): void
+    {
+        $invoice->loadMissing('subscription');
+
+        if (! $invoice->subscription) {
+            return;
+        }
+
+        $status = strtolower((string) $invoice->status);
+
+        if ($status === 'paid') {
+            if ($invoice->subscription->status !== Subscription::STATUS_CANCELLED) {
+                $invoice->subscription->update(['status' => Subscription::STATUS_ACTIVE]);
+            }
+
+            return;
+        }
+
+        if (in_array($status, ['draft', 'pending', 'sent', 'overdue'], true)
+            && ! in_array($invoice->subscription->status, [Subscription::STATUS_PAUSED, Subscription::STATUS_CANCELLED], true)) {
+            $invoice->subscription->update(['status' => Subscription::STATUS_PENDING]);
+        }
     }
 
     public function destroyInvoice(Invoice $invoice)
@@ -1502,65 +1486,10 @@ class OperationsController extends Controller
     {
         $this->ensureBackoffice();
 
-        $invoice->load(['items.product', 'payments', 'order.customer']);
+        $invoice->load(['items.product', 'payments', 'order.customer', 'subscription.customer']);
 
         return Inertia::render('InvoiceShow', [
             'invoice' => $this->mapInvoiceDetail($invoice),
-        ]);
-    }
-
-    public function downloadInvoice(Invoice $invoice)
-    {
-        $this->ensureBackoffice();
-
-        $invoice->load(['items.product', 'order.customer']);
-        $details = $this->mapInvoiceDetail($invoice);
-
-        $lines = [
-            'AMANI BREW - INVOICE',
-            'Invoice #: ' . $details['invoice_number'],
-            'Date: ' . $details['invoice_date'],
-            'TIN No: ' . ($details['tin_number'] ?: 'N/A'),
-            'Bill To: ' . $details['customer_name'],
-            'Contact: ' . ($details['customer_contact'] ?: 'N/A'),
-            'Address: ' . $details['bill_to_address'],
-            'Deliver To: ' . $details['deliver_to_name'],
-            'Delivery Address: ' . $details['deliver_to_address'],
-            'City: ' . ($details['customer_city'] ?: 'N/A'),
-            '',
-            'Invoice Items',
-        ];
-
-        foreach ($details['items'] as $index => $item) {
-            $lines[] = sprintf(
-                '%d. %s | Qty %s | Unit Tzs %s | Total Tzs %s',
-                $index + 1,
-                $item['description'],
-                $item['quantity'],
-                number_format((float) $item['unit_price'], 2),
-                number_format((float) $item['subtotal'], 2),
-            );
-        }
-
-        $lines = array_merge($lines, [
-            '',
-            'Subtotal: Tzs ' . number_format((float) $details['subtotal'], 2),
-            'Tax: Tzs ' . number_format((float) $details['tax'], 2),
-            'Discount: Tzs ' . number_format((float) $details['discount'], 2),
-            'Total Due: Tzs ' . number_format((float) $details['total'], 2),
-            '',
-            'Payment Details',
-            'Currency: ' . ($details['currency'] ?: 'Tanzanian Shillings'),
-            'Bank Name: ' . ($details['bank_name'] ?: 'CRDB Bank Tanzania'),
-            'Account Name: ' . ($details['account_name'] ?: 'AMANI BREW - Premium Butchery'),
-            'Account No: ' . ($details['account_number'] ?: '0651234567890'),
-        ]);
-
-        $pdf = $this->buildSimplePdf($lines);
-
-        return response($pdf, 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="' . $invoice->invoice_number . '.pdf"',
         ]);
     }
 
@@ -1574,10 +1503,13 @@ class OperationsController extends Controller
             'invoice_date' => optional($invoice->invoice_date)->format('d/m/Y'),
             'due_date' => optional($invoice->due_date)->toDateString(),
             'tin_number' => $invoice->tin_number,
-            'customer_name' => $invoice->customer_name ?: $invoice->order?->customer?->full_name ?: 'Customer Name',
+            'customer_name' => $invoice->customer_name
+                ?: $invoice->subscription?->customer?->full_name
+                ?: $invoice->order?->customer?->full_name
+                ?: 'Customer Name',
             'customer_contact' => $invoice->customer_contact,
             'bill_to_address' => $invoice->bill_to_address,
-            'deliver_to_name' => $invoice->deliver_to_name ?: $invoice->customer_name,
+            'deliver_to_name' => $invoice->deliver_to_name ?: $invoice->customer_name ?: $invoice->subscription?->customer?->full_name,
             'deliver_to_address' => $invoice->deliver_to_address,
             'customer_city' => $invoice->customer_city,
             'subtotal' => (float) $invoice->subtotal,
@@ -2544,10 +2476,10 @@ class OperationsController extends Controller
             return;
         }
 
-        User::query()
-            ->when($excludeUserId, fn ($query) => $query->where('id', '!=', $excludeUserId))
+        BackofficeAccess::applyToUserQuery(
+            User::query()->when($excludeUserId, fn ($query) => $query->where('id', '!=', $excludeUserId))
+        )
             ->get()
-            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(fn (User $user) => $user->notify(new NewOrderPlacedNotification($order)));
     }
 
@@ -2696,9 +2628,8 @@ class OperationsController extends Controller
             return;
         }
 
-        User::query()
+        BackofficeAccess::usersQuery()
             ->get()
-            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(fn (User $user) => $user->notify(new SystemAlertNotification($payload)));
     }
 }

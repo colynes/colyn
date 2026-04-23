@@ -17,7 +17,6 @@ import {
   CalendarDays,
   DollarSign,
   Download,
-  FileText,
   Filter,
   Printer,
   ReceiptText,
@@ -26,6 +25,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
+import { formatCompactAxisValue } from '@/lib/chartFormatters';
 
 const money = (value) => new Intl.NumberFormat('en-TZ', {
   style: 'currency',
@@ -34,8 +34,13 @@ const money = (value) => new Intl.NumberFormat('en-TZ', {
 }).format(value || 0);
 
 const formatPrintedAt = (date = new Date()) => new Intl.DateTimeFormat('en-TZ', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  hourCycle: 'h23',
 }).format(date);
 
 const formatPaymentReportLabel = (row) => {
@@ -176,7 +181,6 @@ export default function Reports({
 
   const query = params.toString();
   const csvHref = `/reports/export/csv${query ? `?${query}` : ''}`;
-  const pdfHref = `/reports/export/pdf${query ? `?${query}` : ''}`;
 
   return (
     <AppLayout user={auth?.user}>
@@ -261,12 +265,11 @@ export default function Reports({
 
           .reports-print-header {
             position: relative !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+            display: block !important;
             box-sizing: border-box !important;
-            height: calc(68px + 1.6cm) !important;
-            padding: 0.8cm 28px !important;
+            height: auto !important;
+            min-height: 116px !important;
+            padding: 24px 32px !important;
             border-bottom: 1px solid #cdbda9 !important;
             background: #f7f1e8 !important;
             text-align: center !important;
@@ -275,10 +278,10 @@ export default function Reports({
           .reports-print-logo {
             position: absolute !important;
             left: 28px !important;
-            top: 0.8cm !important;
+            top: 50% !important;
             width: 68px !important;
             height: 68px !important;
-            transform: none !important;
+            transform: translateY(-50%) !important;
             object-fit: contain !important;
             box-sizing: border-box !important;
             padding: 6px !important;
@@ -445,13 +448,6 @@ export default function Reports({
             >
               <Download className="h-5 w-5" />
               CSV
-            </a>
-            <a
-              href={pdfHref}
-              className="inline-flex items-center gap-3 rounded-[1.05rem] border border-[#dcccba] bg-white px-5 py-3 text-[1.05rem] font-semibold text-[#4f3118] transition hover:bg-[#faf6f1]"
-            >
-              <FileText className="h-5 w-5" />
-              PDF
             </a>
             <button
               type="button"
@@ -623,7 +619,7 @@ export default function Reports({
                   <LineChart data={targetActualTrend} margin={{ top: 10, right: 16, left: -18, bottom: 0 }}>
                     <CartesianGrid stroke="#efe3d4" strokeDasharray="3 5" />
                     <XAxis dataKey="label" tick={{ fill: '#74563a', fontSize: 13 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
-                    <YAxis tick={{ fill: '#74563a', fontSize: 13 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
+                    <YAxis tickFormatter={formatCompactAxisValue} tick={{ fill: '#74563a', fontSize: 13 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Line type="monotone" dataKey="target" name="Target" stroke="#c5a06a" strokeWidth={3} strokeDasharray="6 6" dot={{ fill: '#c5a06a', strokeWidth: 0, r: 4 }} />
                     <Line type="monotone" dataKey="actual" name="Actual" stroke="#4b311d" strokeWidth={4} dot={{ fill: '#4b311d', strokeWidth: 0, r: 5 }} />
@@ -641,7 +637,7 @@ export default function Reports({
                   <BarChart data={weeklyPerformance} margin={{ top: 10, right: 16, left: -8, bottom: 0 }}>
                     <CartesianGrid stroke="#efe3d4" strokeDasharray="3 5" />
                     <XAxis dataKey="label" tick={{ fill: '#74563a', fontSize: 12 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
-                    <YAxis tick={{ fill: '#74563a', fontSize: 12 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
+                    <YAxis tickFormatter={formatCompactAxisValue} tick={{ fill: '#74563a', fontSize: 12 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Legend />
                     <Bar dataKey="target" name="Target" fill="#c5a06a" radius={[8, 8, 0, 0]} />

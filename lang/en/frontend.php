@@ -387,7 +387,7 @@ $translations = [
             'staff_login' => 'Staff Login',
             'customer_signup' => 'Customer Signup',
             'location' => 'Dar es Salaam, Tanzania',
-            'hours' => 'Mon - Sat, 7:00 AM - 7:00 PM',
+            'hours' => 'Mon - Sat, 07:00 - 19:00',
             'delivery_pickup_available' => 'Delivery and pickup available',
         ],
     ],

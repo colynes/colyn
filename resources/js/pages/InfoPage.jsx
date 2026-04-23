@@ -125,6 +125,99 @@ function HelpfulLinksSection({ pageKey, homeHref, t, centered = false }) {
   );
 }
 
+function BrandVisualPanel({
+  icon: Icon,
+  eyebrow,
+  title,
+  description,
+  items = [],
+  tone = 'light',
+  className = '',
+}) {
+  const isDark = tone === 'dark';
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-[2rem] ${
+        isDark
+          ? 'bg-[#2f1d19] text-white ring-1 ring-white/10'
+          : 'bg-[#fffaf4] text-[#241816] ring-1 ring-[#eadfd4]'
+      } ${className}`}
+    >
+      <div
+        className={`absolute inset-0 ${
+          isDark
+            ? 'bg-[linear-gradient(145deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0)_72%)]'
+            : 'bg-[linear-gradient(145deg,rgba(122,31,40,0.08)_0%,rgba(255,255,255,0)_72%)]'
+        }`}
+      />
+
+      <div className="relative flex h-full flex-col justify-between p-6 sm:p-8">
+        <div>
+          <span
+            className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl ${
+              isDark ? 'bg-white/10 text-[#f3dfca]' : 'bg-[#3b241d] text-white'
+            }`}
+          >
+            <Icon size={24} />
+          </span>
+
+          {eyebrow ? (
+            <p className={`mt-6 text-xs font-semibold uppercase tracking-[0.22em] ${isDark ? 'text-[#d8b48a]' : 'text-[#8b6a46]'}`}>
+              {eyebrow}
+            </p>
+          ) : null}
+
+          <h3 className={`mt-3 text-2xl font-black leading-tight ${isDark ? 'text-white' : 'text-[#241816]'}`}>
+            {title}
+          </h3>
+
+          {description ? (
+            <p className={`mt-4 text-sm leading-7 ${isDark ? 'text-[#eaded3]' : 'text-[#6f5d57]'}`}>
+              {description}
+            </p>
+          ) : null}
+        </div>
+
+        {items.length ? (
+          <div className="mt-8 grid gap-3 sm:grid-cols-2">
+            {items.map((item) => {
+              const ItemIcon = item.icon || Icon;
+
+              return (
+                <div
+                  key={`${item.label}-${item.value}`}
+                  className={`rounded-[1.35rem] p-4 ${
+                    isDark ? 'bg-white/8 ring-1 ring-white/10' : 'bg-white shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+                        isDark ? 'bg-white/10 text-[#f3dfca]' : 'bg-[#f5eadb] text-[#7a1f28]'
+                      }`}
+                    >
+                      <ItemIcon size={18} />
+                    </span>
+                    <div>
+                      <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isDark ? 'text-[#d8b48a]' : 'text-[#8b6a46]'}`}>
+                        {item.label}
+                      </p>
+                      <p className={`mt-2 text-sm font-bold leading-6 ${isDark ? 'text-white' : 'text-[#241816]'}`}>
+                        {item.value}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function AboutInfoPage({
   pageContent,
   highlights,
@@ -153,17 +246,17 @@ function AboutInfoPage({
 
   const imageStories = [
     {
-      src: '/images/premium%20cuts.jpeg',
+      icon: ShoppingBag,
       title: t('info_pages.about.image_story.quality_title', 'Premium cuts'),
       description: t('info_pages.about.image_story.quality_description', 'Focused selection and clear product details before checkout.'),
     },
     {
-      src: '/images/delivery.jpeg',
+      icon: Truck,
       title: t('info_pages.about.image_story.delivery_title', 'Reliable delivery'),
       description: t('info_pages.about.image_story.delivery_description', 'Order handling built around timing, location, and customer updates.'),
     },
     {
-      src: '/images/cold%20chain.jpeg',
+      icon: ShieldCheck,
       title: t('info_pages.about.image_story.cold_chain_title', 'Fresh handling'),
       description: t('info_pages.about.image_story.cold_chain_description', 'A practical flow from preparation to fulfillment.'),
     },
@@ -187,16 +280,17 @@ function AboutInfoPage({
     },
   ];
 
+  const servicePreviewItems = heroStats.map((stat) => ({
+    label: stat.label,
+    value: stat.value,
+    icon: stat.icon,
+  }));
+
   return (
     <StoreLayout showLiveCart={false}>
       <div className="space-y-12">
         <section className="relative min-h-[34rem] overflow-hidden rounded-[2rem] bg-[#241816] text-white shadow-[0_28px_80px_rgba(36,24,22,0.22)]">
-          <img
-            src="/images/master%20butcher.jpeg"
-            alt={t('info_pages.about.hero_image_alt', 'Amani Brew preparation team')}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(36,24,22,0.88)_0%,rgba(36,24,22,0.64)_46%,rgba(36,24,22,0.14)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_58%)]" />
 
           <div className="relative flex min-h-[34rem] flex-col justify-between px-6 py-8 sm:px-10 lg:px-12">
             <div className="flex items-center gap-3">
@@ -287,11 +381,17 @@ function AboutInfoPage({
         </section>
 
         <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
-          <div className="overflow-hidden rounded-[2rem]">
-            <img
-              src="/images/afrm%20to%20table.jpeg"
-              alt={t('info_pages.about.market_image_alt', 'Fresh Amani Brew products')}
-              className="h-full min-h-[28rem] w-full object-cover"
+          <div className="min-h-[28rem]">
+            <BrandVisualPanel
+              icon={PackageCheck}
+              eyebrow={t('info_pages.about.promise_eyebrow', 'What guides us')}
+              title={t('info_pages.about.promise_panel_title', 'An ordering experience designed to stay clear.')}
+              description={t(
+                'info_pages.about.story_description',
+                'Amani Brew connects product visibility, order control, pickup planning, and delivery support in one customer flow so every order feels clear before it is confirmed.',
+              )}
+              items={servicePreviewItems}
+              className="h-full min-h-[28rem]"
             />
           </div>
 
@@ -336,15 +436,23 @@ function AboutInfoPage({
           </div>
 
           <div className="mt-7 grid gap-5 md:grid-cols-3">
-            {imageStories.map((story) => (
+            {imageStories.map((story) => {
+              const Icon = story.icon;
+
+              return (
               <article key={story.title} className="overflow-hidden rounded-[1.6rem] border border-[#eadfd4] bg-white shadow-sm">
-                <img src={story.src} alt={story.title} className="h-52 w-full object-cover" />
+                <div className="flex h-36 items-center justify-center bg-[#2f1d19] p-5">
+                  <span className="inline-flex h-20 w-20 items-center justify-center rounded-[1.4rem] bg-white/10 text-[#f3dfca]">
+                    <Icon size={36} />
+                  </span>
+                </div>
                 <div className="p-5">
                   <h3 className="text-lg font-black text-[#241816]">{story.title}</h3>
                   <p className="mt-2 text-sm leading-7 text-[#6f5d57]">{story.description}</p>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -617,7 +725,6 @@ function FooterInfoHeroPage({
 }) {
   const pageConfig = {
     contact: {
-      image: '/images/delivery.jpeg',
       icon: Headset,
       eyebrow: t('info_pages.contact.design_eyebrow', 'Customer support'),
       badge: t('customer_footer.links.contact', 'Contact Us'),
@@ -644,7 +751,6 @@ function FooterInfoHeroPage({
       secondaryLabel: t('info_pages.contact.email_us', 'Email us'),
     },
     delivery: {
-      image: '/images/cold%20chain.jpeg',
       icon: Truck,
       eyebrow: t('info_pages.delivery.design_eyebrow', 'Fulfillment guide'),
       badge: t('customer_footer.links.delivery', 'Delivery Information'),
@@ -672,17 +778,34 @@ function FooterInfoHeroPage({
     },
   }[pageKey] || {};
 
+  const heroVisualDescription = pageKey === 'contact'
+    ? t('info_pages.contact.design_description', 'Reach the team through the channel that fits your request and timing.')
+    : t('info_pages.delivery.design_description', 'Review delivery, pickup, and order updates before checkout.');
+  const heroVisualItems = (pageConfig.statCards || []).map((item) => ({
+    label: item.label,
+    value: item.value,
+    icon: item.icon,
+  }));
+  const deliveryFlowItems = sections.slice(0, 3).map((section, index) => ({
+    label: `${t('info_pages.delivery.step_label', 'Step')} ${index + 1}`,
+    value: section.title,
+    icon: [Truck, CalendarClock, ClipboardList][index] || ClipboardList,
+  }));
+
   return (
     <StoreLayout showLiveCart={false}>
       <div className="space-y-12">
         <section className="grid overflow-hidden rounded-[2rem] bg-[#241816] text-white shadow-[0_28px_80px_rgba(36,24,22,0.2)] lg:grid-cols-[0.92fr_1.08fr]">
-          <div className="relative min-h-[23rem] lg:min-h-[36rem]">
-            <img
-              src={pageConfig.image}
-              alt={pageConfig.badge}
-              className="absolute inset-0 h-full w-full object-cover"
+          <div className="min-h-[23rem] lg:min-h-[36rem]">
+            <BrandVisualPanel
+              icon={pageConfig.icon || Headset}
+              eyebrow={pageConfig.eyebrow}
+              title={pageConfig.badge}
+              description={heroVisualDescription}
+              items={heroVisualItems}
+              tone="dark"
+              className="h-full min-h-[23rem] rounded-none ring-0 lg:min-h-[36rem]"
             />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(36,24,22,0.08)_0%,rgba(36,24,22,0.62)_100%)]" />
           </div>
 
           <div className="flex flex-col justify-between p-6 sm:p-8 lg:p-10">
@@ -794,11 +917,14 @@ function FooterInfoHeroPage({
 
         {pageKey === 'delivery' ? (
           <section className="grid gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
-            <div className="overflow-hidden rounded-[2rem]">
-              <img
-                src="/images/afrm%20to%20table.jpeg"
-                alt={t('info_pages.delivery.flow_image_alt', 'Amani Brew fulfillment')}
-                className="h-full min-h-[30rem] w-full object-cover"
+            <div className="min-h-[30rem]">
+              <BrandVisualPanel
+                icon={Truck}
+                eyebrow={t('info_pages.delivery.flow_eyebrow', 'Fulfillment flow')}
+                title={t('info_pages.delivery.flow_panel_title', 'A simple path from order review to doorstep.')}
+                description={t('info_pages.delivery.flow_panel_description', 'Every subscription or one-time order follows the same clear delivery checkpoints.')}
+                items={deliveryFlowItems}
+                className="h-full min-h-[30rem]"
               />
             </div>
 
@@ -859,7 +985,7 @@ export default function InfoPage({ pageKey = 'about' }) {
     pickupHours,
     localeTag,
     daysLabel: t('customer_footer.contact.hours_days', 'Mon - Sat'),
-  }) || t('customer_footer.contact.hours_value', 'Mon - Sat, 7:00 AM - 7:00 PM');
+  }) || t('customer_footer.contact.hours_value', 'Mon - Sat, 07:00 - 19:00');
 
   if (pageKey === 'about') {
     return (

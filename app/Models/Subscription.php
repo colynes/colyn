@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Subscription extends Model
 {
+    public const STATUS_PENDING = 'Pending';
     public const STATUS_ACTIVE = 'Active';
     public const STATUS_PAUSED = 'Paused';
     public const STATUS_CANCELLED = 'Cancelled';
+    public const STATUS_EXPIRED = 'Expired';
 
     protected $fillable = [
         'customer_id',
@@ -20,6 +22,9 @@ class Subscription extends Model
         'delivery_days',
         'products',
         'start_date',
+        'end_date',
+        'duration_type',
+        'duration_days',
         'delivery_address',
         'notes',
         'value',
@@ -34,6 +39,8 @@ class Subscription extends Model
         'delivery_days' => 'array',
         'products' => 'array',
         'start_date' => 'date',
+        'end_date' => 'date',
+        'duration_days' => 'integer',
         'value' => 'decimal:2',
         'agreed_price' => 'decimal:2',
         'next_delivery' => 'date',
@@ -59,5 +66,10 @@ class Subscription extends Model
     public function orderLogs()
     {
         return $this->hasMany(SubscriptionOrderLog::class);
+    }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
     }
 }

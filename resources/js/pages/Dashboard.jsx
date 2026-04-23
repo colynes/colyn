@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/AppLayout';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -23,6 +23,7 @@ import {
   ShoppingCart,
   Truck,
 } from 'lucide-react';
+import { formatCompactAxisValue } from '@/lib/chartFormatters';
 
 const money = (value) => `Tzs ${new Intl.NumberFormat('en-TZ', { maximumFractionDigits: 0 }).format(value || 0)}`;
 
@@ -63,6 +64,8 @@ const clearBrowserSelection = () => {
 
   window.getSelection?.()?.removeAllRanges();
 };
+
+const MOBILE_DOUBLE_TAP_WINDOW_MS = 350;
 
 function ChartTooltip({ active, payload, label, formatter = money }) {
   if (!active || !payload?.length) {
@@ -105,10 +108,40 @@ function StatCard({ icon: Icon, value, label, change, changeSuffix = '%', iconCl
   );
 }
 
-function PendingOrdersModal({ open, onClose, dateLabel, orders, onViewOrder }) {
+function PendingOrdersModal({ open, onClose, dateLabel, orders, onViewOrder, isSmallScreen }) {
+  const lastTapRef = useRef({ orderId: null, at: 0 });
+
+  useEffect(() => {
+    if (!open) {
+      lastTapRef.current = { orderId: null, at: 0 };
+    }
+  }, [open]);
+
   if (!open) {
     return null;
   }
+
+  const openOrder = (order) => {
+    clearBrowserSelection();
+    onViewOrder(order);
+  };
+
+  const handleMobileTap = (order) => {
+    if (!isSmallScreen) {
+      return;
+    }
+
+    const now = Date.now();
+    const previousTap = lastTapRef.current;
+
+    if (previousTap.orderId === order.id && (now - previousTap.at) <= MOBILE_DOUBLE_TAP_WINDOW_MS) {
+      lastTapRef.current = { orderId: null, at: 0 };
+      openOrder(order);
+      return;
+    }
+
+    lastTapRef.current = { orderId: order.id, at: now };
+  };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-6">
@@ -133,12 +166,18 @@ function PendingOrdersModal({ open, onClose, dateLabel, orders, onViewOrder }) {
               {orders.length > 0 ? orders.map((order) => (
                 <div
                   key={order.id}
-                  onDoubleClick={() => {
-                    clearBrowserSelection();
-                    onViewOrder(order);
+                  onDoubleClick={() => openOrder(order)}
+                  onClick={() => handleMobileTap(order)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openOrder(order);
+                    }
                   }}
+                  role="button"
+                  tabIndex={0}
                   className="cursor-pointer select-none rounded-[1.35rem] border border-[#e3d2bc] bg-[#f9f5ef] px-5 py-5 transition hover:border-[#ceb08d] hover:bg-[#f6efe6]"
-                  title="Double-click to view order"
+                  title={isSmallScreen ? 'Double-tap to open order and dispatch it' : 'Double-click to view order'}
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -286,6 +325,32 @@ export default function Dashboard({
 }) {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedPendingOrder, setSelectedPendingOrder] = useState(null);
+  const [isSmallScreen, setIsSmallScreen] = useState(() => (
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false
+  ));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateViewportState = (event) => {
+      setIsSmallScreen(event.matches);
+    };
+
+    setIsSmallScreen(mediaQuery.matches);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', updateViewportState);
+
+      return () => mediaQuery.removeEventListener('change', updateViewportState);
+    }
+
+    mediaQuery.addListener(updateViewportState);
+
+    return () => mediaQuery.removeListener(updateViewportState);
+  }, []);
 
   useEffect(() => {
     const handleIncomingNotification = (event) => {
@@ -369,6 +434,7 @@ export default function Dashboard({
           dateLabel={scheduleDateLabel}
           orders={todaysPendingOrders}
           onViewOrder={setSelectedPendingOrder}
+          isSmallScreen={isSmallScreen}
         />
         <PendingOrderViewModal order={selectedPendingOrder} onClose={() => setSelectedPendingOrder(null)} />
 
@@ -410,7 +476,7 @@ export default function Dashboard({
           ))}
         </div>
 
-        <div className="grid gap-8 xl:grid-cols-2">
+        <div className="grid items-start gap-8 xl:grid-cols-2">
           <Card className="rounded-[1.75rem] border border-[#eadcca] bg-white shadow-none">
             <CardContent className="p-7">
               <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Weekly Sales: Target vs Actual</h2>
@@ -419,7 +485,7 @@ export default function Dashboard({
                   <LineChart data={salesTrend} margin={{ top: 10, right: 16, left: -18, bottom: 0 }}>
                     <CartesianGrid stroke="#efe3d4" strokeDasharray="3 5" />
                     <XAxis dataKey="day" tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
-                    <YAxis tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
+                    <YAxis tickFormatter={formatCompactAxisValue} tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Line
                       type="monotone"
@@ -454,7 +520,7 @@ export default function Dashboard({
                   <BarChart data={productTrend} margin={{ top: 10, right: 16, left: -18, bottom: 0 }} barGap={10}>
                     <CartesianGrid stroke="#efe3d4" strokeDasharray="3 5" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
-                    <YAxis tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
+                    <YAxis tickFormatter={formatCompactAxisValue} tick={{ fill: '#74563a', fontSize: 15 }} axisLine={{ stroke: '#9d7d5f' }} tickLine={{ stroke: '#9d7d5f' }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="target" name="Target" fill="#c5a06a" radius={[8, 8, 0, 0]} />
                     <Bar dataKey="actual" name="Actual" fill="#4b311d" radius={[8, 8, 0, 0]} />
@@ -466,41 +532,43 @@ export default function Dashboard({
         </div>
 
         <div className="grid gap-8 xl:grid-cols-2">
-          <Card className="rounded-[1.75rem] border border-[#eadcca] bg-white shadow-none">
-            <CardContent className="p-7">
+          <Card className="rounded-[1.75rem] border border-[#eadcca] bg-white shadow-none xl:h-[54rem]">
+            <CardContent className="flex h-full min-h-0 flex-col p-7">
               <div className="flex items-center gap-3">
                 <AlertCircle className="h-6 w-6 text-[#ff5c00]" />
                 <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Low Stock Alert</h2>
               </div>
-              <div className="mt-6 space-y-4">
-                {lowStock.length > 0 ? lowStock.map((product) => (
-                  <div key={product.id} className="flex items-center justify-between gap-4 rounded-[1.35rem] bg-[#efe4d3] px-5 py-5">
-                    <div>
-                      <p className="text-[1.1rem] font-medium text-[#352314]">{product.name}</p>
-                      <p className="mt-1 text-lg text-[#72563a]">
-                        {new Intl.NumberFormat('en-TZ').format(product.stock_quantity)} {product.unit} remaining
-                      </p>
-                      <p className="mt-1 text-sm text-[#8b6a46]">
-                        Alert level: {new Intl.NumberFormat('en-TZ').format(product.alert_level || 0)} {product.unit}
-                      </p>
+              <div className="mt-6 min-h-0 flex-1 overflow-y-auto pr-2">
+                <div className="space-y-4 pb-2">
+                  {lowStock.length > 0 ? lowStock.map((product) => (
+                    <div key={product.id} className="flex items-center justify-between gap-4 rounded-[1.35rem] bg-[#efe4d3] px-5 py-4">
+                      <div>
+                        <p className="text-[1.1rem] font-medium text-[#352314]">{product.name}</p>
+                        <p className="mt-1 text-lg text-[#72563a]">
+                          {new Intl.NumberFormat('en-TZ').format(product.stock_quantity)} {product.unit} remaining
+                        </p>
+                        <p className="mt-1 text-sm text-[#8b6a46]">
+                          Alert level: {new Intl.NumberFormat('en-TZ').format(product.alert_level || 0)} {product.unit}
+                        </p>
+                      </div>
+                      <Link
+                        href="/inventory/products"
+                        className="inline-flex items-center rounded-2xl bg-[#4f3118] px-6 py-3 text-lg font-semibold text-white transition hover:bg-[#402612]"
+                      >
+                        Restock
+                      </Link>
                     </div>
-                    <Link
-                      href="/inventory/products"
-                      className="inline-flex items-center rounded-2xl bg-[#4f3118] px-6 py-3 text-lg font-semibold text-white transition hover:bg-[#402612]"
-                    >
-                      Restock
-                    </Link>
-                  </div>
-                )) : (
-                  <div className="rounded-[1.35rem] bg-[#f6efe7] px-5 py-6 text-lg text-[#6b513a]">
-                    No stock alerts right now.
-                  </div>
-                )}
+                  )) : (
+                    <div className="rounded-[1.35rem] bg-[#f6efe7] px-5 py-6 text-lg text-[#6b513a]">
+                      No stock alerts right now.
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="rounded-[1.75rem] border border-[#eadcca] bg-white shadow-none">
+          <Card className="rounded-[1.75rem] border border-[#eadcca] bg-white shadow-none xl:h-[54rem]">
             <CardContent className="p-7">
               <h2 className="text-[2rem] font-semibold tracking-[-0.03em] text-[#3a2513]">Recent Orders</h2>
               <div className="mt-6 space-y-4">

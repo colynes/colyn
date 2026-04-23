@@ -654,9 +654,8 @@ class CheckoutController extends Controller
             return;
         }
 
-        User::query()
+        BackofficeAccess::usersQuery()
             ->get()
-            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(fn (User $user) => $user->notify(new NewOrderPlacedNotification($order)));
     }
 }

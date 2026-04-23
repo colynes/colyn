@@ -9,9 +9,10 @@ export function formatStoreTime(value, localeTag = 'en-TZ') {
   const date = new Date(Date.UTC(2000, 0, 1, Number(hours), Number(minutes)));
 
   return new Intl.DateTimeFormat(localeTag, {
-    hour: 'numeric',
+    hour: '2-digit',
     minute: '2-digit',
-    hour12: true,
+    hour12: false,
+    hourCycle: 'h23',
     timeZone: 'UTC',
   }).format(date);
 }

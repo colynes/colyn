@@ -13,6 +13,7 @@ use App\Models\SubscriptionRequest;
 use App\Models\SubscriptionRequestItem;
 use App\Models\User;
 use App\Notifications\SystemAlertNotification;
+use App\Support\BackofficeAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -255,7 +256,7 @@ class ProductController extends Controller
             ? $product->name . ' is now out of stock.'
             : $product->name . ' stock is running low.';
 
-        User::role(['administrator', 'admin', 'manager', 'staff', 'Administrator', 'Manager', 'Staff'])
+        BackofficeAccess::usersQuery()
             ->get()
             ->each(fn (User $user) => $user->notify(new SystemAlertNotification([
                 'title' => $title,

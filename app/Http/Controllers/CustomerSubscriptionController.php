@@ -10,6 +10,7 @@ use App\Models\SubscriptionItem;
 use App\Models\SubscriptionRequest;
 use App\Models\SubscriptionRequestItem;
 use App\Models\User;
+use App\Services\SubscriptionPeriodService;
 use App\Services\SubscriptionWorkflowService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +22,10 @@ use Inertia\Response;
 
 class CustomerSubscriptionController extends Controller
 {
-    public function __construct(protected SubscriptionWorkflowService $workflow)
+    public function __construct(
+        protected SubscriptionWorkflowService $workflow,
+        protected SubscriptionPeriodService $periods,
+    )
     {
     }
 
@@ -54,7 +58,7 @@ class CustomerSubscriptionController extends Controller
         $requestPayload = $requests->map(fn (SubscriptionRequest $subscriptionRequest) => $this->mapRequest($subscriptionRequest))->values();
         $subscriptionPayload = $subscriptions->map(fn (Subscription $subscription) => $this->mapSubscription($subscription))->values();
         $upcomingDeliveries = $subscriptions
-            ->filter(fn (Subscription $subscription) => strtolower((string) $subscription->status) === 'active')
+            ->filter(fn (Subscription $subscription) => $this->periods->displayStatus($subscription)['status'] === Subscription::STATUS_ACTIVE)
             ->flatMap(fn (Subscription $subscription) => $this->mapUpcomingDeliveries($subscription, 4))
             ->sortBy('delivery_date')
             ->values()
@@ -126,7 +130,7 @@ class CustomerSubscriptionController extends Controller
 
         $subscription = $this->workflow->pauseSubscription($subscription);
 
-        return $this->actionResponse($request, 'Subscription paused successfully.', [
+        return $this->actionResponse($request, __('ui.store.subscriptions.messages.pause_success'), [
             'subscription' => $this->mapSubscription($subscription),
         ], 'active');
     }
@@ -138,7 +142,7 @@ class CustomerSubscriptionController extends Controller
 
         $subscription = $this->workflow->resumeSubscription($subscription);
 
-        return $this->actionResponse($request, 'Subscription resumed successfully.', [
+        return $this->actionResponse($request, __('ui.store.subscriptions.messages.resume_success'), [
             'subscription' => $this->mapSubscription($subscription),
         ], 'active');
     }
@@ -150,7 +154,7 @@ class CustomerSubscriptionController extends Controller
 
         $subscription = $this->workflow->cancelSubscription($subscription);
 
-        return $this->actionResponse($request, 'Subscription cancelled successfully.', [
+        return $this->actionResponse($request, __('ui.store.subscriptions.messages.cancel_success'), [
             'subscription' => $this->mapSubscription($subscription),
         ], 'active');
     }
@@ -162,7 +166,7 @@ class CustomerSubscriptionController extends Controller
 
         $subscription = $this->workflow->skipNextDelivery($subscription);
 
-        return $this->actionResponse($request, 'Next delivery skipped successfully.', [
+        return $this->actionResponse($request, __('ui.store.subscriptions.messages.skip_success'), [
             'subscription' => $this->mapSubscription($subscription),
         ], 'upcoming');
     }
@@ -203,6 +207,8 @@ class CustomerSubscriptionController extends Controller
             'delivery_days_label' => $this->deliveryDaysLabel($subscriptionRequest->frequency, $subscriptionRequest->delivery_days ?? []),
             'start_date' => optional($subscriptionRequest->start_date)->toDateString(),
             'start_date_label' => optional($subscriptionRequest->start_date)->format('d M Y'),
+            'end_date' => optional($subscriptionRequest->end_date)->toDateString(),
+            'end_date_label' => optional($subscriptionRequest->end_date)->format('d M Y'),
             'delivery_address' => $subscriptionRequest->delivery_address,
             'notes' => $subscriptionRequest->notes,
             'offered_price' => (float) $subscriptionRequest->offered_price,
@@ -239,6 +245,8 @@ class CustomerSubscriptionController extends Controller
             'delivery_days_label' => $this->deliveryDaysLabel($subscription->frequency, $subscription->delivery_days ?? []),
             'start_date' => optional($subscription->start_date)->toDateString(),
             'start_date_label' => optional($subscription->start_date)->format('d M Y'),
+            'end_date' => optional($subscription->end_date)->toDateString(),
+            'end_date_label' => optional($subscription->end_date)->format('d M Y'),
             'delivery_address' => $subscription->delivery_address,
             'notes' => $subscription->notes,
         ];
@@ -247,7 +255,9 @@ class CustomerSubscriptionController extends Controller
     protected function mapSubscription(Subscription $subscription): array
     {
         $subscription->loadMissing(['items.product.currentPrice', 'items.pack', 'request']);
-        $status = strtolower((string) $subscription->status);
+        $displayStatus = $this->periods->displayStatus($subscription);
+        $statusLabel = $displayStatus['status'];
+        $status = strtolower(str_replace(' ', '_', $statusLabel));
         $price = (float) ($subscription->agreed_price ?: $subscription->value ?: 0);
         $forecast = $this->workflow->forecastCostForSubscription($subscription);
         $upcomingDates = $this->workflow->previewSubscriptionDates($subscription, 3)
@@ -261,7 +271,7 @@ class CustomerSubscriptionController extends Controller
             'id' => $subscription->id,
             'name' => $this->subscriptionName($subscription),
             'status' => $status,
-            'status_label' => (string) $subscription->status,
+            'status_label' => $statusLabel,
             'frequency' => $subscription->frequency,
             'delivery_days' => $subscription->delivery_days ?? [],
             'delivery_days_label' => $this->deliveryDaysLabel($subscription->frequency, $subscription->delivery_days ?? []),
@@ -272,6 +282,8 @@ class CustomerSubscriptionController extends Controller
             'notes' => $subscription->notes,
             'start_date' => optional($subscription->start_date)->toDateString(),
             'start_date_label' => optional($subscription->start_date)->format('d M Y'),
+            'end_date' => optional($subscription->end_date)->toDateString(),
+            'end_date_label' => optional($subscription->end_date)->format('d M Y'),
             'items' => $this->subscriptionItems($subscription)->map(fn (array $item) => $item)->values(),
             'item_count' => $this->subscriptionItems($subscription)->count(),
             'upcoming_dates' => $upcomingDates,
@@ -281,7 +293,7 @@ class CustomerSubscriptionController extends Controller
             'estimated_monthly_deliveries' => (int) $forecast['monthly_deliveries'],
             'can_pause' => $status === 'active',
             'can_resume' => $status === 'paused',
-            'can_cancel' => $status !== 'cancelled',
+            'can_cancel' => ! in_array($status, ['cancelled', 'expired'], true),
             'can_skip_next_delivery' => $status === 'active',
             'request' => $subscription->request ? [
                 'id' => $subscription->request->id,

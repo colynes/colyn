@@ -185,7 +185,7 @@ export default function Home({ categories = [], products = [], cart, activeCateg
     pickupHours,
     localeTag,
     daysLabel: t('customer_footer.contact.hours_days', 'Mon - Sat'),
-  }) || t('frontend.home.footer.hours', 'Mon - Sat, 7:00 AM - 7:00 PM');
+  }) || t('frontend.home.footer.hours', 'Mon - Sat, 07:00 - 19:00');
 
   const navLinks = [
     { label: t('frontend.home.nav.products', 'Products'), href: '/products' },

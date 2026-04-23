@@ -21,7 +21,7 @@ class ProcessSubscriptionDeliveries extends Command
 {
     protected $signature = 'subscriptions:generate-orders';
 
-    protected $description = 'Generate due subscription orders, recover missed dates safely, and advance next delivery.';
+    protected $description = 'Generate due subscription orders safely and advance next delivery.';
 
     public function handle(): int
     {
@@ -38,6 +38,11 @@ class ProcessSubscriptionDeliveries extends Command
             ->with(['items.product', 'items.pack'])
             ->whereRaw('LOWER(status) = ?', ['active'])
             ->whereNotNull('next_delivery')
+            ->where(function ($query) use ($today) {
+                $query
+                    ->whereNull('end_date')
+                    ->orWhereDate('end_date', '>=', $today->toDateString());
+            })
             ->whereDate('next_delivery', '<=', $today->toDateString())
             ->orderBy('next_delivery')
             ->get();
@@ -67,55 +72,62 @@ class ProcessSubscriptionDeliveries extends Command
                 continue;
             }
 
-            while ($dueDate->lte($today)) {
-                $alreadyLogged = SubscriptionOrderLog::query()
-                    ->where('subscription_id', $subscription->id)
-                    ->whereDate('delivery_date', $dueDate->toDateString())
-                    ->exists();
-
-                if ($alreadyLogged) {
-                    $dueDate = SubscriptionScheduler::nextDeliveryDate(
-                        (string) $subscription->frequency,
-                        (array) ($subscription->delivery_days ?? []),
-                        $dueDate->copy()->addDay()
-                    );
-
-                    continue;
-                }
-
-                $subtotal = round((float) $lineItems->sum('subtotal'), 2);
-
-                [$order] = DB::transaction(function () use ($subscription, $customerId, $branchId, $dueDate, $lineItems, $subtotal) {
-                    $order = $this->createOrderWithUniqueNumber(
-                        $subscription,
-                        $customerId,
-                        $branchId,
-                        $dueDate,
-                        $lineItems,
-                        $subtotal
-                    );
-
-                    SubscriptionOrderLog::create([
-                        'subscription_id' => $subscription->id,
-                        'order_id' => $order->id,
-                        'delivery_date' => $dueDate->toDateString(),
-                    ]);
-
-                    return [$order];
-                });
-
-                $this->notifyBackofficeUsers($order);
-                $createdCount++;
-
+            if ($dueDate->lt($today)) {
                 $dueDate = SubscriptionScheduler::nextDeliveryDate(
                     (string) $subscription->frequency,
                     (array) ($subscription->delivery_days ?? []),
-                    $dueDate->copy()->addDay()
+                    $today->copy()
                 );
             }
 
+            if ($this->isBeyondSubscriptionPeriod($subscription, $dueDate)) {
+                $subscription->update(['next_delivery' => null]);
+                continue;
+            }
+
+            if ($dueDate->gt($today)) {
+                $subscription->update(['next_delivery' => $dueDate->toDateString()]);
+                continue;
+            }
+
+            $alreadyLogged = SubscriptionOrderLog::query()
+                ->where('subscription_id', $subscription->id)
+                ->whereDate('delivery_date', $dueDate->toDateString())
+                ->exists();
+
+            if ($alreadyLogged) {
+                $subscription->update([
+                    'next_delivery' => $this->nextDeliveryAfter($subscription, $dueDate),
+                ]);
+                continue;
+            }
+
+            $subtotal = round((float) $lineItems->sum('subtotal'), 2);
+
+            [$order] = DB::transaction(function () use ($subscription, $customerId, $branchId, $dueDate, $lineItems, $subtotal) {
+                $order = $this->createOrderWithUniqueNumber(
+                    $subscription,
+                    $customerId,
+                    $branchId,
+                    $dueDate,
+                    $lineItems,
+                    $subtotal
+                );
+
+                SubscriptionOrderLog::create([
+                    'subscription_id' => $subscription->id,
+                    'order_id' => $order->id,
+                    'delivery_date' => $dueDate->toDateString(),
+                ]);
+
+                return [$order];
+            });
+
+            $this->notifyBackofficeUsers($order);
+            $createdCount++;
+
             $subscription->update([
-                'next_delivery' => $dueDate->toDateString(),
+                'next_delivery' => $this->nextDeliveryAfter($subscription, $dueDate),
             ]);
         }
 
@@ -264,11 +276,29 @@ class ProcessSubscriptionDeliveries extends Command
         return $prefix . str_pad((string) ($lastSequence + 1), 4, '0', STR_PAD_LEFT);
     }
 
+    protected function nextDeliveryAfter(Subscription $subscription, $dueDate): ?string
+    {
+        $next = SubscriptionScheduler::nextDeliveryDate(
+            (string) $subscription->frequency,
+            (array) ($subscription->delivery_days ?? []),
+            $dueDate->copy()->addDay()
+        );
+
+        return $this->isBeyondSubscriptionPeriod($subscription, $next)
+            ? null
+            : $next->toDateString();
+    }
+
+    protected function isBeyondSubscriptionPeriod(Subscription $subscription, $date): bool
+    {
+        return $subscription->end_date
+            && $date->copy()->startOfDay()->gt($subscription->end_date->copy()->startOfDay());
+    }
+
     protected function notifyBackofficeUsers(Order $order): void
     {
-        User::query()
+        BackofficeAccess::usersQuery()
             ->get()
-            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(function (User $user) use ($order) {
                 try {
                     $user->notify(new NewOrderPlacedNotification($order));

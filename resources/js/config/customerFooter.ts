@@ -186,7 +186,7 @@ export const customerFooterContactItems: FooterContactItem[] = [
     labelKey: 'customer_footer.contact.hours_label',
     fallbackLabel: 'Working hours',
     valueKey: 'customer_footer.contact.hours_value',
-    fallbackValue: 'Mon - Sat, 7:00 AM - 7:00 PM',
+    fallbackValue: 'Mon - Sat, 07:00 - 19:00',
     icon: Clock3,
   },
 ];

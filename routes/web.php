@@ -101,11 +101,9 @@ Route::middleware('auth')->group(function () {
         Route::delete('/orders/{order}', [OperationsController::class, 'destroyOrder'])->name('orders.destroy');
 
         Route::get('/invoices/orders/{order}', [InvoiceController::class, 'showForOrder'])->name('invoices.orders.show');
-        Route::get('/invoices/orders/{order}/download', [InvoiceController::class, 'downloadForOrder'])->name('invoices.orders.download');
         Route::get('/invoices/orders/{order}/print', [InvoiceController::class, 'printForOrder'])->name('invoices.orders.print');
         Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
         Route::get('/invoices/{invoice}/html', [InvoiceController::class, 'html'])->name('invoices.html');
-        Route::get('/invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
         Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])->name('invoices.print');
 
         Route::get('/dashboard/packs', [OperationsController::class, 'packs'])->name('dashboard.packs');
@@ -118,7 +116,6 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/reports', [OperationsController::class, 'reports'])->name('reports');
         Route::get('/reports/export/csv', [OperationsController::class, 'exportReportsCsv'])->name('reports.export.csv');
-        Route::get('/reports/export/pdf', [OperationsController::class, 'exportReportsPdf'])->name('reports.export.pdf');
 
         Route::get('/customers', [OperationsController::class, 'customers'])->name('customers');
 
@@ -133,6 +130,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/fat-clients/subscriptions', [OperationsController::class, 'subscriptions'])->name('fat-clients.subscriptions');
         Route::post('/fat-clients/subscriptions', [OperationsController::class, 'storeSubscription'])->name('fat-clients.subscriptions.store');
         Route::put('/fat-clients/subscriptions/{subscription}', [OperationsController::class, 'updateSubscription'])->name('fat-clients.subscriptions.update');
+        Route::patch('/fat-clients/subscriptions/{subscription}/renew', [OperationsController::class, 'renewSubscription'])->name('fat-clients.subscriptions.renew');
         Route::delete('/fat-clients/subscriptions/{subscription}', [OperationsController::class, 'destroySubscription'])->name('fat-clients.subscriptions.destroy');
         Route::patch('/fat-clients/subscription-requests/{subscriptionRequest}/quote', [SubscriptionRequestController::class, 'quote'])->name('fat-clients.subscription-requests.quote');
 
@@ -141,6 +139,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/fat-clients/billing', [OperationsController::class, 'storeInvoice'])->name('fat-clients.billing.store');
         Route::get('/fat-clients/billing/{invoice}/edit', [OperationsController::class, 'editInvoice'])->name('fat-clients.billing.edit');
         Route::put('/fat-clients/billing/{invoice}', [OperationsController::class, 'updateInvoice'])->name('fat-clients.billing.update');
+        Route::patch('/fat-clients/billing/{invoice}/send', [OperationsController::class, 'sendInvoice'])->name('fat-clients.billing.send');
         Route::delete('/fat-clients/billing/{invoice}', [OperationsController::class, 'destroyInvoice'])->name('fat-clients.billing.destroy');
 
         Route::prefix('inventory')->as('inventory.')->group(function () {

@@ -34,7 +34,7 @@ return [
         'email_value' => 'info@amanibrew.com',
         'hours_label' => 'Saa za kazi',
         'hours_days' => 'Jumatatu - Jumamosi',
-        'hours_value' => 'Jumatatu - Jumamosi, 7:00 AM - 7:00 PM',
+        'hours_value' => 'Jumatatu - Jumamosi, 07:00 - 19:00',
     ],
     'social' => [
         'instagram' => 'Instagram',

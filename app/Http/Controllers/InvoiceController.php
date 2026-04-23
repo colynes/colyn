@@ -4,9 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Invoice;
 use App\Models\Order;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class InvoiceController extends Controller
@@ -48,25 +46,6 @@ class InvoiceController extends Controller
         ]);
     }
 
-    public function download(Invoice $invoice)
-    {
-        $this->ensureBackoffice();
-
-        $invoice = $this->hydrateInvoice($invoice);
-        $payload = $this->templatePayload($invoice);
-        $pdf = Pdf::loadView('invoices.invoice', [
-            'invoice' => $payload,
-            'printMode' => false,
-        ])->setPaper('a4');
-
-        Storage::disk('public')->put(
-            'invoices/' . $invoice->invoice_number . '.pdf',
-            $pdf->output()
-        );
-
-        return $pdf->download($invoice->invoice_number . '.pdf');
-    }
-
     public function showForOrder(Order $order)
     {
         $this->ensureBackoffice();
@@ -74,15 +53,6 @@ class InvoiceController extends Controller
         $invoice = $this->ensureInvoiceForOrder($order);
 
         return redirect()->route('invoices.show', $invoice);
-    }
-
-    public function downloadForOrder(Order $order)
-    {
-        $this->ensureBackoffice();
-
-        $invoice = $this->ensureInvoiceForOrder($order);
-
-        return $this->download($invoice);
     }
 
     public function printForOrder(Order $order)
@@ -145,7 +115,7 @@ class InvoiceController extends Controller
 
     protected function hydrateInvoice(Invoice $invoice): Invoice
     {
-        return $invoice->loadMissing(['items.product', 'payments', 'order.customer']);
+        return $invoice->loadMissing(['items.product', 'payments', 'order.customer', 'subscription.customer', 'subscription.request']);
     }
 
     protected function previewPayload(Invoice $invoice): array
@@ -154,12 +124,11 @@ class InvoiceController extends Controller
             'id' => $invoice->id,
             'invoice_number' => $invoice->invoice_number,
             'status' => strtolower((string) $invoice->status),
-            'customer_name' => $invoice->customer_name ?: $invoice->order?->customer?->full_name,
+            'customer_name' => $invoice->customer_name ?: $invoice->subscription?->customer?->full_name ?: $invoice->order?->customer?->full_name,
             'invoice_date' => optional($invoice->invoice_date)->format('d/m/Y'),
             'due_date' => optional($invoice->due_date)->format('Y-m-d'),
             'total' => (float) $invoice->total,
             'preview_url' => route('invoices.html', $invoice),
-            'download_url' => route('invoices.download', $invoice),
             'print_url' => route('invoices.print', $invoice),
         ];
     }
@@ -185,13 +154,13 @@ class InvoiceController extends Controller
             'due_date' => optional($invoice->due_date)->format('d/m/Y'),
             'tin_number' => $invoice->tin_number,
             'bill_to' => [
-                'name' => $invoice->customer_name ?: $invoice->order?->customer?->full_name ?: 'Customer Name',
+                'name' => $invoice->customer_name ?: $invoice->subscription?->customer?->full_name ?: $invoice->order?->customer?->full_name ?: 'Customer Name',
                 'contact' => $invoice->customer_contact,
                 'address' => $invoice->bill_to_address,
                 'city' => $invoice->customer_city ?: 'Dar es Salaam, TZ',
             ],
             'deliver_to' => [
-                'name' => $invoice->deliver_to_name ?: $invoice->customer_name ?: 'Customer Name',
+                'name' => $invoice->deliver_to_name ?: $invoice->customer_name ?: $invoice->subscription?->customer?->full_name ?: 'Customer Name',
                 'address' => $invoice->deliver_to_address ?: 'Same Address',
             ],
             'items' => $invoice->items->values()->map(fn ($item, $index) => [

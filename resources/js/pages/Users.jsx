@@ -18,6 +18,47 @@ const statusTone = {
   Active: 'bg-slate-100 text-slate-700',
 };
 
+const TIME_HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'));
+const TIME_MINUTES = Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0'));
+
+function splitTime(value, fallback) {
+  const source = /^\d{2}:\d{2}$/.test(String(value || '')) ? String(value) : fallback;
+
+  return source.split(':');
+}
+
+function TimeSelectField({ label, value, fallback, onChange, error }) {
+  const [hour, minute] = splitTime(value, fallback);
+
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-semibold text-[#3a2513]">{label}</label>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <select
+          value={hour}
+          onChange={(event) => onChange(`${event.target.value}:${minute}`)}
+          className="h-12 w-full rounded-xl border border-[#dcccba] bg-white px-3 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+        >
+          {TIME_HOURS.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+        <span className="text-[1.1rem] font-semibold text-[#73563a]">:</span>
+        <select
+          value={minute}
+          onChange={(event) => onChange(`${hour}:${event.target.value}`)}
+          className="h-12 w-full rounded-xl border border-[#dcccba] bg-white px-3 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
+        >
+          {TIME_MINUTES.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      </div>
+      {error ? <p className="mt-2 text-xs text-red-500">{error}</p> : null}
+    </div>
+  );
+}
+
 function UserModal({ user, roles, onClose }) {
   const isEditing = Boolean(user?.id);
   const [showPassword, setShowPassword] = useState(false);
@@ -421,27 +462,21 @@ export default function Users({ auth, users, roles = [], filters = {}, pickupHou
               </div>
 
               <form onSubmit={submitPickupHours} className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#3a2513]">Opening Time</label>
-                  <input
-                    type="time"
-                    value={pickupHoursForm.data.pickup_open_time}
-                    onChange={(e) => pickupHoursForm.setData('pickup_open_time', e.target.value)}
-                    className="h-12 w-full rounded-xl border border-[#dcccba] bg-white px-4 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
-                  />
-                  {pickupHoursForm.errors.pickup_open_time ? <p className="mt-2 text-xs text-red-500">{pickupHoursForm.errors.pickup_open_time}</p> : null}
-                </div>
+                <TimeSelectField
+                  label="Opening Time"
+                  value={pickupHoursForm.data.pickup_open_time}
+                  fallback="08:00"
+                  onChange={(value) => pickupHoursForm.setData('pickup_open_time', value)}
+                  error={pickupHoursForm.errors.pickup_open_time}
+                />
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#3a2513]">Closing Time</label>
-                  <input
-                    type="time"
-                    value={pickupHoursForm.data.pickup_close_time}
-                    onChange={(e) => pickupHoursForm.setData('pickup_close_time', e.target.value)}
-                    className="h-12 w-full rounded-xl border border-[#dcccba] bg-white px-4 text-[1rem] text-[#3a2513] outline-none transition focus:border-[#b69066]"
-                  />
-                  {pickupHoursForm.errors.pickup_close_time ? <p className="mt-2 text-xs text-red-500">{pickupHoursForm.errors.pickup_close_time}</p> : null}
-                </div>
+                <TimeSelectField
+                  label="Closing Time"
+                  value={pickupHoursForm.data.pickup_close_time}
+                  fallback="20:00"
+                  onChange={(value) => pickupHoursForm.setData('pickup_close_time', value)}
+                  error={pickupHoursForm.errors.pickup_close_time}
+                />
 
                 <button
                   type="submit"

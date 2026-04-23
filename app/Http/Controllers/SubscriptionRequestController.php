@@ -37,7 +37,8 @@ class SubscriptionRequestController extends Controller
             'frequency' => ['required', Rule::in(['daily', 'weekly', 'weekdays', 'weekends', 'custom'])],
             'delivery_days' => ['nullable', 'array'],
             'delivery_days.*' => ['required', 'string', 'max:30'],
-            'start_date' => ['required', 'date'],
+            'start_date' => ['required', 'date', 'after_or_equal:today'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'delivery_address' => ['required', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'offered_price' => ['required', 'numeric', 'min:0'],
@@ -48,7 +49,7 @@ class SubscriptionRequestController extends Controller
         $subscriptionRequest = $this->workflow->createRequest($customer, $request->user(), $validated);
         $this->notifyRequestCreated($subscriptionRequest);
 
-        return $this->response($request, 'Subscription request submitted successfully. Our team will review it shortly.', [
+        return $this->response($request, __('ui.store.subscriptions.messages.request_submitted'), [
             'request' => [
                 'id' => $subscriptionRequest->id,
                 'request_number' => $subscriptionRequest->request_number,
@@ -65,7 +66,7 @@ class SubscriptionRequestController extends Controller
         $subscription = $this->workflow->acceptQuote($subscriptionRequest, $customer);
         $this->notifyQuoteAccepted($subscriptionRequest, $subscription);
 
-        return $this->response($request, 'Quote accepted. Your subscription is now active.', [
+        return $this->response($request, __('ui.store.subscriptions.messages.quote_accepted'), [
             'subscription' => [
                 'id' => $subscription->id,
                 'status' => $subscription->status,
@@ -82,11 +83,11 @@ class SubscriptionRequestController extends Controller
             'response_message' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $message = $validated['response_message'] ?? 'Quote rejected by customer.';
+        $message = $validated['response_message'] ?? __('ui.store.subscriptions.messages.quote_rejected_by_customer');
         $rejectedRequest = $this->workflow->rejectQuote($subscriptionRequest, $message);
         $this->notifyQuoteRejected($rejectedRequest);
 
-        return $this->response($request, 'Quote rejected. You can submit a new subscription request any time.', [], 'requests');
+        return $this->response($request, __('ui.store.subscriptions.messages.quote_rejected'), [], 'requests');
     }
 
     public function quote(Request $request, SubscriptionRequest $subscriptionRequest): RedirectResponse|JsonResponse
@@ -136,13 +137,13 @@ class SubscriptionRequestController extends Controller
 
             if ($itemType === 'product' && empty($item['product_id'])) {
                 throw ValidationException::withMessages([
-                    $fieldPath . '.product_id' => ['Select a product for this line item.'],
+                    $fieldPath . '.product_id' => [__('ui.store.subscriptions.validation.select_product')],
                 ]);
             }
 
             if ($itemType === 'pack' && empty($item['pack_id'])) {
                 throw ValidationException::withMessages([
-                    $fieldPath . '.pack_id' => ['Select a pack for this line item.'],
+                    $fieldPath . '.pack_id' => [__('ui.store.subscriptions.validation.select_pack')],
                 ]);
             }
         }
@@ -229,8 +230,8 @@ class SubscriptionRequestController extends Controller
         $agreedPrice = (float) ($subscription->agreed_price ?: $subscription->value ?: $subscriptionRequest->quoted_price ?: 0);
 
         $this->notifyUser($customer?->user, [
-            'title' => 'Subscription activated',
-            'message' => "{$subscriptionName} is now active after accepting {$requestNumber}.",
+            'title' => 'Subscription invoice created',
+            'message' => "{$subscriptionName} has a pending invoice after accepting {$requestNumber}. Payment is required before activation.",
             'kind' => 'subscription_quote_accepted',
             'status' => SubscriptionRequest::STATUS_ACCEPTED,
             'action_url' => route('customer.subscriptions.index', ['tab' => 'active']),
@@ -239,10 +240,10 @@ class SubscriptionRequestController extends Controller
 
         $this->notifyBackofficeUsers([
             'title' => 'Quote accepted by customer',
-            'message' => "{$customerName} accepted {$requestNumber}. {$subscriptionName} is now active.",
+            'message' => "{$customerName} accepted {$requestNumber}. A pending billing invoice was created for {$subscriptionName}.",
             'kind' => 'subscription_quote_accepted',
             'status' => SubscriptionRequest::STATUS_ACCEPTED,
-            'action_url' => route('fat-clients.subscriptions'),
+            'action_url' => route('fat-clients.billing'),
             'amount' => $agreedPrice,
         ]);
     }
@@ -286,9 +287,8 @@ class SubscriptionRequestController extends Controller
             return;
         }
 
-        User::query()
+        BackofficeAccess::usersQuery()
             ->get()
-            ->filter(fn (User $user) => BackofficeAccess::hasBackofficeAccess($user))
             ->each(fn (User $user) => $user->notify(new SystemAlertNotification($payload)));
     }
 

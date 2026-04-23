@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $invoice['invoice_number'] }}</title>
+    <title>{{ !empty($printMode) ? ' ' : $invoice['invoice_number'] }}</title>
     <style>
         @page {
             size: A4;
-            margin: 20mm 16mm;
+            margin: {{ !empty($printMode) ? '0' : '20mm 16mm' }};
         }
 
         body {
@@ -249,30 +249,26 @@
             line-height: 1.7;
         }
 
-        .status-badge {
-            display: inline-block;
-            margin-top: 6px;
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            background: #d9f7e5;
-            color: #17734f;
-        }
-
-        .status-pending { background: #fdeacc; color: #b66100; }
-        .status-overdue { background: #ffe0df; color: #c53030; }
-        .status-draft { background: #eceff3; color: #5f6b7a; }
-        .status-sent { background: #dce9ff; color: #1d4ed8; }
-
         @media print {
+            @page {
+                size: A4;
+                margin: 0;
+            }
+
+            html,
             body {
+                width: 210mm;
+                min-height: 297mm;
                 background: #fff;
             }
+
             .page {
-                padding: 0;
+                width: 210mm;
+                min-height: 297mm;
+                max-width: none;
+                margin: 0;
+                box-sizing: border-box;
+                padding: 18mm 16mm 14mm;
                 box-shadow: none;
             }
         }
@@ -280,6 +276,7 @@
     @if(!empty($printMode))
         <script @if(!empty($cspNonce)) nonce="{{ $cspNonce }}" @endif>
             window.onload = function () {
+                document.title = ' ';
                 window.print();
             };
         </script>
@@ -303,7 +300,6 @@
                     <p class="meta-line"><strong>Due Date:</strong> {{ $invoice['due_date'] }}</p>
                 @endif
                 <p class="meta-line"><strong>TIN No:</strong> {{ $invoice['tin_number'] ?: 'N/A' }}</p>
-                <span class="status-badge status-{{ $invoice['status'] }}">{{ $invoice['status'] }}</span>
             </div>
         </div>
 
